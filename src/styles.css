@@ -1287,6 +1287,12 @@ select:focus {
   color: var(--navy);
   font-size: var(--text-sm);
 }
+.column-search {
+  min-height: 34px;
+  padding-inline: 9px;
+  border-radius: 7px;
+  font-size: var(--text-sm);
+}
 .column-picker label {
   min-height: 32px;
   padding: 0 5px;
@@ -1353,6 +1359,9 @@ select:focus {
   flex: 0 0 auto;
   color: #9aa7b7;
 }
+.repasse-grid-header > svg:last-of-type {
+  margin-left: auto;
+}
 .repasse-grid-header span {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1401,6 +1410,26 @@ select:focus {
 }
 .repasse-grid-row.is-pending .cell-valorRepasse {
   background: #fff8eb;
+}
+.repasse-grid-header.is-pinned,
+.repasse-grid-cell.is-pinned {
+  position: sticky;
+  z-index: 3;
+}
+.repasse-grid-header.is-pinned {
+  background: #f0f5ff;
+  box-shadow:
+    2px 0 0 #d9e5fb,
+    8px 0 14px rgba(0, 26, 61, 0.04);
+}
+.repasse-grid-cell.is-pinned {
+  background: inherit;
+  box-shadow:
+    2px 0 0 #e5ebf3,
+    8px 0 14px rgba(0, 26, 61, 0.025);
+}
+.repasse-grid-row.is-pending .repasse-grid-cell.is-pinned {
+  background: #fffdf9;
 }
 .repasse-grid-cell {
   min-width: 0;
@@ -1472,6 +1501,9 @@ select:focus {
   .repasse-grid-row:hover {
     background: #f8fafd;
     box-shadow: inset 3px 0 #8ba9e7;
+  }
+  .repasse-grid-row:hover .repasse-grid-cell.is-pinned {
+    background: #f8fafd;
   }
   .repasse-grid-header:hover {
     color: #285db5;
