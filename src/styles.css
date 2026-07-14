@@ -1549,7 +1549,7 @@ select:focus {
   gap: 12px;
   border-bottom: 1px solid #e5ebf1;
   border-radius: 12px 12px 0 0;
-  background: linear-gradient(100deg, #fff 0%, #f5f8fd 100%);
+  background: #f7f9fc;
 }
 .repasse-grid-summary {
   min-width: 0;
