@@ -1,0 +1,2338 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pagamento de Fornecedores</title>
+<style>
+  /* ── Reset & Base ─────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --c-brand:      #0078d4;
+    --c-brand-hov:  #106ebe;
+    --c-brand-lit:  #deecf9;
+    --c-bg:         #f3f2f1;
+    --c-surface:    #ffffff;
+    --c-border:     #edebe9;
+    --c-border2:    #d2d0ce;
+    --c-text:       #201f1e;
+    --c-text2:      #605e5c;
+    --c-text3:      #a19f9d;
+    --c-green:      #107c10;
+    --c-green-bg:   #dff6dd;
+    --c-yellow:     #835b00;
+    --c-yellow-bg:  #fff4ce;
+    --c-red:        #a4262c;
+    --c-red-bg:     #fde7e9;
+    --c-blue-bg:    #eff6fc;
+    --radius:       6px;
+    --shadow-sm:    0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+    --shadow-md:    0 4px 12px rgba(0,0,0,.1);
+    --shadow-lg:    0 8px 32px rgba(0,0,0,.16);
+    --trans:        0.18s ease;
+  }
+
+  html, body {
+    height: 100%;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    background: var(--c-bg);
+    color: var(--c-text);
+    line-height: 1.5;
+  }
+
+  /* ── Layout ──────────────────────────────────────────────────────── */
+  #app { display: flex; flex-direction: column; height: 100%; }
+
+  #header {
+    background: var(--c-surface);
+    border-bottom: 1px solid var(--c-border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    height: 52px;
+    flex-shrink: 0;
+    box-shadow: var(--shadow-sm);
+  }
+  #header h1 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--c-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #header h1 svg { color: var(--c-brand); }
+
+  /* ── Tabs ────────────────────────────────────────────────────────── */
+  #tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0 24px;
+    background: var(--c-surface);
+    border-bottom: 1px solid var(--c-border);
+    flex-shrink: 0;
+  }
+  .tab-btn {
+    padding: 12px 18px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--c-text2);
+    cursor: pointer;
+    transition: color var(--trans), border-color var(--trans);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    position: relative;
+    white-space: nowrap;
+  }
+  .tab-btn:hover { color: var(--c-text); }
+  .tab-btn.active {
+    color: var(--c-brand);
+    border-bottom-color: var(--c-brand);
+    font-weight: 600;
+  }
+  .tab-badge {
+    background: var(--c-brand);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    padding: 0 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform var(--trans), opacity var(--trans);
+  }
+  .tab-badge[data-count="0"] { opacity: 0; transform: scale(0.6); }
+
+  /* ── Panels ──────────────────────────────────────────────────────── */
+  #panels { flex: 1; overflow: hidden; position: relative; }
+  .panel {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    padding: 20px 24px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(6px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .panel.active {
+    opacity: 1;
+    pointer-events: all;
+    transform: translateY(0);
+  }
+
+  /* ── Cards ───────────────────────────────────────────────────────── */
+  .card {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* ── Filter bar ──────────────────────────────────────────────────── */
+  .filter-bar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    padding: 14px 16px;
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+    box-shadow: var(--shadow-sm);
+  }
+  .field-group { display: flex; flex-direction: column; gap: 4px; }
+  .field-group label { font-size: 12px; font-weight: 600; color: var(--c-text2); }
+  .field-group input, .field-group select {
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--c-border2);
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--c-text);
+    background: var(--c-surface);
+    transition: border-color var(--trans), box-shadow var(--trans);
+    outline: none;
+    min-width: 120px;
+  }
+  .field-group input:focus, .field-group select:focus {
+    border-color: var(--c-brand);
+    box-shadow: 0 0 0 2px rgba(0,120,212,.15);
+  }
+  .filter-bar .field-group:last-child { margin-left: auto; }
+
+  /* ── Buttons ─────────────────────────────────────────────────────── */
+  .btn {
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background var(--trans), color var(--trans), box-shadow var(--trans), transform var(--trans);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary {
+    background: var(--c-brand);
+    color: #fff;
+    border-color: var(--c-brand);
+  }
+  .btn-primary:hover { background: var(--c-brand-hov); }
+  .btn-primary:disabled { background: #c8c6c4; border-color: #c8c6c4; cursor: not-allowed; transform: none; }
+  .btn-outline {
+    background: transparent;
+    color: var(--c-brand);
+    border-color: var(--c-brand);
+  }
+  .btn-outline:hover { background: var(--c-brand-lit); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--c-text2);
+    border-color: transparent;
+  }
+  .btn-ghost:hover { background: var(--c-bg); color: var(--c-text); }
+  .btn-danger { background: var(--c-red); color: #fff; border-color: var(--c-red); }
+  .btn-danger:hover { background: #8e1c21; }
+  .btn-success { background: var(--c-green); color: #fff; border-color: var(--c-green); }
+  .btn-success:hover { background: #0a5f0a; }
+  .btn-sm { height: 26px; padding: 0 10px; font-size: 12px; }
+
+  /* ── Table ───────────────────────────────────────────────────────── */
+  .table-wrap {
+    overflow-x: auto;
+    border-radius: var(--radius);
+    border: 1px solid var(--c-border);
+    box-shadow: var(--shadow-sm);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--c-surface);
+    min-width: 900px;
+  }
+  thead th {
+    background: #faf9f8;
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--c-text2);
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    border-bottom: 1px solid var(--c-border);
+    white-space: nowrap;
+    user-select: none;
+  }
+  thead th.sortable { cursor: pointer; }
+  thead th.sortable:hover { background: #f3f2f1; color: var(--c-text); }
+  tbody tr {
+    border-bottom: 1px solid var(--c-border);
+    transition: background var(--trans);
+  }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #faf9f8; }
+  tbody tr.selected { background: var(--c-blue-bg) !important; }
+  tbody tr.in-op { opacity: .55; }
+  td {
+    padding: 10px 12px;
+    font-size: 13px;
+    vertical-align: middle;
+  }
+  td.muted { color: var(--c-text3); font-style: italic; }
+
+  /* ── Checkbox ────────────────────────────────────────────────────── */
+  input[type="checkbox"] {
+    width: 16px; height: 16px;
+    accent-color: var(--c-brand);
+    cursor: pointer;
+  }
+
+  /* ── Inline value input ──────────────────────────────────────────── */
+  .val-input {
+    width: 100px;
+    height: 28px;
+    padding: 0 8px;
+    border: 1px solid var(--c-border2);
+    border-radius: 4px;
+    font-size: 13px;
+    text-align: right;
+    transition: border-color var(--trans), box-shadow var(--trans);
+    outline: none;
+  }
+  .val-input:focus {
+    border-color: var(--c-brand);
+    box-shadow: 0 0 0 2px rgba(0,120,212,.15);
+  }
+  .val-input:disabled { background: #f3f2f1; color: var(--c-text3); }
+
+  /* ── Margin pill ─────────────────────────────────────────────────── */
+  .margin-wrap { display: flex; align-items: center; gap: 8px; }
+  .m-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    transition: background var(--trans), color var(--trans);
+  }
+  .m-pill.green { background: var(--c-green-bg); color: var(--c-green); }
+  .m-pill.yellow { background: var(--c-yellow-bg); color: var(--c-yellow); }
+  .m-pill.red { background: var(--c-red-bg); color: var(--c-red); }
+  .m-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .m-pill.green .dot { background: var(--c-green); }
+  .m-pill.yellow .dot { background: #c19c00; }
+  .m-pill.red .dot { background: var(--c-red); }
+  .m-vals { font-size: 12px; color: var(--c-text2); }
+
+  /* ── Status badges ───────────────────────────────────────────────── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge-pending { background: var(--c-yellow-bg); color: var(--c-yellow); }
+  .badge-inop    { background: #eff6fc; color: #005a9e; }
+  .badge-paid    { background: var(--c-green-bg); color: var(--c-green); }
+  .badge-gray    { background: #f3f2f1; color: var(--c-text2); }
+
+  /* ── Bottom cart bar ─────────────────────────────────────────────── */
+  #cart-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--c-surface);
+    border-top: 2px solid var(--c-brand);
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 -4px 16px rgba(0,0,0,.1);
+    transform: translateY(100%);
+    transition: transform 0.25s cubic-bezier(.34,1.4,.64,1);
+    z-index: 40;
+  }
+  #cart-bar.visible { transform: translateY(0); }
+  #cart-bar .cart-info { flex: 1; }
+  #cart-bar .cart-info strong { font-size: 14px; }
+  #cart-bar .cart-info span { font-size: 13px; color: var(--c-text2); margin-left: 8px; }
+
+  /* ── Carrinho (tab 2) ────────────────────────────────────────────── */
+  .supplier-group {
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius);
+    background: var(--c-surface);
+    margin-bottom: 14px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--trans);
+  }
+  .supplier-group:hover { box-shadow: var(--shadow-md); }
+  .sg-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: #faf9f8;
+    border-bottom: 1px solid var(--c-border);
+  }
+  .sg-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--c-brand-lit);
+    color: var(--c-brand);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px;
+    flex-shrink: 0;
+  }
+  .sg-name { font-weight: 600; font-size: 14px; }
+  .sg-meta { font-size: 12px; color: var(--c-text2); margin-top: 1px; }
+  .sg-total {
+    margin-left: auto;
+    text-align: right;
+  }
+  .sg-total .amount {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--c-brand);
+  }
+  .sg-total .label { font-size: 11px; color: var(--c-text3); }
+  .sg-actions { display: flex; gap: 8px; align-items: center; margin-left: 12px; }
+
+  /* ── Ordens de Pagamento (tab 3) ─────────────────────────────────── */
+  .op-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .stat-card .s-val {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--c-text);
+    line-height: 1.2;
+  }
+  .stat-card .s-label { font-size: 12px; color: var(--c-text2); margin-top: 2px; }
+
+  /* ── Empty state ─────────────────────────────────────────────────── */
+  .empty {
+    text-align: center;
+    padding: 56px 24px;
+    color: var(--c-text2);
+  }
+  .empty svg { opacity: .35; margin-bottom: 12px; }
+  .empty p { font-size: 15px; font-weight: 600; color: var(--c-text); margin-bottom: 4px; }
+  .empty span { font-size: 13px; }
+
+  /* ── Loading skeleton ────────────────────────────────────────────── */
+  .skeleton {
+    background: linear-gradient(90deg, #f0eeec 25%, #e5e3e0 50%, #f0eeec 75%);
+    background-size: 400% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: 4px;
+  }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+
+  /* ── Modal ───────────────────────────────────────────────────────── */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .overlay.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--c-surface);
+    border-radius: 8px;
+    width: min(520px, calc(100vw - 32px));
+    box-shadow: var(--shadow-lg);
+    transform: translateY(16px) scale(.97);
+    transition: transform 0.22s cubic-bezier(.34,1.3,.64,1);
+    overflow: hidden;
+  }
+  .overlay.open .modal { transform: translateY(0) scale(1); }
+  .modal-header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--c-border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .modal-header h3 { font-size: 16px; font-weight: 600; flex: 1; }
+  .modal-body { padding: 20px; }
+  .modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--c-border);
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  /* ── Form fields ─────────────────────────────────────────────────── */
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .form-row.single { grid-template-columns: 1fr; }
+  .form-field { display: flex; flex-direction: column; gap: 4px; }
+  .form-field label { font-size: 12px; font-weight: 600; color: var(--c-text2); }
+  .form-field input, .form-field select, .form-field textarea {
+    padding: 6px 10px;
+    border: 1px solid var(--c-border2);
+    border-radius: 4px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color var(--trans), box-shadow var(--trans);
+    font-family: inherit;
+    color: var(--c-text);
+  }
+  .form-field input:focus, .form-field select:focus, .form-field textarea:focus {
+    border-color: var(--c-brand);
+    box-shadow: 0 0 0 2px rgba(0,120,212,.15);
+  }
+  .form-field textarea { resize: vertical; min-height: 72px; }
+  .form-field .hint { font-size: 11px; color: var(--c-text3); }
+
+  /* ── Warning banner ──────────────────────────────────────────────── */
+  .warn-banner {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .warn-banner.yellow { background: var(--c-yellow-bg); color: var(--c-yellow); border-left: 3px solid #c19c00; }
+  .warn-banner.red    { background: var(--c-red-bg); color: var(--c-red); border-left: 3px solid var(--c-red); }
+  .warn-banner.blue   { background: var(--c-blue-bg); color: #004e8c; border-left: 3px solid #005a9e; }
+
+  /* ── Notification toast ──────────────────────────────────────────── */
+  #toast-area {
+    position: fixed; bottom: 72px; right: 20px;
+    display: flex; flex-direction: column; gap: 8px;
+    z-index: 200;
+  }
+  .toast {
+    background: #323130;
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 4px;
+    font-size: 13px;
+    display: flex; align-items: center; gap: 10px;
+    box-shadow: var(--shadow-md);
+    animation: slideIn 0.25s ease forwards;
+    max-width: 340px;
+  }
+  .toast.success { border-left: 3px solid var(--c-green); }
+  .toast.error   { border-left: 3px solid var(--c-red); }
+  .toast.info    { border-left: 3px solid var(--c-brand); }
+  @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes fadeOut { to { opacity: 0; transform: scale(.92); } }
+
+  /* ── Misc ────────────────────────────────────────────────────────── */
+  .select-all-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--c-border); background: #faf9f8; font-size: 13px; color: var(--c-text2); }
+  .divider { height: 1px; background: var(--c-border); margin: 12px 0; }
+  .text-right { text-align: right; }
+  .font-mono { font-family: "Cascadia Code", "Consolas", monospace; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: var(--c-bg); border: 1px solid var(--c-border2); border-radius: 12px; font-size: 12px; color: var(--c-text2); }
+  .op-row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .info-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--c-text2); }
+  .detail-list dt { font-size: 11px; font-weight: 700; color: var(--c-text3); text-transform: uppercase; letter-spacing: .04em; }
+  .detail-list dd { font-size: 13px; margin-bottom: 10px; }
+  #loading-overlay {
+    position: fixed; inset: 0; background: rgba(255,255,255,.75);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 300; gap: 12px; font-size: 14px; color: var(--c-text2);
+    opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  #loading-overlay.show { opacity: 1; pointer-events: all; }
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid var(--c-border2);
+    border-top-color: var(--c-brand);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── OP Detail Panel ─────────────────────────────────────────────── */
+  .side-panel {
+    position: fixed; right: 0; top: 0; bottom: 0;
+    width: min(480px, 100vw);
+    background: var(--c-surface);
+    border-left: 1px solid var(--c-border);
+    box-shadow: -4px 0 24px rgba(0,0,0,.12);
+    z-index: 90;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(.34,1.1,.64,1);
+    display: flex; flex-direction: column;
+  }
+  .side-panel.open { transform: none; }
+  .sp-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--c-border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sp-header h3 { font-size: 15px; font-weight: 600; flex: 1; }
+  .sp-body { flex: 1; overflow-y: auto; padding: 20px; }
+  .sp-footer { padding: 12px 20px; border-top: 1px solid var(--c-border); display: flex; gap: 8px; }
+
+  .adj-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid var(--c-border);
+  }
+  .adj-row:last-child { border-bottom: none; }
+  .adj-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--c-brand);
+    flex-shrink: 0; margin-top: 5px;
+  }
+
+  /* ── Print / PDF ─────────────────────────────────────────────────── */
+  #print-template { display: none; }
+
+  @media print {
+    body * { visibility: hidden !important; }
+    #print-template, #print-template * { visibility: visible !important; }
+    #print-template {
+      display: block !important;
+      position: fixed; inset: 0;
+      padding: 28px 32px;
+      background: #fff;
+      font-family: "Segoe UI", sans-serif;
+      font-size: 11pt;
+      color: #000;
+    }
+    .print-logo { font-size: 18pt; font-weight: 700; color: #0078d4; margin-bottom: 4px; }
+    .print-sub  { font-size: 10pt; color: #605e5c; margin-bottom: 20px; }
+    .print-title { font-size: 16pt; font-weight: 700; margin-bottom: 16px; border-bottom: 2px solid #0078d4; padding-bottom: 8px; }
+    .print-section { margin-bottom: 16px; }
+    .print-section h4 { font-size: 9pt; font-weight: 700; color: #605e5c; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+    .print-dl { display: grid; grid-template-columns: 140px 1fr; gap: 4px 12px; font-size: 10pt; margin-bottom: 12px; }
+    .print-dl dt { font-weight: 600; color: #605e5c; }
+    .print-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+    .print-table th { background: #f3f2f1; padding: 6px 8px; text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: .03em; border-bottom: 1px solid #ccc; }
+    .print-table td { padding: 6px 8px; border-bottom: 1px solid #edebe9; }
+    .print-table .right { text-align: right; }
+    .print-table .total-row td { font-weight: 700; background: #faf9f8; border-top: 2px solid #ccc; }
+    .print-footer { margin-top: 24px; font-size: 9pt; color: #a19f9d; border-top: 1px solid #edebe9; padding-top: 10px; display: flex; justify-content: space-between; }
+    .print-sign { margin-top: 48px; display: flex; gap: 80px; }
+    .print-sign-line { border-top: 1px solid #000; width: 200px; padding-top: 4px; font-size: 9pt; }
+    @page { margin: 16mm 14mm; size: A4 portrait; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- ── Header ────────────────────────────────── -->
+  <div id="header">
+    <h1>
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="5" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M2 8h16" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="6" cy="12" r="1.5" fill="currentColor"/>
+      </svg>
+      Pagamento de Fornecedores
+    </h1>
+    <span id="header-date" style="margin-left:auto;font-size:12px;color:var(--c-text3)"></span>
+    <button class="btn btn-ghost btn-sm" onclick="App.refresh()" title="Recarregar dados">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.44 0 2.75.55 3.72 1.45L9.5 6H14V1.5l-1.7 1.7A6.99 6.99 0 0 0 8 1a7 7 0 1 0 7 7h-1.5z" fill="currentColor"/></svg>
+      Atualizar
+    </button>
+  </div>
+
+  <!-- ── Tabs ──────────────────────────────────── -->
+  <div id="tabs">
+    <button class="tab-btn active" data-tab="pendentes" onclick="App.switchTab('pendentes')">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="11" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M4 7h8M4 10h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      Serviços Pendentes
+      <span class="tab-badge" id="badge-pendentes" data-count="0">0</span>
+    </button>
+    <button class="tab-btn" data-tab="carrinho" onclick="App.switchTab('carrinho')">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="14" r="1" stroke="currentColor" stroke-width="1.4"/><circle cx="12" cy="14" r="1" stroke="currentColor" stroke-width="1.4"/><path d="M1 2h2l1.8 7.5h7l1.7-5H5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Carrinho
+      <span class="tab-badge" id="badge-carrinho" data-count="0">0</span>
+    </button>
+    <button class="tab-btn" data-tab="ordens" onclick="App.switchTab('ordens')">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 5h6M5 8h6M5 11h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      Ordens de Pagamento
+      <span class="tab-badge" id="badge-ordens" data-count="0">0</span>
+    </button>
+    <button class="tab-btn" data-tab="historico" onclick="App.switchTab('historico')">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      Histórico
+    </button>
+  </div>
+
+  <!-- ── Panels ────────────────────────────────── -->
+  <div id="panels">
+
+    <!-- Tab: Pendentes -->
+    <div class="panel active" id="panel-pendentes">
+      <div class="filter-bar">
+        <div class="field-group">
+          <label>Fornecedor</label>
+          <select id="f-supplier" onchange="App.filterPendentes()">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Data inicial</label>
+          <input type="date" id="f-date-from" onchange="App.filterPendentes()" />
+        </div>
+        <div class="field-group">
+          <label>Data final</label>
+          <input type="date" id="f-date-to" onchange="App.filterPendentes()" />
+        </div>
+        <div class="field-group">
+          <label>Status OP</label>
+          <select id="f-status" onchange="App.filterPendentes()">
+            <option value="">Pendente de pagamento</option>
+            <option value="all">Todos os status</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Buscar</label>
+          <input type="text" id="f-search" placeholder="ID, cliente, destino..." oninput="App.filterPendentes()" style="min-width:180px" />
+        </div>
+        <div class="field-group" style="margin-left:auto;justify-content:flex-end">
+          <label>&nbsp;</label>
+          <button class="btn btn-ghost btn-sm" onclick="App.clearFilters()">Limpar filtros</button>
+        </div>
+      </div>
+
+      <div class="table-wrap" id="pendentes-wrap">
+        <div class="select-all-row">
+          <input type="checkbox" id="chk-all" onchange="App.toggleSelectAll(this)" />
+          <label for="chk-all" style="cursor:pointer;font-size:13px;color:var(--c-text2)">Selecionar todos visíveis</label>
+          <span id="sel-count" style="margin-left:auto;font-size:12px;color:var(--c-brand);font-weight:600"></span>
+        </div>
+        <table id="tbl-pendentes">
+          <thead>
+            <tr>
+              <th style="width:36px"></th>
+              <th class="sortable" data-col="id" onclick="App.sortBy('id')">ID ↕</th>
+              <th class="sortable" data-col="date" onclick="App.sortBy('date')">Data ↕</th>
+              <th>Fornecedor</th>
+              <th>Cliente</th>
+              <th>Destino / Trajeto</th>
+              <th class="text-right">Valor Cliente</th>
+              <th class="text-right">Valor Fornecedor</th>
+              <th>Margem</th>
+              <th>Sit. Pagamento</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-pendentes">
+            <tr><td colspan="10"><div class="empty"><div class="spinner" style="margin:0 auto"></div></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="height:64px"></div><!-- spacer for cart bar -->
+    </div>
+
+    <!-- Tab: Carrinho -->
+    <div class="panel" id="panel-carrinho">
+      <div id="carrinho-empty" class="empty" style="display:none">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto"><circle cx="9" cy="21" r="1.5" stroke="#605e5c" stroke-width="1.4"/><circle cx="17" cy="21" r="1.5" stroke="#605e5c" stroke-width="1.4"/><path d="M1 1h4l2.68 11.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" stroke="#605e5c" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <p>Carrinho vazio</p>
+        <span>Selecione serviços na aba "Serviços Pendentes" para iniciar um pagamento.</span>
+      </div>
+      <div id="carrinho-content"></div>
+    </div>
+
+    <!-- Tab: Ordens -->
+    <div class="panel" id="panel-ordens">
+      <div class="op-stats" id="op-stats"></div>
+      <div class="filter-bar">
+        <div class="field-group">
+          <label>Fornecedor</label>
+          <select id="op-f-supplier" onchange="App.filterOrdens()"><option value="">Todos</option></select>
+        </div>
+        <div class="field-group">
+          <label>Status</label>
+          <select id="op-f-status" onchange="App.filterOrdens()">
+            <option value="">Todos</option>
+            <option value="1">Pendente</option>
+            <option value="2">Pago</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Data inicial</label>
+          <input type="date" id="op-f-from" onchange="App.filterOrdens()" />
+        </div>
+        <div class="field-group">
+          <label>Data final</label>
+          <input type="date" id="op-f-to" onchange="App.filterOrdens()" />
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="tbl-ordens">
+          <thead>
+            <tr>
+              <th>Nº OP</th>
+              <th>Fornecedor</th>
+              <th>Serviços</th>
+              <th class="text-right">Valor Total</th>
+              <th>Data</th>
+              <th>Status</th>
+              <th class="text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-ordens">
+            <tr><td colspan="7"><div class="empty"><div class="spinner" style="margin:0 auto"></div></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: Histórico -->
+    <div class="panel" id="panel-historico">
+      <div class="filter-bar">
+        <div class="field-group">
+          <label>Fornecedor</label>
+          <select id="hist-f-supplier" onchange="App.filterHistorico()"><option value="">Todos</option></select>
+        </div>
+        <div class="field-group">
+          <label>Período</label>
+          <select id="hist-period" onchange="App.filterHistorico()">
+            <option value="30">Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
+            <option value="180">Últimos 6 meses</option>
+            <option value="365">Último ano</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nº OP</th>
+              <th>Fornecedor</th>
+              <th>Serviços</th>
+              <th class="text-right">Valor Pago</th>
+              <th>Data Pagamento</th>
+              <th>Ajustes</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-historico">
+            <tr><td colspan="6" class="muted" style="text-align:center;padding:40px">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /panels -->
+</div><!-- /app -->
+
+<!-- ── Cart bar ────────────────────────────────── -->
+<div id="cart-bar">
+  <div class="cart-info">
+    <strong id="cart-count-label">0 serviços selecionados</strong>
+    <span id="cart-total-label"></span>
+  </div>
+  <button class="btn btn-ghost btn-sm" onclick="App.clearCart()">Limpar seleção</button>
+  <button class="btn btn-primary" onclick="App.goToCart()">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="14" r="1" stroke="currentColor" stroke-width="1.4"/><circle cx="12" cy="14" r="1" stroke="currentColor" stroke-width="1.4"/><path d="M1 2h2l1.8 7.5h7l1.7-5H5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Ver Carrinho
+  </button>
+</div>
+
+<!-- ── Toast area ─────────────────────────────── -->
+<div id="toast-area"></div>
+
+<!-- ── Loading overlay ───────────────────────── -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <span id="loading-text">Carregando...</span>
+</div>
+
+<!-- ── Modal: Criar OP ────────────────────────── -->
+<div class="overlay" id="modal-create-op" onclick="if(event.target===this)App.closeModal('create-op')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="3" y="2" width="14" height="16" rx="2" stroke="var(--c-brand)" stroke-width="1.5"/><path d="M7 7h6M7 10h6M7 13h4" stroke="var(--c-brand)" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <h3>Criar Ordem de Pagamento</h3>
+      <button class="btn btn-ghost btn-sm" onclick="App.closeModal('create-op')" style="padding:0 8px">✕</button>
+    </div>
+    <div class="modal-body" id="modal-create-op-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="App.closeModal('create-op')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-confirm-op" onclick="App.confirmCreateOP()">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2.5 8.5l4 4 7-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Confirmar Ordem
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Justificativa de Margem ────────── -->
+<div class="overlay" id="modal-justificativa" onclick="if(event.target===this)App.closeModal('justificativa')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 2L2 17h16L10 2z" stroke="#c19c00" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 8v4M10 14v1" stroke="#c19c00" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <h3>Margem Crítica — Justificativa Obrigatória</h3>
+    </div>
+    <div class="modal-body">
+      <div class="warn-banner red" id="justificativa-warning"></div>
+      <div class="form-field">
+        <label>Motivo da margem fora do padrão *</label>
+        <textarea id="txt-justificativa" placeholder="Descreva o motivo: urgência, negociação, condições especiais..." rows="4"></textarea>
+        <span class="hint">Mínimo 20 caracteres. Este registro ficará vinculado ao serviço para auditoria.</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="App.cancelJustificativa()">Cancelar</button>
+      <button class="btn btn-primary" onclick="App.confirmJustificativa()">Confirmar e Continuar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Registrar Ajuste ────────────────── -->
+<div class="overlay" id="modal-ajuste" onclick="if(event.target===this)App.closeModal('ajuste')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M15.5 3.5a2 2 0 0 1 0 2.83L7 14.83 3 16l1.17-4L12.67 3.5a2 2 0 0 1 2.83 0z" stroke="var(--c-brand)" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      <h3>Registrar Ajuste de Pagamento</h3>
+      <button class="btn btn-ghost btn-sm" onclick="App.closeModal('ajuste')" style="padding:0 8px">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="warn-banner blue">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;margin-top:1px"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4"/><path d="M8 7v4M8 5v1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        O ajuste será registrado sem alterar a ordem original. Mantém rastreabilidade completa.
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Valor do Ajuste (R$) *</label>
+          <input type="number" id="ajuste-valor" placeholder="Ex: -150.00 ou 75.00" step="0.01" />
+          <span class="hint">Use valor negativo para desconto, positivo para acréscimo</span>
+        </div>
+        <div class="form-field">
+          <label>Data *</label>
+          <input type="date" id="ajuste-data" />
+        </div>
+      </div>
+      <div class="form-row single">
+        <div class="form-field">
+          <label>Motivo *</label>
+          <textarea id="ajuste-motivo" placeholder="Descreva o motivo do ajuste..." rows="3"></textarea>
+        </div>
+      </div>
+      <div class="form-row single">
+        <div class="form-field">
+          <label>Aprovado por</label>
+          <input type="text" id="ajuste-aprovado" placeholder="Nome do responsável..." />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="App.closeModal('ajuste')">Cancelar</button>
+      <button class="btn btn-primary" onclick="App.confirmAjuste()">Registrar Ajuste</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Side panel: Detalhes da OP ─────────────── -->
+<div class="side-panel" id="side-op">
+  <div class="sp-header">
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="3" y="2" width="14" height="16" rx="2" stroke="var(--c-brand)" stroke-width="1.5"/><path d="M7 7h6M7 10h6M7 13h4" stroke="var(--c-brand)" stroke-width="1.5" stroke-linecap="round"/></svg>
+    <h3 id="sp-op-title">Detalhes da OP</h3>
+    <button class="btn btn-ghost btn-sm" onclick="App.closeSidePanel()" style="padding:0 8px">✕</button>
+  </div>
+  <div class="sp-body" id="sp-op-body"></div>
+  <div class="sp-footer" id="sp-op-footer"></div>
+</div>
+
+<!-- ── Overlay for side panel ─────────────────── -->
+<div id="sp-overlay" style="position:fixed;inset:0;z-index:89;display:none" onclick="App.closeSidePanel()"></div>
+
+<!-- ── Modal: Preview/Envio ───────────────────── -->
+<div class="overlay" id="modal-preview" onclick="if(event.target===this)App.closeModal('preview')">
+  <div class="modal" style="width:min(640px,calc(100vw - 32px))" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M4 4h12v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4z" stroke="var(--c-brand)" stroke-width="1.4"/><path d="M2 4h16" stroke="var(--c-brand)" stroke-width="1.4" stroke-linecap="round"/><path d="M8 9h4M8 12h2" stroke="var(--c-brand)" stroke-width="1.3" stroke-linecap="round"/></svg>
+      <h3>Resumo da Ordem de Pagamento</h3>
+      <button class="btn btn-ghost btn-sm" onclick="App.closeModal('preview')" style="padding:0 8px">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <div id="preview-content" style="padding:20px;max-height:60vh;overflow-y:auto;font-size:13px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="App.closeModal('preview')">Fechar</button>
+      <button class="btn btn-outline" onclick="App.copyTextSummary()" id="btn-copy-summary">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M2 11V3a1 1 0 0 1 1-1h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        Copiar Texto
+      </button>
+      <button class="btn btn-outline" id="btn-email-op" onclick="App.sendEmail()">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M1 4.5l7 5 7-5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Enviar por E-mail
+      </button>
+      <button class="btn btn-primary" onclick="App.printOP()">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="3" y="1" width="10" height="8" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="3" y="10" width="10" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 6h10" stroke="currentColor" stroke-width="1.3"/><circle cx="12.5" cy="7.5" r="1" fill="currentColor"/></svg>
+        Exportar PDF
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Print template (hidden, activated on print) ─ -->
+<div id="print-template">
+  <div class="print-logo">Betinhos</div>
+  <div class="print-sub" id="pt-sub">Ordem de Pagamento de Fornecedor</div>
+  <div class="print-title" id="pt-title"></div>
+  <div id="pt-body"></div>
+  <div class="print-footer">
+    <span id="pt-footer-left"></span>
+    <span id="pt-footer-right">Documento gerado automaticamente · Betinhos</span>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// CONSTANTS — Dataverse entity / field names
+// ─────────────────────────────────────────────────────────────────────────────
+const SCHEMA = {
+  SERVICE: {
+    entity:    'cr40f_reservadeveculos',
+    id:        'cr40f_reservaveculosid',
+    fields: {
+      serviceId:        'cr40f_id',
+      cotacao:          'cr40f_cotao',
+      motorista:        '_cr40f_motorista_value',
+      motoristaNome:    'cr40f_motorista_cr40f_funcionarios1.cr40f_nomecompleto',
+      motoristaEmpresa: 'cr40f_motorista_cr40f_funcionarios1.cr40f_nomedaempresa',
+      cliente:          '_cr40f_cliente_value',
+      clienteNome:      'cr40f_cliente_cr40f_clientes1.cr40f_nomedocliente',
+      data:             'cr40f_dataehorriodesada',
+      destino:          'cr40f_destino',
+      trajeto:          'cr40f_trajeto',
+      statusOp:         'cr40f_status',
+      statusFat:        'cr40f_statusdefaturamento',
+      // ↓ NEW FIELDS — must be created in Dataverse before deploying
+      valorFornecedor:       'cr40f_valorfornecedor',
+      statusPagFornec:       'cr40f_statuspagamentofornec',
+      justificativaMargemB:  'cr40f_justificativamargemb',
+      opFornecedor:          '_cr40f_opfornecedor_value',
+    }
+  },
+  SUPPLIER: {
+    entity:    'cr40f_funcionarios',
+    id:        'cr40f_funcionariosid',
+    fields: {
+      nome:    'cr40f_nomecompleto',
+      empresa: 'cr40f_nomedaempresa',
+      funcao:  'cr40f_funcao',
+    }
+  },
+  OP_FORNEC: {
+    entity:    'cr40f_opfornecedor',
+    id:        'cr40f_opfornecedorid',
+    fields: {
+      numero:      'cr40f_numero',
+      fornecedor:  '_cr40f_fornecedor_value',
+      fornecNome:  'cr40f_fornecedor.cr40f_nomecompleto',
+      valorTotal:  'cr40f_valortotal',
+      data:        'cr40f_data',
+      status:      'cr40f_statusop',
+      observacao:  'cr40f_observacao',
+    }
+  },
+  AJUSTE: {
+    entity:    'cr40f_ajustepagamento',
+    id:        'cr40f_ajustepagamentoid',
+    fields: {
+      op:          '_cr40f_opfornecedor_value',
+      valor:       'cr40f_valorajuste',
+      motivo:      'cr40f_motivo',
+      data:        'cr40f_data',
+      aprovadoPor: 'cr40f_aprovadopor',
+    }
+  }
+};
+
+// Status values for cr40f_statuspagamentofornec
+const PAY_STATUS = { PENDENTE: 1, EM_OP: 2, PAGO: 3 };
+// Status values for cr40f_statusop (OP Fornecedor)
+const OP_STATUS  = { PENDENTE: 1, PAGO: 2 };
+// Margin thresholds
+const MARGIN = { GREEN: 30, YELLOW: 10 };
+// Service status values
+const SVC_STATUS = { CONCLUIDO: 202410008 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────────────────────
+const State = {
+  allServices:  [],       // raw from API
+  filteredSvc:  [],       // after filters
+  suppliers:    [],       // all distinct suppliers
+  cart:         {},       // { serviceId: serviceObj }
+  ordens:       [],       // OP Fornecedor records
+  filteredOPs:  [],
+  sortCol:      'date',
+  sortDir:      -1,
+  currentOpId:  null,
+  pendingJustifyService: null,   // service waiting for justification
+  pendingCreateGroup: null,      // supplier group waiting to create OP
+  currentAjusteOpId: null,
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// API HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+function getBaseUrl() {
+  try { return Xrm.Utility.getGlobalContext().getClientUrl(); }
+  catch(e) { return window.location.origin; }
+}
+
+async function apiGet(url) {
+  const res = await fetch(getBaseUrl() + url, {
+    headers: {
+      'OData-MaxVersion': '4.0',
+      'OData-Version': '4.0',
+      'Accept': 'application/json',
+      'Prefer': 'odata.include-annotations=OData.Community.Display.V1.FormattedValue'
+    }
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+async function apiPost(url, body) {
+  const res = await fetch(getBaseUrl() + url, {
+    method: 'POST',
+    headers: {
+      'OData-MaxVersion': '4.0',
+      'OData-Version': '4.0',
+      'Content-Type': 'application/json; charset=utf-8',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  const loc = res.headers.get('OData-EntityId') || '';
+  const match = loc.match(/\(([^)]+)\)/);
+  return match ? match[1] : null;
+}
+
+async function apiPatch(url, body) {
+  const res = await fetch(getBaseUrl() + url, {
+    method: 'PATCH',
+    headers: {
+      'OData-MaxVersion': '4.0',
+      'OData-Version': '4.0',
+      'Content-Type': 'application/json; charset=utf-8',
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+}
+
+// Prefer Xrm.WebApi when available (better auth in Model-Driven context)
+async function xrmGet(entityName, query) {
+  if (typeof Xrm !== 'undefined' && Xrm.WebApi) {
+    const res = await Xrm.WebApi.retrieveMultipleRecords(entityName, query);
+    return res.entities;
+  }
+  const data = await apiGet(`/api/data/v9.2/${entityName}${query}`);
+  return data.value;
+}
+
+async function xrmCreate(entityName, data) {
+  if (typeof Xrm !== 'undefined' && Xrm.WebApi) {
+    const res = await Xrm.WebApi.createRecord(entityName, data);
+    return res.id;
+  }
+  return apiPost(`/api/data/v9.2/${entityName}`, data);
+}
+
+async function xrmUpdate(entityName, id, data) {
+  if (typeof Xrm !== 'undefined' && Xrm.WebApi) {
+    await Xrm.WebApi.updateRecord(entityName, id, data);
+    return;
+  }
+  await apiPatch(`/api/data/v9.2/${entityName}(${id})`, data);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DATA LOADING
+// ─────────────────────────────────────────────────────────────────────────────
+async function loadServices() {
+  const S = SCHEMA.SERVICE;
+  const query = `?$select=${[
+    S.id, S.fields.serviceId, S.fields.cotacao, S.fields.motorista,
+    S.fields.data, S.fields.destino, S.fields.trajeto, S.fields.statusOp,
+    S.fields.statusFat, S.fields.valorFornecedor, S.fields.statusPagFornec,
+    S.fields.justificativaMargemB, S.fields.opFornecedor
+  ].filter(Boolean).join(',')
+  }&$expand=cr40f_motorista_cr40f_funcionarios1($select=cr40f_nomecompleto,cr40f_nomedaempresa),cr40f_cliente_cr40f_clientes1($select=cr40f_nomedocliente)&$filter=statecode eq 0&$orderby=cr40f_dataehorriodesada desc&$top=500`;
+
+  const rows = await xrmGet(S.entity, query);
+
+  return rows.map(r => ({
+    id:              r[S.id] || r.cr40f_reservaveculosid,
+    serviceId:       r[S.fields.serviceId] || '',
+    cotacao:         parseFloat(r[S.fields.cotacao]) || 0,
+    motoristaId:     r[S.fields.motorista] || '',
+    motoristaNome:   r['cr40f_motorista_cr40f_funcionarios1']?.cr40f_nomecompleto || '—',
+    motoristaEmp:    r['cr40f_motorista_cr40f_funcionarios1']?.cr40f_nomedaempresa || '',
+    clienteNome:     r['cr40f_cliente_cr40f_clientes1']?.cr40f_nomedocliente || '—',
+    data:            r[S.fields.data] ? new Date(r[S.fields.data]) : null,
+    destino:         r[S.fields.destino] || '',
+    trajeto:         r[S.fields.trajeto] || '',
+    statusOp:        r[S.fields.statusOp],
+    statusFat:       r[S.fields.statusFat],
+    valorFornecedor: parseFloat(r[S.fields.valorFornecedor]) || 0,
+    statusPag:       r[S.fields.statusPagFornec] || PAY_STATUS.PENDENTE,
+    justificativa:   r[S.fields.justificativaMargemB] || '',
+    opFornecId:      r[S.fields.opFornecedor] || null,
+  }));
+}
+
+async function loadOrdens() {
+  if (!SCHEMA.OP_FORNEC.entity) return [];
+  const O = SCHEMA.OP_FORNEC;
+  try {
+    const query = `?$select=${O.id},${O.fields.numero},${O.fields.valorTotal},${O.fields.data},${O.fields.status},${O.fields.observacao},${O.fields.fornecedor}&$expand=cr40f_fornecedor($select=cr40f_nomecompleto,cr40f_nomedaempresa)&$filter=statecode eq 0&$orderby=cr40f_data desc&$top=200`;
+    const rows = await xrmGet(O.entity, query);
+    return rows.map(r => ({
+      id:          r[O.id],
+      numero:      r[O.fields.numero] || 'OP-' + r[O.id]?.substring(0,8),
+      fornecId:    r[O.fields.fornecedor] || '',
+      fornecNome:  r['cr40f_fornecedor']?.cr40f_nomecompleto || '—',
+      fornecEmp:   r['cr40f_fornecedor']?.cr40f_nomedaempresa || '',
+      valorTotal:  parseFloat(r[O.fields.valorTotal]) || 0,
+      data:        r[O.fields.data] ? new Date(r[O.fields.data]) : null,
+      status:      r[O.fields.status] || OP_STATUS.PENDENTE,
+      observacao:  r[O.fields.observacao] || '',
+    }));
+  } catch(e) {
+    console.warn('loadOrdens error (entidade pode não existir ainda):', e.message);
+    return [];
+  }
+}
+
+async function loadAjustes(opId) {
+  const A = SCHEMA.AJUSTE;
+  try {
+    const query = `?$filter=${A.fields.op} eq ${opId}&$select=${A.id},${A.fields.valor},${A.fields.motivo},${A.fields.data},${A.fields.aprovadoPor}&$orderby=${A.fields.data} desc`;
+    return await xrmGet(A.entity, query);
+  } catch(e) {
+    return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MARGIN CALCULATIONS
+// ─────────────────────────────────────────────────────────────────────────────
+function calcMargin(cotacao, valorFornec) {
+  if (!cotacao || cotacao <= 0) return { rs: 0, pct: 0 };
+  const rs  = cotacao - valorFornec;
+  const pct = (rs / cotacao) * 100;
+  return { rs, pct };
+}
+
+function marginClass(pct) {
+  if (pct >= MARGIN.GREEN)  return 'green';
+  if (pct >= MARGIN.YELLOW) return 'yellow';
+  return 'red';
+}
+
+function marginLabel(pct) {
+  if (pct >= MARGIN.GREEN)  return 'Saudável';
+  if (pct >= MARGIN.YELLOW) return 'Atenção';
+  if (pct >= 0)             return 'Baixa';
+  return 'Negativa';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FORMATTING
+// ─────────────────────────────────────────────────────────────────────────────
+const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+const fmtNum = v => fmt.format(v || 0);
+const fmtDate = d => d instanceof Date && !isNaN(d)
+  ? d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+  : '—';
+const fmtDateShort = d => d instanceof Date && !isNaN(d)
+  ? d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' })
+  : '—';
+
+function payStatusBadge(s) {
+  if (s === PAY_STATUS.PAGO)   return `<span class="badge badge-paid">✓ Pago</span>`;
+  if (s === PAY_STATUS.EM_OP)  return `<span class="badge badge-inop">◦ Em OP</span>`;
+  return `<span class="badge badge-pending">⏳ Pendente</span>`;
+}
+
+function opStatusBadge(s) {
+  if (s === OP_STATUS.PAGO) return `<span class="badge badge-paid">✓ Pago</span>`;
+  return `<span class="badge badge-pending">⏳ Pendente</span>`;
+}
+
+function initials(name) {
+  if (!name) return '?';
+  return name.split(' ').filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RENDER: PENDENTES
+// ─────────────────────────────────────────────────────────────────────────────
+function renderPendenteRow(svc) {
+  const inOp = svc.statusPag === PAY_STATUS.EM_OP || svc.statusPag === PAY_STATUS.PAGO;
+  const blocked = svc.statusPag === PAY_STATUS.PAGO;
+  const isSelected = !!State.cart[svc.id];
+
+  const m = calcMargin(svc.cotacao, svc.valorFornecedor || 0);
+  const mc = svc.valorFornecedor > 0 ? marginClass(m.pct) : '';
+  const ml = svc.valorFornecedor > 0 ? marginLabel(m.pct) : '—';
+
+  const marginPill = svc.valorFornecedor > 0
+    ? `<span class="m-pill ${mc}"><span class="dot"></span>${ml}</span>
+       <br><span class="m-vals">${fmtNum(m.rs)} · ${m.pct.toFixed(1)}%</span>`
+    : '<span style="color:var(--c-text3);font-size:12px">—</span>';
+
+  const destDisplay = [svc.trajeto, svc.destino].filter(Boolean).join(' → ') || '—';
+  const trClass = isSelected ? ' selected' : (inOp ? ' in-op' : '');
+
+  return `<tr data-id="${svc.id}"${trClass ? ` class="${trClass.trim()}"` : ''}>
+    <td><input type="checkbox" class="row-chk" data-id="${svc.id}" ${isSelected?'checked':''} ${blocked?'disabled':''} onchange="App.toggleRow(this)" /></td>
+    <td><span class="font-mono" style="font-size:12px">${svc.serviceId || svc.id.substring(0,8)}</span></td>
+    <td style="white-space:nowrap">${fmtDate(svc.data)}</td>
+    <td>
+      <div style="font-weight:600">${svc.motoristaNome}</div>
+      ${svc.motoristaEmp ? `<div style="font-size:11px;color:var(--c-text3)">${svc.motoristaEmp}</div>` : ''}
+    </td>
+    <td>${svc.clienteNome}</td>
+    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${destDisplay}">${destDisplay}</td>
+    <td class="text-right" style="font-weight:600">${fmtNum(svc.cotacao)}</td>
+    <td class="text-right">
+      <input type="number" class="val-input" data-id="${svc.id}" value="${svc.valorFornecedor || ''}"
+        placeholder="0,00" min="0" step="0.01" ${blocked?'disabled':''}
+        onchange="App.updateValorFornecedor('${svc.id}', this.value)"
+        oninput="App.previewMargin('${svc.id}', this.value)" />
+    </td>
+    <td id="margin-cell-${svc.id}">${marginPill}</td>
+    <td id="status-cell-${svc.id}">${payStatusBadge(svc.statusPag)}</td>
+  </tr>`;
+}
+
+function renderPendentes() {
+  const tbody = document.getElementById('tbody-pendentes');
+  const svcs  = State.filteredSvc;
+
+  if (!svcs.length) {
+    tbody.innerHTML = `<tr><td colspan="10">
+      <div class="empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="display:block;margin:0 auto">
+          <rect x="3" y="3" width="18" height="18" rx="2" stroke="#a19f9d" stroke-width="1.4"/>
+          <path d="M9 12h6M9 8h6M9 16h4" stroke="#a19f9d" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+        <p>Nenhum serviço encontrado</p>
+        <span>Ajuste os filtros ou aguarde novos serviços concluídos.</span>
+      </div>
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = svcs.map(renderPendenteRow).join('');
+  syncCheckAll();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RENDER: CARRINHO
+// ─────────────────────────────────────────────────────────────────────────────
+function renderCarrinho() {
+  const items = Object.values(State.cart);
+  const content = document.getElementById('carrinho-content');
+  const emptyEl = document.getElementById('carrinho-empty');
+
+  if (!items.length) {
+    emptyEl.style.display = 'block';
+    content.innerHTML = '';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  // Group by supplier
+  const groups = {};
+  items.forEach(svc => {
+    const key = svc.motoristaId || 'sem-fornecedor';
+    if (!groups[key]) groups[key] = { nome: svc.motoristaNome, emp: svc.motoristaEmp, motoristaId: svc.motoristaId, items: [] };
+    groups[key].items.push(svc);
+  });
+
+  let html = '';
+  Object.values(groups).forEach(g => {
+    const total   = g.items.reduce((s, sv) => s + (sv.valorFornecedor || 0), 0);
+    const cotTotal = g.items.reduce((s, sv) => s + sv.cotacao, 0);
+    const m = calcMargin(cotTotal, total);
+    const mc = total > 0 ? marginClass(m.pct) : 'gray';
+
+    html += `<div class="supplier-group">
+      <div class="sg-header">
+        <div class="sg-avatar">${initials(g.nome)}</div>
+        <div>
+          <div class="sg-name">${g.nome}</div>
+          <div class="sg-meta">${g.emp || 'Fornecedor'} · ${g.items.length} serviço${g.items.length>1?'s':''}</div>
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:16px">
+          ${total > 0 ? `<span class="m-pill ${mc}"><span class="dot"></span>${marginLabel(m.pct)} ${m.pct.toFixed(1)}%</span>` : ''}
+          <div class="sg-total">
+            <div class="amount">${fmtNum(total)}</div>
+            <div class="label">Total a pagar</div>
+          </div>
+        </div>
+        <div class="sg-actions">
+          <button class="btn btn-outline btn-sm" onclick="App.removeGroup('${g.motoristaId}')">Remover grupo</button>
+          <button class="btn btn-primary btn-sm" onclick="App.openCreateOP('${g.motoristaId}')">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Criar OP
+          </button>
+        </div>
+      </div>
+      <table style="width:100%;min-width:0">
+        <thead>
+          <tr>
+            <th>ID</th><th>Data</th><th>Cliente</th><th>Destino</th>
+            <th class="text-right">V. Cliente</th><th class="text-right">V. Fornec.</th><th>Margem</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${g.items.map(sv => {
+            const mv = calcMargin(sv.cotacao, sv.valorFornecedor || 0);
+            return `<tr>
+              <td><span class="font-mono" style="font-size:12px">${sv.serviceId||sv.id.substring(0,8)}</span></td>
+              <td style="white-space:nowrap">${fmtDateShort(sv.data)}</td>
+              <td>${sv.clienteNome}</td>
+              <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sv.trajeto||sv.destino||'—'}</td>
+              <td class="text-right">${fmtNum(sv.cotacao)}</td>
+              <td class="text-right" style="font-weight:600">${sv.valorFornecedor > 0 ? fmtNum(sv.valorFornecedor) : '<span style="color:var(--c-red)">⚠ Não definido</span>'}</td>
+              <td>${sv.valorFornecedor > 0 ? `<span class="m-pill ${marginClass(mv.pct)}" style="font-size:11px"><span class="dot"></span>${mv.pct.toFixed(1)}%</span>` : '—'}</td>
+              <td><button class="btn btn-ghost btn-sm" onclick="App.removeFromCart('${sv.id}')">✕</button></td>
+            </tr>`;
+          }).join('')}
+          <tr style="background:#faf9f8;font-weight:700">
+            <td colspan="4" style="text-align:right;padding-right:12px;font-size:12px;color:var(--c-text2)">TOTAL</td>
+            <td class="text-right">${fmtNum(cotTotal)}</td>
+            <td class="text-right" style="color:var(--c-brand)">${fmtNum(total)}</td>
+            <td colspan="2"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
+  });
+
+  content.innerHTML = html;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RENDER: ORDENS
+// ─────────────────────────────────────────────────────────────────────────────
+function renderOrdens() {
+  const tbody = document.getElementById('tbody-ordens');
+  const ops   = State.filteredOPs;
+
+  // Stats cards
+  const total = ops.length;
+  const pending = ops.filter(o=>o.status===OP_STATUS.PENDENTE).length;
+  const paid = ops.filter(o=>o.status===OP_STATUS.PAGO).length;
+  const totalVal = ops.reduce((s,o)=>s+o.valorTotal,0);
+  const pendVal  = ops.filter(o=>o.status===OP_STATUS.PENDENTE).reduce((s,o)=>s+o.valorTotal,0);
+
+  document.getElementById('op-stats').innerHTML = `
+    <div class="stat-card"><div class="s-val">${total}</div><div class="s-label">Total de OPs</div></div>
+    <div class="stat-card"><div class="s-val" style="color:var(--c-yellow)">${pending}</div><div class="s-label">Pendentes</div></div>
+    <div class="stat-card"><div class="s-val" style="color:var(--c-green)">${paid}</div><div class="s-label">Pagas</div></div>
+    <div class="stat-card"><div class="s-val" style="font-size:16px">${fmtNum(totalVal)}</div><div class="s-label">Valor Total</div></div>
+    <div class="stat-card"><div class="s-val" style="font-size:16px;color:var(--c-yellow)">${fmtNum(pendVal)}</div><div class="s-label">A Pagar</div></div>
+  `;
+
+  if (!ops.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty">
+      <p>Nenhuma ordem encontrada</p>
+      <span>Crie ordens de pagamento a partir do carrinho.</span>
+    </div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = ops.map(op => {
+    const svcsCount = State.allServices.filter(s=>s.opFornecId===op.id).length;
+    return `<tr>
+      <td><span class="font-mono" style="font-size:13px;font-weight:600">${op.numero}</span></td>
+      <td>
+        <div style="font-weight:600">${op.fornecNome}</div>
+        ${op.fornecEmp ? `<div style="font-size:11px;color:var(--c-text3)">${op.fornecEmp}</div>` : ''}
+      </td>
+      <td><span class="chip">${svcsCount} serviço${svcsCount!==1?'s':''}</span></td>
+      <td class="text-right" style="font-weight:700;font-size:15px">${fmtNum(op.valorTotal)}</td>
+      <td style="white-space:nowrap">${fmtDateShort(op.data)}</td>
+      <td>${opStatusBadge(op.status)}</td>
+      <td>
+        <div class="op-row-actions">
+          <button class="btn btn-ghost btn-sm" onclick="App.openSidePanel('${op.id}')" title="Ver detalhes">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4"/><path d="M8 7v4M8 5.5v.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            Detalhes
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="App.openPreviewOP('${op.id}')" title="PDF / Enviar">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="3" y="1" width="10" height="8" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="3" y="10" width="10" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 6h10" stroke="currentColor" stroke-width="1.3"/></svg>
+            PDF
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="App.openAjuste('${op.id}')" title="Registrar ajuste">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M12 2.5a1.5 1.5 0 0 1 2 2L5.5 13l-3 1 1-3L12 2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+            Ajuste
+          </button>
+          ${op.status === OP_STATUS.PENDENTE
+            ? `<button class="btn btn-success btn-sm" onclick="App.markAsPaid('${op.id}')">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 8.5l4.5 4.5 8-8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Marcar Pago
+              </button>`
+            : '<span style="font-size:12px;color:var(--c-green)">✓ Liquidada</span>'
+          }
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RENDER: HISTORICO
+// ─────────────────────────────────────────────────────────────────────────────
+function renderHistorico() {
+  const days = parseInt(document.getElementById('hist-period')?.value || '30');
+  const supId = document.getElementById('hist-f-supplier')?.value || '';
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
+
+  const paid = State.ordens.filter(o => {
+    if (o.status !== OP_STATUS.PAGO) return false;
+    if (o.data && o.data < cutoff) return false;
+    if (supId && o.fornecId !== supId) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('tbody-historico');
+  if (!paid.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--c-text3)">Nenhum pagamento realizado no período.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = paid.map(op => {
+    const svcs = State.allServices.filter(s=>s.opFornecId===op.id);
+    return `<tr>
+      <td><span class="font-mono" style="font-size:13px;font-weight:600">${op.numero}</span></td>
+      <td><div style="font-weight:600">${op.fornecNome}</div><div style="font-size:11px;color:var(--c-text3)">${op.fornecEmp}</div></td>
+      <td>${svcs.length} serviço${svcs.length!==1?'s':''}</td>
+      <td class="text-right" style="font-weight:700;color:var(--c-green)">${fmtNum(op.valorTotal)}</td>
+      <td style="white-space:nowrap">${fmtDateShort(op.data)}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="App.openAjuste('${op.id}')">+ Ajuste</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FILTERS
+// ─────────────────────────────────────────────────────────────────────────────
+function applyFilters() {
+  let svcs = [...State.allServices];
+  const supId   = document.getElementById('f-supplier')?.value || '';
+  const fromStr = document.getElementById('f-date-from')?.value || '';
+  const toStr   = document.getElementById('f-date-to')?.value || '';
+  const statVal = document.getElementById('f-status')?.value || '';
+  const search  = (document.getElementById('f-search')?.value || '').toLowerCase().trim();
+
+  if (supId)   svcs = svcs.filter(s => s.motoristaId === supId);
+  if (fromStr) { const d = new Date(fromStr); svcs = svcs.filter(s => s.data && s.data >= d); }
+  if (toStr)   { const d = new Date(toStr); d.setHours(23,59,59); svcs = svcs.filter(s => s.data && s.data <= d); }
+  if (statVal !== 'all') svcs = svcs.filter(s => s.statusPag !== PAY_STATUS.PAGO);
+  if (search)  svcs = svcs.filter(s =>
+    (s.serviceId||'').toLowerCase().includes(search) ||
+    s.clienteNome.toLowerCase().includes(search) ||
+    s.motoristaNome.toLowerCase().includes(search) ||
+    (s.destino||'').toLowerCase().includes(search) ||
+    (s.trajeto||'').toLowerCase().includes(search)
+  );
+
+  // Sort
+  svcs.sort((a,b) => {
+    if (State.sortCol === 'date') {
+      return ((a.data||new Date(0)).getTime() - (b.data||new Date(0)).getTime()) * State.sortDir;
+    }
+    if (State.sortCol === 'id') {
+      return (a.serviceId||'').localeCompare(b.serviceId||'') * State.sortDir;
+    }
+    return 0;
+  });
+
+  State.filteredSvc = svcs;
+  updateBadge('pendentes', svcs.filter(s=>s.statusPag===PAY_STATUS.PENDENTE).length);
+}
+
+function applyOrdensFilter() {
+  let ops = [...State.ordens];
+  const supId   = document.getElementById('op-f-supplier')?.value || '';
+  const statVal = document.getElementById('op-f-status')?.value || '';
+  const fromStr = document.getElementById('op-f-from')?.value || '';
+  const toStr   = document.getElementById('op-f-to')?.value || '';
+
+  if (supId)   ops = ops.filter(o => o.fornecId === supId);
+  if (statVal) ops = ops.filter(o => o.status === parseInt(statVal));
+  if (fromStr) { const d = new Date(fromStr); ops = ops.filter(o => o.data && o.data >= d); }
+  if (toStr)   { const d = new Date(toStr); d.setHours(23,59,59); ops = ops.filter(o => o.data && o.data <= d); }
+
+  State.filteredOPs = ops;
+  updateBadge('ordens', ops.filter(o=>o.status===OP_STATUS.PENDENTE).length);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CART MANAGEMENT
+// ─────────────────────────────────────────────────────────────────────────────
+function updateCartUI() {
+  const count = Object.keys(State.cart).length;
+  const total = Object.values(State.cart).reduce((s,sv) => s + (sv.valorFornecedor||0), 0);
+  const bar = document.getElementById('cart-bar');
+
+  if (count > 0) {
+    bar.classList.add('visible');
+    document.getElementById('cart-count-label').textContent = `${count} serviço${count>1?'s':''} selecionado${count>1?'s':''}`;
+    document.getElementById('cart-total-label').textContent = total > 0 ? `Total: ${fmtNum(total)}` : '(valores a definir)';
+  } else {
+    bar.classList.remove('visible');
+  }
+
+  updateBadge('carrinho', count);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BADGE HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+function updateBadge(tab, count) {
+  const el = document.getElementById(`badge-${tab}`);
+  if (!el) return;
+  el.textContent = count > 99 ? '99+' : count;
+  el.dataset.count = count > 0 ? count : '0';
+}
+
+function syncCheckAll() {
+  const chkAll = document.getElementById('chk-all');
+  if (!chkAll) return;
+  const checkable = State.filteredSvc.filter(s => s.statusPag !== PAY_STATUS.PAGO);
+  const selected  = checkable.filter(s => !!State.cart[s.id]);
+  chkAll.indeterminate = selected.length > 0 && selected.length < checkable.length;
+  chkAll.checked = checkable.length > 0 && selected.length === checkable.length;
+  const selCount = document.getElementById('sel-count');
+  if (selCount) selCount.textContent = selected.length > 0 ? `${selected.length} selecionado${selected.length>1?'s':''}` : '';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOAST
+// ─────────────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'info', duration = 3500) {
+  const area = document.getElementById('toast-area');
+  const el   = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${msg}</span>`;
+  area.appendChild(el);
+  setTimeout(() => {
+    el.style.animation = 'fadeOut 0.3s ease forwards';
+    setTimeout(() => el.remove(), 300);
+  }, duration);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOADING
+// ─────────────────────────────────────────────────────────────────────────────
+function showLoading(msg='Carregando...') {
+  const ov = document.getElementById('loading-overlay');
+  document.getElementById('loading-text').textContent = msg;
+  ov.classList.add('show');
+}
+function hideLoading() { document.getElementById('loading-overlay').classList.remove('show'); }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POPULATE SUPPLIER DROPDOWNS
+// ─────────────────────────────────────────────────────────────────────────────
+function populateSupplierDropdowns() {
+  const seen = {};
+  State.allServices.forEach(s => {
+    if (s.motoristaId && !seen[s.motoristaId]) {
+      seen[s.motoristaId] = s.motoristaNome;
+    }
+  });
+  State.ordens.forEach(o => {
+    if (o.fornecId && !seen[o.fornecId]) seen[o.fornecId] = o.fornecNome;
+  });
+
+  const options = Object.entries(seen)
+    .sort((a,b) => a[1].localeCompare(b[1]))
+    .map(([id, nm]) => `<option value="${id}">${nm}</option>`).join('');
+
+  ['f-supplier','op-f-supplier','hist-f-supplier'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<option value="">Todos</option>' + options;
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN APP OBJECT
+// ─────────────────────────────────────────────────────────────────────────────
+const App = {
+
+  async init() {
+    document.getElementById('header-date').textContent = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    await this.refresh();
+  },
+
+  async refresh() {
+    showLoading('Buscando serviços...');
+    try {
+      const [svcs, ops] = await Promise.all([loadServices(), loadOrdens()]);
+      State.allServices = svcs;
+      State.ordens      = ops;
+      populateSupplierDropdowns();
+      this.filterPendentes();
+      this.filterOrdens();
+      this.renderCurrentTab();
+    } catch(e) {
+      console.error(e);
+      toast('Erro ao carregar dados: ' + e.message, 'error', 6000);
+    } finally {
+      hideLoading();
+    }
+  },
+
+  switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tab}`));
+    this.renderCurrentTab(tab);
+  },
+
+  renderCurrentTab(tab) {
+    const active = tab || document.querySelector('.tab-btn.active')?.dataset.tab || 'pendentes';
+    if (active === 'pendentes')  renderPendentes();
+    if (active === 'carrinho')   renderCarrinho();
+    if (active === 'ordens')     renderOrdens();
+    if (active === 'historico')  renderHistorico();
+  },
+
+  filterPendentes() { applyFilters(); renderPendentes(); },
+  filterOrdens()    { applyOrdensFilter(); renderOrdens(); },
+  filterHistorico() { renderHistorico(); },
+
+  clearFilters() {
+    ['f-supplier','f-status'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+    ['f-date-from','f-date-to','f-search'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+    this.filterPendentes();
+  },
+
+  sortBy(col) {
+    if (State.sortCol === col) State.sortDir *= -1;
+    else { State.sortCol = col; State.sortDir = -1; }
+    this.filterPendentes();
+  },
+
+  // ── Checkbox logic ────────────────────────────────────────────────
+  toggleRow(chk) {
+    const id  = chk.dataset.id;
+    const svc = State.allServices.find(s => s.id === id);
+    if (!svc) return;
+
+    if (chk.checked) {
+      // Block if already in an OP
+      if (svc.statusPag === PAY_STATUS.EM_OP || svc.statusPag === PAY_STATUS.PAGO) {
+        chk.checked = false;
+        toast('Este serviço já está vinculado a uma Ordem de Pagamento.', 'error');
+        return;
+      }
+      State.cart[id] = svc;
+    } else {
+      delete State.cart[id];
+    }
+
+    // Highlight row
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (row) row.classList.toggle('selected', chk.checked);
+
+    updateCartUI();
+    syncCheckAll();
+  },
+
+  toggleSelectAll(chk) {
+    const checkable = State.filteredSvc.filter(s => s.statusPag !== PAY_STATUS.PAGO && s.statusPag !== PAY_STATUS.EM_OP);
+    checkable.forEach(svc => {
+      if (chk.checked) State.cart[svc.id] = svc;
+      else delete State.cart[svc.id];
+    });
+    renderPendentes();
+    updateCartUI();
+  },
+
+  // ── Valor fornecedor ──────────────────────────────────────────────
+  previewMargin(id, rawVal) {
+    const svc  = State.allServices.find(s => s.id === id);
+    if (!svc) return;
+    const val  = parseFloat(rawVal) || 0;
+    const m    = calcMargin(svc.cotacao, val);
+    const mc   = val > 0 ? marginClass(m.pct) : '';
+    const cell = document.getElementById(`margin-cell-${id}`);
+    if (!cell) return;
+
+    if (val > 0) {
+      cell.innerHTML = `<span class="m-pill ${mc}"><span class="dot"></span>${marginLabel(m.pct)}</span>
+        <br><span class="m-vals">${fmtNum(m.rs)} · ${m.pct.toFixed(1)}%</span>`;
+    } else {
+      cell.innerHTML = '<span style="color:var(--c-text3);font-size:12px">—</span>';
+    }
+
+    // Update cart if selected
+    if (State.cart[id]) {
+      State.cart[id].valorFornecedor = val;
+      updateCartUI();
+    }
+  },
+
+  async updateValorFornecedor(id, rawVal) {
+    const val = parseFloat(rawVal) || 0;
+    const svc = State.allServices.find(s => s.id === id);
+    if (!svc) return;
+
+    const m = calcMargin(svc.cotacao, val);
+
+    // Warn on low/negative margin
+    if (val > 0 && m.pct < MARGIN.YELLOW && svc.statusPag !== PAY_STATUS.PAGO) {
+      if (m.pct < 0) {
+        // Negative margin: require justification
+        State.pendingJustifyService = { id, val };
+        this._openJustificativaModal(svc, m);
+        return;
+      }
+      // Low but not negative: just warn, allow
+      toast(`⚠ Margem baixa: ${m.pct.toFixed(1)}% (${fmtNum(m.rs)}) para o serviço ${svc.serviceId}`, 'info', 5000);
+    }
+
+    await this._saveValorFornecedor(id, val);
+  },
+
+  async _saveValorFornecedor(id, val, justificativa) {
+    const svc = State.allServices.find(s => s.id === id);
+    if (!svc) return;
+    try {
+      const patch = { [SCHEMA.SERVICE.fields.valorFornecedor]: val || null };
+      if (justificativa) patch[SCHEMA.SERVICE.fields.justificativaMargemB] = justificativa;
+      await xrmUpdate(SCHEMA.SERVICE.entity, id, patch);
+      svc.valorFornecedor = val;
+      if (justificativa) svc.justificativa = justificativa;
+      if (State.cart[id]) State.cart[id].valorFornecedor = val;
+      updateCartUI();
+    } catch(e) {
+      console.warn('Erro ao salvar (campo pode não existir ainda):', e.message);
+      // Update in-memory even if save fails, so UI stays responsive
+      svc.valorFornecedor = val;
+      if (State.cart[id]) State.cart[id].valorFornecedor = val;
+    }
+  },
+
+  // ── Justificativa modal ───────────────────────────────────────────
+  _openJustificativaModal(svc, m) {
+    const warn = document.getElementById('justificativa-warning');
+    warn.innerHTML = `Margem negativa detectada: <strong>${m.pct.toFixed(1)}%</strong> (${fmtNum(m.rs)}) no serviço <strong>${svc.serviceId}</strong>.<br>
+      Valor cliente: ${fmtNum(svc.cotacao)} · Valor fornecedor: ${fmtNum(State.pendingJustifyService.val)}`;
+    document.getElementById('txt-justificativa').value = '';
+    this.openModal('justificativa');
+  },
+
+  async confirmJustificativa() {
+    const txt = document.getElementById('txt-justificativa').value.trim();
+    if (txt.length < 20) { toast('Justificativa muito curta (mínimo 20 caracteres).', 'error'); return; }
+    const { id, val } = State.pendingJustifyService;
+    this.closeModal('justificativa');
+    await this._saveValorFornecedor(id, val, txt);
+    renderPendentes();
+    toast('Valor salvo com justificativa registrada.', 'success');
+  },
+
+  cancelJustificativa() {
+    const { id } = State.pendingJustifyService || {};
+    if (id) {
+      // Reset input
+      const inp = document.querySelector(`.val-input[data-id="${id}"]`);
+      if (inp) {
+        const svc = State.allServices.find(s=>s.id===id);
+        inp.value = svc?.valorFornecedor || '';
+        this.previewMargin(id, svc?.valorFornecedor || 0);
+      }
+    }
+    State.pendingJustifyService = null;
+    this.closeModal('justificativa');
+  },
+
+  // ── Cart actions ──────────────────────────────────────────────────
+  clearCart() {
+    State.cart = {};
+    renderPendentes();
+    updateCartUI();
+    toast('Seleção limpa.', 'info');
+  },
+
+  removeFromCart(id) {
+    delete State.cart[id];
+    renderCarrinho();
+    updateCartUI();
+  },
+
+  removeGroup(motoristaId) {
+    Object.values(State.cart).filter(s=>s.motoristaId===motoristaId).forEach(s=>delete State.cart[s.id]);
+    renderCarrinho();
+    updateCartUI();
+  },
+
+  goToCart() { this.switchTab('carrinho'); },
+
+  // ── Create OP ─────────────────────────────────────────────────────
+  openCreateOP(motoristaId) {
+    const items = Object.values(State.cart).filter(s => s.motoristaId === motoristaId);
+    if (!items.length) { toast('Nenhum serviço no grupo.', 'error'); return; }
+
+    // Check all have valor defined
+    const missing = items.filter(s => !(s.valorFornecedor > 0));
+    const total   = items.reduce((s,sv) => s+sv.valorFornecedor, 0);
+    const cotTotal = items.reduce((s,sv) => s+sv.cotacao, 0);
+    const m = calcMargin(cotTotal, total);
+
+    State.pendingCreateGroup = { motoristaId, items };
+
+    const hoje = new Date().toISOString().substring(0,10);
+    const fn   = items[0]?.motoristaNome || '—';
+    const fe   = items[0]?.motoristaEmp  || '';
+
+    let warningHtml = '';
+    if (missing.length) {
+      warningHtml = `<div class="warn-banner yellow"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0"><path d="M8 1L1 14h14L8 1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M8 6v4M8 11v1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        ${missing.length} serviço${missing.length>1?'s':''} sem valor de fornecedor definido. Defina os valores antes de criar a OP, ou eles serão lançados como R$ 0,00.
+      </div>`;
+    }
+
+    document.getElementById('modal-create-op-body').innerHTML = `
+      ${warningHtml}
+      <dl class="detail-list" style="margin-bottom:14px">
+        <dt>Fornecedor</dt><dd><strong>${fn}</strong>${fe?` — ${fe}`:''}</dd>
+        <dt>Serviços incluídos</dt><dd>${items.length} serviço${items.length>1?'s':''}</dd>
+        <dt>Valor total</dt><dd style="font-size:18px;font-weight:700;color:var(--c-brand)">${fmtNum(total)}</dd>
+        <dt>Margem média</dt><dd><span class="m-pill ${marginClass(m.pct)}" style="font-size:12px"><span class="dot"></span>${m.pct.toFixed(1)}% — ${marginLabel(m.pct)}</span></dd>
+      </dl>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Data da Ordem *</label>
+          <input type="date" id="op-data" value="${hoje}" />
+        </div>
+        <div class="form-field">
+          <label>Número / Referência</label>
+          <input type="text" id="op-numero" placeholder="Preenchimento automático" />
+        </div>
+      </div>
+      <div class="form-row single">
+        <div class="form-field">
+          <label>Observação</label>
+          <textarea id="op-obs" placeholder="Opcional..." rows="2"></textarea>
+        </div>
+      </div>
+      <div style="background:var(--c-bg);border-radius:4px;padding:10px;margin-top:4px">
+        <table style="width:100%;font-size:12px;border-collapse:collapse">
+          <thead><tr style="color:var(--c-text2)"><th style="text-align:left;padding:4px">Serviço</th><th style="text-align:left">Data</th><th style="text-align:right">V.Forn.</th><th style="text-align:right">Margem</th></tr></thead>
+          <tbody>${items.map(sv=>{const mv=calcMargin(sv.cotacao,sv.valorFornecedor||0);return`<tr><td style="padding:4px;font-family:monospace">${sv.serviceId||sv.id.substring(0,8)}</td><td>${fmtDateShort(sv.data)}</td><td style="text-align:right">${fmtNum(sv.valorFornecedor)}</td><td style="text-align:right"><span class="m-pill ${marginClass(mv.pct)}" style="font-size:10px;padding:1px 6px"><span class="dot"></span>${mv.pct.toFixed(0)}%</span></td></tr>`;}).join('')}</tbody>
+        </table>
+      </div>
+    `;
+    this.openModal('create-op');
+  },
+
+  async confirmCreateOP() {
+    const { motoristaId, items } = State.pendingCreateGroup || {};
+    if (!items?.length) return;
+
+    const dataVal  = document.getElementById('op-data')?.value;
+    const numVal   = document.getElementById('op-numero')?.value?.trim() || '';
+    const obsVal   = document.getElementById('op-obs')?.value?.trim() || '';
+    const total    = items.reduce((s,sv) => s + (sv.valorFornecedor||0), 0);
+
+    if (!dataVal) { toast('Informe a data da ordem.', 'error'); return; }
+
+    const btn = document.getElementById('btn-confirm-op');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px"></div> Criando...';
+
+    try {
+      // 1. Create OP record
+      const opData = {
+        [SCHEMA.OP_FORNEC.fields.valorTotal]: total,
+        [SCHEMA.OP_FORNEC.fields.data]:       dataVal,
+        [SCHEMA.OP_FORNEC.fields.status]:     OP_STATUS.PENDENTE,
+        [SCHEMA.OP_FORNEC.fields.observacao]: obsVal,
+      };
+      if (numVal) opData[SCHEMA.OP_FORNEC.fields.numero] = numVal;
+      if (motoristaId) opData[`cr40f_fornecedor@odata.bind`] = `/cr40f_funcionarios(${motoristaId})`;
+
+      const opId = await xrmCreate(SCHEMA.OP_FORNEC.entity, opData);
+
+      // 2. Update each service: link to OP + status = Em OP
+      for (const svc of items) {
+        const patch = {
+          [SCHEMA.SERVICE.fields.statusPagFornec]: PAY_STATUS.EM_OP,
+        };
+        if (opId) patch[`cr40f_opfornecedor@odata.bind`] = `/cr40f_opfornecedor(${opId})`;
+        try { await xrmUpdate(SCHEMA.SERVICE.entity, svc.id, patch); }
+        catch(e) { console.warn('Erro ao atualizar serviço:', svc.id, e.message); }
+        // Update in-memory
+        svc.statusPag = PAY_STATUS.EM_OP;
+        svc.opFornecId = opId;
+        delete State.cart[svc.id];
+      }
+
+      // 3. Add to local state
+      if (opId) {
+        State.ordens.unshift({
+          id: opId,
+          numero: numVal || `OP-${opId.substring(0,8).toUpperCase()}`,
+          fornecId: motoristaId,
+          fornecNome: items[0].motoristaNome,
+          fornecEmp: items[0].motoristaEmp,
+          valorTotal: total,
+          data: new Date(dataVal),
+          status: OP_STATUS.PENDENTE,
+          observacao: obsVal,
+        });
+      }
+
+      this.closeModal('create-op');
+      updateCartUI();
+      this.filterPendentes();
+      this.filterOrdens();
+      renderCarrinho();
+
+      toast(`✓ Ordem de pagamento criada com sucesso! ${fmtNum(total)} para ${items[0].motoristaNome}`, 'success', 5000);
+
+    } catch(e) {
+      toast('Erro ao criar ordem: ' + e.message, 'error', 7000);
+      console.error(e);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2.5 8.5l4 4 7-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg> Confirmar Ordem';
+    }
+  },
+
+  // ── Mark as Paid ──────────────────────────────────────────────────
+  async markAsPaid(opId) {
+    const op = State.ordens.find(o=>o.id===opId);
+    if (!op) return;
+    if (!confirm(`Confirmar pagamento da ${op.numero} (${fmtNum(op.valorTotal)}) para ${op.fornecNome}?`)) return;
+
+    showLoading('Registrando pagamento...');
+    try {
+      await xrmUpdate(SCHEMA.OP_FORNEC.entity, opId, {
+        [SCHEMA.OP_FORNEC.fields.status]: OP_STATUS.PAGO,
+        [SCHEMA.OP_FORNEC.fields.data]:   new Date().toISOString(),
+      });
+
+      // Update linked services
+      const linked = State.allServices.filter(s=>s.opFornecId===opId);
+      for (const svc of linked) {
+        try { await xrmUpdate(SCHEMA.SERVICE.entity, svc.id, { [SCHEMA.SERVICE.fields.statusPagFornec]: PAY_STATUS.PAGO }); }
+        catch(e) { console.warn('Erro ao atualizar serviço:', e.message); }
+        svc.statusPag = PAY_STATUS.PAGO;
+      }
+
+      op.status = OP_STATUS.PAGO;
+      this.filterOrdens();
+      renderOrdens();
+      toast(`✓ Pagamento de ${fmtNum(op.valorTotal)} registrado para ${op.fornecNome}`, 'success', 5000);
+    } catch(e) {
+      toast('Erro ao marcar como pago: ' + e.message, 'error');
+    } finally { hideLoading(); }
+  },
+
+  // ── Side panel (OP details) ───────────────────────────────────────
+  async openSidePanel(opId) {
+    const op = State.ordens.find(o=>o.id===opId);
+    if (!op) return;
+    State.currentOpId = opId;
+
+    const svcs = State.allServices.filter(s=>s.opFornecId===opId);
+    const ajustes = await loadAjustes(opId);
+
+    document.getElementById('sp-op-title').textContent = op.numero;
+
+    let html = `<dl class="detail-list">
+      <dt>Fornecedor</dt><dd><strong>${op.fornecNome}</strong>${op.fornecEmp?` — ${op.fornecEmp}`:''}</dd>
+      <dt>Status</dt><dd>${opStatusBadge(op.status)}</dd>
+      <dt>Data</dt><dd>${fmtDate(op.data)}</dd>
+      <dt>Valor Total</dt><dd style="font-size:20px;font-weight:700;color:var(--c-brand)">${fmtNum(op.valorTotal)}</dd>
+      ${op.observacao ? `<dt>Observação</dt><dd>${op.observacao}</dd>` : ''}
+    </dl>
+    <div class="divider"></div>
+    <p style="font-size:12px;font-weight:700;color:var(--c-text2);margin-bottom:8px;text-transform:uppercase">SERVIÇOS (${svcs.length})</p>
+    ${svcs.length ? `<table style="width:100%;font-size:12px;border-collapse:collapse">
+      <thead><tr style="color:var(--c-text2)"><th style="text-align:left;padding:4px">Serviço</th><th>Data</th><th style="text-align:right">V.Cli.</th><th style="text-align:right">V.Forn.</th></tr></thead>
+      <tbody>${svcs.map(s=>`<tr><td style="padding:4px;font-family:monospace">${s.serviceId||s.id.substring(0,8)}</td><td>${fmtDateShort(s.data)}</td><td style="text-align:right">${fmtNum(s.cotacao)}</td><td style="text-align:right;font-weight:600">${fmtNum(s.valorFornecedor)}</td></tr>`).join('')}</tbody>
+    </table>` : '<p style="color:var(--c-text3);font-size:13px">Nenhum serviço vinculado.</p>'}
+    <div class="divider"></div>
+    <p style="font-size:12px;font-weight:700;color:var(--c-text2);margin-bottom:8px;text-transform:uppercase">AJUSTES (${ajustes.length})</p>`;
+
+    if (ajustes.length) {
+      html += ajustes.map(a=>`<div class="adj-row">
+        <div class="adj-dot"></div>
+        <div>
+          <div style="font-size:13px;font-weight:600">${a[SCHEMA.AJUSTE.fields.valor]>=0?'+':''}${fmtNum(a[SCHEMA.AJUSTE.fields.valor])}</div>
+          <div style="font-size:12px;color:var(--c-text2)">${a[SCHEMA.AJUSTE.fields.motivo]||'—'}</div>
+          <div style="font-size:11px;color:var(--c-text3)">${a[SCHEMA.AJUSTE.fields.aprovadoPor]||''} · ${new Date(a[SCHEMA.AJUSTE.fields.data]).toLocaleDateString('pt-BR')}</div>
+        </div>
+      </div>`).join('');
+    } else {
+      html += '<p style="color:var(--c-text3);font-size:13px">Nenhum ajuste registrado.</p>';
+    }
+
+    document.getElementById('sp-op-body').innerHTML = html;
+    document.getElementById('sp-op-footer').innerHTML = `
+      <button class="btn btn-outline btn-sm" onclick="App.openPreviewOP('${opId}')">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><rect x="3" y="1" width="10" height="8" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="3" y="10" width="10" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 6h10" stroke="currentColor" stroke-width="1.3"/></svg>
+        PDF / Enviar
+      </button>
+      <button class="btn btn-outline btn-sm" onclick="App.openAjuste('${opId}')">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M12 2.5a1.5 1.5 0 0 1 2 2L5.5 13l-3 1 1-3L12 2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+        Registrar Ajuste
+      </button>
+      ${op.status === OP_STATUS.PENDENTE
+        ? `<button class="btn btn-success btn-sm" onclick="App.markAsPaid('${opId}')">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 8.5l4.5 4.5 8-8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Marcar como Pago
+          </button>` : ''}
+    `;
+
+    document.getElementById('side-op').classList.add('open');
+    document.getElementById('sp-overlay').style.display = 'block';
+  },
+
+  closeSidePanel() {
+    document.getElementById('side-op').classList.remove('open');
+    document.getElementById('sp-overlay').style.display = 'none';
+  },
+
+  // ── Ajuste modal ──────────────────────────────────────────────────
+  openAjuste(opId) {
+    State.currentAjusteOpId = opId;
+    document.getElementById('ajuste-valor').value = '';
+    document.getElementById('ajuste-motivo').value = '';
+    document.getElementById('ajuste-aprovado').value = '';
+    document.getElementById('ajuste-data').value = new Date().toISOString().substring(0,10);
+    this.openModal('ajuste');
+  },
+
+  async confirmAjuste() {
+    const opId = State.currentAjusteOpId;
+    if (!opId) return;
+    const val    = parseFloat(document.getElementById('ajuste-valor').value);
+    const motivo = document.getElementById('ajuste-motivo').value.trim();
+    const apr    = document.getElementById('ajuste-aprovado').value.trim();
+    const data   = document.getElementById('ajuste-data').value;
+
+    if (!val || isNaN(val)) { toast('Informe o valor do ajuste.', 'error'); return; }
+    if (!motivo)            { toast('Informe o motivo do ajuste.', 'error'); return; }
+
+    showLoading('Registrando ajuste...');
+    try {
+      const rec = {
+        [SCHEMA.AJUSTE.fields.valor]:       val,
+        [SCHEMA.AJUSTE.fields.motivo]:      motivo,
+        [SCHEMA.AJUSTE.fields.aprovadoPor]: apr,
+        [SCHEMA.AJUSTE.fields.data]:        data,
+        [`cr40f_opfornecedor@odata.bind`]:  `/cr40f_opfornecedor(${opId})`,
+      };
+      await xrmCreate(SCHEMA.AJUSTE.entity, rec);
+      this.closeModal('ajuste');
+      toast('Ajuste registrado com sucesso.', 'success');
+      // Refresh side panel if open
+      if (document.getElementById('side-op').classList.contains('open')) {
+        await this.openSidePanel(opId);
+      }
+    } catch(e) {
+      toast('Erro ao registrar ajuste: ' + e.message, 'error');
+    } finally { hideLoading(); }
+  },
+
+  // ── PDF / Preview / E-mail ────────────────────────────────────────
+  _buildOPData(opId) {
+    const op   = State.ordens.find(o => o.id === opId);
+    if (!op) return null;
+    const svcs = State.allServices.filter(s => s.opFornecId === opId);
+    const adj  = [];  // adjustments are loaded async; pass empty for sync use
+    const total    = op.valorTotal;
+    const cotTotal = svcs.reduce((s, sv) => s + sv.cotacao, 0);
+    const m        = calcMargin(cotTotal, total);
+    return { op, svcs, adj, total, cotTotal, m };
+  },
+
+  openPreviewOP(opId) {
+    const d = this._buildOPData(opId);
+    if (!d) { toast('Ordem não encontrada.', 'error'); return; }
+    const { op, svcs, total, cotTotal, m } = d;
+
+    State.currentOpId = opId;
+
+    const now = new Date().toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
+
+    const previewHtml = `
+      <div style="border-bottom:2px solid var(--c-brand);padding-bottom:12px;margin-bottom:16px">
+        <div style="font-size:18px;font-weight:700;color:var(--c-brand)">Betinhos</div>
+        <div style="font-size:11px;color:var(--c-text3)">Ordem de Pagamento de Fornecedor · Gerado em ${now}</div>
+      </div>
+
+      <div style="background:var(--c-bg);border-radius:6px;padding:14px 16px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px">
+        <div><span style="font-weight:700;color:var(--c-text2);text-transform:uppercase;font-size:10px;letter-spacing:.04em">Número da OP</span><br><strong style="font-size:15px">${op.numero}</strong></div>
+        <div><span style="font-weight:700;color:var(--c-text2);text-transform:uppercase;font-size:10px;letter-spacing:.04em">Data</span><br>${fmtDateShort(op.data)}</div>
+        <div><span style="font-weight:700;color:var(--c-text2);text-transform:uppercase;font-size:10px;letter-spacing:.04em">Fornecedor</span><br><strong>${op.fornecNome}</strong>${op.fornecEmp ? `<br><span style="color:var(--c-text3)">${op.fornecEmp}</span>` : ''}</div>
+        <div><span style="font-weight:700;color:var(--c-text2);text-transform:uppercase;font-size:10px;letter-spacing:.04em">Status</span><br>${opStatusBadge(op.status)}</div>
+        <div><span style="font-weight:700;color:var(--c-text2);text-transform:uppercase;font-size:10px;letter-spacing:.04em">Total a Pagar</span><br><strong style="font-size:18px;color:var(--c-brand)">${fmtNum(total)}</strong></div>
+        <div><span style="font-weight:700;color:var(--c-text2);text-transform:uppercase;font-size:10px;letter-spacing:.04em">Margem Média</span><br><span class="m-pill ${marginClass(m.pct)}" style="font-size:11px"><span class="dot"></span>${m.pct.toFixed(1)}%</span></div>
+      </div>
+
+      <p style="font-size:10px;font-weight:700;color:var(--c-text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">SERVIÇOS INCLUÍDOS (${svcs.length})</p>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:var(--c-bg)">
+            <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--c-text2);border-bottom:1px solid var(--c-border)">Serviço</th>
+            <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--c-text2);border-bottom:1px solid var(--c-border)">Data</th>
+            <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--c-text2);border-bottom:1px solid var(--c-border)">Cliente</th>
+            <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--c-text2);border-bottom:1px solid var(--c-border)">Destino</th>
+            <th style="padding:6px 8px;text-align:right;font-size:10px;text-transform:uppercase;color:var(--c-text2);border-bottom:1px solid var(--c-border)">V. Cliente</th>
+            <th style="padding:6px 8px;text-align:right;font-size:10px;text-transform:uppercase;color:var(--c-text2);border-bottom:1px solid var(--c-border)">V. Fornec.</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${svcs.map(sv => `<tr>
+            <td style="padding:6px 8px;border-bottom:1px solid var(--c-border);font-family:monospace;font-size:11px">${sv.serviceId || sv.id.substring(0,8)}</td>
+            <td style="padding:6px 8px;border-bottom:1px solid var(--c-border);white-space:nowrap">${fmtDateShort(sv.data)}</td>
+            <td style="padding:6px 8px;border-bottom:1px solid var(--c-border)">${sv.clienteNome}</td>
+            <td style="padding:6px 8px;border-bottom:1px solid var(--c-border);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sv.trajeto || sv.destino || '—'}</td>
+            <td style="padding:6px 8px;border-bottom:1px solid var(--c-border);text-align:right">${fmtNum(sv.cotacao)}</td>
+            <td style="padding:6px 8px;border-bottom:1px solid var(--c-border);text-align:right;font-weight:700">${fmtNum(sv.valorFornecedor)}</td>
+          </tr>`).join('')}
+          <tr style="background:var(--c-bg)">
+            <td colspan="4" style="padding:8px;text-align:right;font-size:11px;font-weight:700;color:var(--c-text2)">TOTAL</td>
+            <td style="padding:8px;text-align:right;font-weight:700">${fmtNum(cotTotal)}</td>
+            <td style="padding:8px;text-align:right;font-weight:700;color:var(--c-brand);font-size:14px">${fmtNum(total)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      ${op.observacao ? `<div style="margin-top:14px;padding:10px 14px;background:var(--c-bg);border-radius:4px;font-size:12px"><strong>Observação:</strong> ${op.observacao}</div>` : ''}
+    `;
+
+    document.getElementById('preview-content').innerHTML = previewHtml;
+    this.openModal('preview');
+
+    // Pre-fill print template
+    this._fillPrintTemplate(op, svcs, total, cotTotal, m, now);
+  },
+
+  _fillPrintTemplate(op, svcs, total, cotTotal, m, dateStr) {
+    document.getElementById('pt-sub').textContent  = 'Ordem de Pagamento de Fornecedor';
+    document.getElementById('pt-title').textContent = op.numero + ' — ' + op.fornecNome;
+    document.getElementById('pt-footer-left').textContent = 'Gerado em ' + (dateStr || new Date().toLocaleDateString('pt-BR'));
+
+    const body = document.getElementById('pt-body');
+    body.innerHTML = `
+      <div class="print-section">
+        <h4>Dados da Ordem</h4>
+        <dl class="print-dl">
+          <dt>Número da OP</dt><dd>${op.numero}</dd>
+          <dt>Fornecedor</dt><dd>${op.fornecNome}${op.fornecEmp ? ' — ' + op.fornecEmp : ''}</dd>
+          <dt>Data</dt><dd>${fmtDateShort(op.data)}</dd>
+          <dt>Status</dt><dd>${op.status === OP_STATUS.PAGO ? 'PAGO' : 'PENDENTE'}</dd>
+          <dt>Total a Pagar</dt><dd><strong>${fmtNum(total)}</strong></dd>
+          <dt>Margem Média</dt><dd>${m.pct.toFixed(1)}% — ${marginLabel(m.pct)}</dd>
+          ${op.observacao ? `<dt>Observação</dt><dd>${op.observacao}</dd>` : ''}
+        </dl>
+      </div>
+
+      <div class="print-section">
+        <h4>Serviços Incluídos</h4>
+        <table class="print-table">
+          <thead>
+            <tr><th>Serviço</th><th>Data</th><th>Cliente</th><th>Destino/Trajeto</th><th class="right">V. Cliente</th><th class="right">V. Fornec.</th></tr>
+          </thead>
+          <tbody>
+            ${svcs.map(sv => `<tr>
+              <td style="font-family:monospace">${sv.serviceId || sv.id.substring(0,8)}</td>
+              <td>${fmtDateShort(sv.data)}</td>
+              <td>${sv.clienteNome}</td>
+              <td>${sv.trajeto || sv.destino || '—'}</td>
+              <td class="right">${fmtNum(sv.cotacao)}</td>
+              <td class="right">${fmtNum(sv.valorFornecedor)}</td>
+            </tr>`).join('')}
+            <tr class="total-row">
+              <td colspan="4" style="text-align:right">TOTAL</td>
+              <td class="right">${fmtNum(cotTotal)}</td>
+              <td class="right">${fmtNum(total)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="print-sign">
+        <div class="print-sign-line">Fornecedor: ${op.fornecNome}</div>
+        <div class="print-sign-line">Responsável Betinhos</div>
+      </div>
+    `;
+  },
+
+  printOP() {
+    this.closeModal('preview');
+    setTimeout(() => window.print(), 120);
+  },
+
+  copyTextSummary() {
+    const opId = State.currentOpId;
+    const d = this._buildOPData(opId);
+    if (!d) return;
+    const { op, svcs, total } = d;
+    const now = new Date().toLocaleDateString('pt-BR');
+
+    let txt = `🧾 ORDEM DE PAGAMENTO — ${op.numero}\n`;
+    txt += `📅 Data: ${fmtDateShort(op.data)}\n`;
+    txt += `👤 Fornecedor: ${op.fornecNome}${op.fornecEmp ? ' — ' + op.fornecEmp : ''}\n`;
+    txt += `💰 TOTAL A PAGAR: ${fmtNum(total)}\n\n`;
+    txt += `SERVIÇOS:\n`;
+    svcs.forEach(sv => {
+      txt += `  • ${sv.serviceId || sv.id.substring(0,8)} | ${fmtDateShort(sv.data)} | ${sv.clienteNome} | ${fmtNum(sv.valorFornecedor)}\n`;
+    });
+    txt += `\nGerado em ${now} — Betinhos`;
+
+    navigator.clipboard.writeText(txt).then(() => {
+      const btn = document.getElementById('btn-copy-summary');
+      if (btn) { const orig = btn.innerHTML; btn.innerHTML = '✓ Copiado!'; setTimeout(() => btn.innerHTML = orig, 2500); }
+    }).catch(() => toast('Não foi possível copiar.', 'error'));
+  },
+
+  sendEmail() {
+    const opId = State.currentOpId;
+    const d = this._buildOPData(opId);
+    if (!d) return;
+    const { op, svcs, total } = d;
+
+    const subject = encodeURIComponent(`Ordem de Pagamento ${op.numero} — Betinhos`);
+    let body = `Olá, ${op.fornecNome},\n\n`;
+    body += `Segue o resumo da Ordem de Pagamento referente aos serviços prestados:\n\n`;
+    body += `Número da OP: ${op.numero}\n`;
+    body += `Data: ${fmtDateShort(op.data)}\n`;
+    body += `Total a receber: ${fmtNum(total)}\n\n`;
+    body += `Serviços incluídos:\n`;
+    svcs.forEach(sv => { body += `  • ${sv.serviceId || sv.id.substring(0,8)} — ${fmtDateShort(sv.data)} — ${fmtNum(sv.valorFornecedor)}\n`; });
+    body += `\nAtenciosamente,\nEquipe Betinhos`;
+
+    window.open(`mailto:?subject=${subject}&body=${encodeURIComponent(body)}`, '_blank');
+  },
+
+  // ── Modal helpers ─────────────────────────────────────────────────
+  openModal(id) {
+    document.getElementById(`modal-${id}`).classList.add('open');
+  },
+  closeModal(id) {
+    document.getElementById(`modal-${id}`).classList.remove('open');
+  },
+
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BOOT
+// ─────────────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => App.init());
+</script>
+</body>
+</html>
