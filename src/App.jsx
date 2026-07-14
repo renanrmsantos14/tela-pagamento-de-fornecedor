@@ -56,6 +56,62 @@ const monthRange = () => {
     to: end.toISOString().slice(0, 10),
   };
 };
+const toDateInput = (date) => date.toISOString().slice(0, 10);
+const previousRange = (range) => {
+  const from = new Date(`${range.from}T12:00:00`);
+  const to = new Date(`${range.to}T12:00:00`);
+  const days = Math.max(
+    1,
+    Math.round((to.getTime() - from.getTime()) / 86400000) + 1,
+  );
+  const previousTo = new Date(from);
+  previousTo.setDate(previousTo.getDate() - 1);
+  const previousFrom = new Date(previousTo);
+  previousFrom.setDate(previousFrom.getDate() - days + 1);
+  return { from: toDateInput(previousFrom), to: toDateInput(previousTo) };
+};
+const percentChange = (current, previous) => {
+  if (!previous) return null;
+  return ((current - previous) / Math.abs(previous)) * 100;
+};
+const dashboardBuckets = (services, range) => {
+  const from = new Date(`${range.from}T12:00:00`);
+  const to = new Date(`${range.to}T12:00:00`);
+  const totalDays = Math.max(
+    1,
+    Math.round((to.getTime() - from.getTime()) / 86400000) + 1,
+  );
+  const bucketCount = Math.min(6, Math.max(1, Math.ceil(totalDays / 7)));
+  const bucketDays = Math.ceil(totalDays / bucketCount);
+  return Array.from({ length: bucketCount }, (_, index) => {
+    const start = new Date(from);
+    start.setDate(start.getDate() + index * bucketDays);
+    const end = new Date(start);
+    end.setDate(end.getDate() + bucketDays - 1);
+    if (end > to) end.setTime(to.getTime());
+    const rows = services.filter((service) => {
+      const date = new Date(service.dataServico);
+      return date >= start && date <= end;
+    });
+    return {
+      label: start.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+      ...paymentTotals(rows),
+    };
+  });
+};
+const dashboardRanking = (services, key, nameFor) => {
+  const grouped = new Map();
+  services.forEach((service) => {
+    const id = service[key] || "sem-vinculo";
+    const current = grouped.get(id) || { id, name: nameFor(service), services: [] };
+    current.services.push(service);
+    grouped.set(id, current);
+  });
+  return [...grouped.values()]
+    .map((row) => ({ ...row, ...paymentTotals(row.services) }))
+    .sort((left, right) => right.margin - left.margin)
+    .slice(0, 5);
+};
 const statusText = (lot) =>
   lot.lotStatus === LOT_STATUS.CANCELLED
     ? "Cancelado"
@@ -174,6 +230,7 @@ function Badge({ tone = "neutral", children }) {
 }
 export default function App() {
   const [services, setServices] = useState([]);
+  const [previousServices, setPreviousServices] = useState([]);
   const [favorecidos, setFavorecidos] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [links, setLinks] = useState([]);
@@ -195,15 +252,17 @@ export default function App() {
   async function refresh() {
     setBusy("refresh", true);
     try {
-      const [serviceRows, favorecidoRows, driverRows, linkRows, lotRows] =
+      const [serviceRows, previousServiceRows, favorecidoRows, driverRows, linkRows, lotRows] =
         await Promise.all([
           dataverse.listFinanceServices(range),
+          dataverse.listFinanceServices(previousRange(range)),
           dataverse.listFavorecidos(true),
           dataverse.listDrivers(),
           dataverse.listLinks(),
           dataverse.listAll("cr40f_pagamentoaterceiro"),
         ]);
       setServices(serviceRows);
+      setPreviousServices(previousServiceRows);
       setFavorecidos(favorecidoRows);
       setDrivers(driverRows);
       setLinks(linkRows);
@@ -453,8 +512,17 @@ export default function App() {
           {tab === "overview" && (
             <OverviewView
               services={services}
+              previousServices={previousServices}
               lots={lots}
               links={links}
+              favorecidos={favorecidos}
+              drivers={drivers}
+              range={range}
+              setRange={setRange}
+              driverId={driverId}
+              setDriverId={setDriverId}
+              favorecidoFilter={favorecidoFilter}
+              setFavorecidoFilter={setFavorecidoFilter}
               onNavigate={setTab}
               onNewLot={() => setDrawer({ type: "lot" })}
               onNewFavorecido={() => setDrawer({ type: "favorecido" })}
@@ -689,16 +757,32 @@ function Alert({ tone, children, onClose }) {
 }
 function OverviewView({
   services,
+  previousServices,
   lots,
   links,
+  favorecidos,
+  drivers,
+  range,
+  setRange,
+  driverId,
+  setDriverId,
+  favorecidoFilter,
+  setFavorecidoFilter,
   onNavigate,
   onNewLot,
   onNewFavorecido,
 }) {
+  const matchesDashboardFilter = (service) =>
+    (!driverId || service.motoristaId === driverId) &&
+    (!favorecidoFilter || service.favorecidoId === favorecidoFilter);
   const completedServices = services.filter(
-    (service) => service.status === "concluido",
+    (service) => service.status === "concluido" && matchesDashboardFilter(service),
+  );
+  const previousCompletedServices = previousServices.filter(
+    (service) => service.status === "concluido" && matchesDashboardFilter(service),
   );
   const totals = paymentTotals(completedServices);
+  const previousTotals = paymentTotals(previousCompletedServices);
   const pendingRepasse = completedServices.filter(
     (service) => Number(service.valorRepasse || 0) <= 0,
   );
@@ -725,123 +809,146 @@ function OverviewView({
         DOCUMENT_STATUS.RESEND_REQUIRED,
       ].includes(lot.documentStatus),
   );
+  const negativeMargins = completedServices.filter(
+    (service) => Number(service.valorRepasse || 0) > Number(service.valorCobrado || 0),
+  );
+  const missingLink = completedServices.filter(
+    (service) =>
+      !service.favorecidoId ||
+      !links.some(
+        (link) =>
+          link.status === "ativo" &&
+          link.motoristaId === service.motoristaId &&
+          link.favorecidoId === service.favorecidoId,
+      ),
+  );
+  const openExposure = openLots.reduce(
+    (total, lot) => total + Number(lot.repasse || 0),
+    0,
+  );
+  const paidLots = lots.filter((lot) => lot.paymentStatus === PAYMENT_STATUS.PAID);
   const totalMargin = totals.marginPercent.toLocaleString("pt-BR", {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   });
+  const marginChange = percentChange(totals.margin, previousTotals.margin);
+  const profitTrend = dashboardBuckets(completedServices, range);
+  const highestProfit = Math.max(...profitTrend.map((item) => item.margin), 0);
+  const driverRanking = dashboardRanking(
+    completedServices,
+    "motoristaId",
+    (service) => service.motorista || "Motorista não identificado",
+  );
+  const favorecidoRanking = dashboardRanking(
+    completedServices,
+    "favorecidoId",
+    (service) =>
+      favorecidos.find((favorecido) => favorecido.id === service.favorecidoId)
+        ?.nome || "Sem terceiro favorecido",
+  );
+  const serviceTypeRanking = dashboardRanking(
+    completedServices,
+    "tipoVeiculo",
+    (service) => service.tipoServico || service.tipoVeiculo || "Sem classificação",
+  );
+  const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+  });
+  const periodLabel = `${dateFormatter.format(new Date(`${range.from}T12:00:00`))} – ${dateFormatter.format(new Date(`${range.to}T12:00:00`))}`;
 
   return (
     <section className="page-section overview-page">
       <div className="page-title">
         <div>
           <span>Financeiro operacional</span>
-          <h1>Visão geral</h1>
-          <p>Prioridades do período, sem misturar lançamento, lote e cadastro.</p>
+          <h1>Dashboard financeiro</h1>
+          <p>Resultado, exposição e pendências de fornecedores no mesmo recorte.</p>
+        </div>
+        <div className="dashboard-title-actions">
+          <button className="secondary-button" onClick={onNewFavorecido}>
+            <UsersRound size={16} /> Terceiro
+          </button>
+          <button className="primary-button" onClick={onNewLot}>
+            <Plus size={16} /> Novo lote
+          </button>
         </div>
       </div>
 
-      <section className="metrics-grid" aria-label="Resumo financeiro">
-        <OverviewMetric
-          tone="blue"
-          icon={<Banknote size={20} />}
-          label="Total CP"
-          value={money(totals.revenue)}
-          detail={`${totals.count} serviço(s) concluído(s)`}
-        />
-        <OverviewMetric
-          tone="green"
-          icon={<CircleDollarSign size={20} />}
-          label="Repasses lançados"
-          value={money(totals.repasse)}
-          detail={`${totalMargin}% no período`}
-        />
-        <OverviewMetric
-          tone="amber"
-          icon={<AlertTriangle size={20} />}
-          label="Aguardando repasse"
-          value={String(pendingRepasse.length)}
-          detail="serviços sem valor definido"
-        />
-        <OverviewMetric
-          tone="blue"
-          icon={<ClipboardList size={20} />}
-          label="Lotes em aberto"
-          value={String(openLots.length)}
-          detail="rascunhos ainda não pagos"
-        />
+      <section className="dashboard-filters surface" aria-label="Filtros do dashboard">
+        <label>De<input type="date" value={range.from} onChange={(event) => setRange((current) => ({ ...current, from: event.target.value }))} /></label>
+        <label>Até<input type="date" value={range.to} onChange={(event) => setRange((current) => ({ ...current, to: event.target.value }))} /></label>
+        <label>Motorista
+          <select value={driverId} onChange={(event) => setDriverId(event.target.value)}>
+            <option value="">Todos os motoristas</option>
+            {drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.nome}</option>)}
+          </select>
+        </label>
+        <label>Terceiro favorecido
+          <select value={favorecidoFilter} onChange={(event) => setFavorecidoFilter(event.target.value)}>
+            <option value="">Todos os favorecidos</option>
+            {favorecidos.map((favorecido) => <option key={favorecido.id} value={favorecido.id}>{favorecido.nome}</option>)}
+          </select>
+        </label>
       </section>
 
-      <div className="dashboard-grid overview-grid">
-        <section className="surface priority-panel">
+      <section className="dashboard-metrics" aria-label="Resumo financeiro do período">
+        <article className="dashboard-profit-card">
+          <span>Lucro financeiro</span>
+          <strong>{money(totals.margin)}</strong>
+          <div><b>{totalMargin}%</b><small>{marginChange === null ? "sem base anterior" : `${marginChange >= 0 ? "+" : ""}${marginChange.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% vs. período anterior`}</small></div>
+        </article>
+        <OverviewMetric icon={<Banknote size={19} />} label="Total CP" value={money(totals.revenue)} detail={`${totals.count} serviços concluídos`} />
+        <OverviewMetric icon={<CircleDollarSign size={19} />} label="Repasse previsto" value={money(totals.repasse)} detail={`${totalMargin}% de margem`} />
+        <OverviewMetric icon={<ClipboardList size={19} />} label="Em aberto" value={money(openExposure)} detail={`${openLots.length} lote(s) aguardando pagamento`} />
+      </section>
+
+      <div className="dashboard-grid dashboard-main-grid">
+        <section className="surface dashboard-flow-panel">
           <div className="surface-head">
-            <div>
-              <span>Próximas ações</span>
-              <h2>O que precisa de atenção</h2>
-            </div>
+            <div><span>Resultado no tempo</span><h2>Lucro por intervalo</h2></div>
+            <small className="dashboard-period">{periodLabel}</small>
           </div>
-          <div className="overview-queue">
-            <OverviewQueueRow
-              tone={pendingRepasse.length ? "warning" : "success"}
-              title="Lançar repasses"
-              description={
-                pendingRepasse.length
-                  ? `${pendingRepasse.length} serviço(s) aguardando valor.`
-                  : "Todos os serviços concluídos têm repasse informado."
-              }
-              action="Abrir"
-              onClick={() => onNavigate("payments")}
-            />
-            <OverviewQueueRow
-              tone={readyServices.length ? "info" : "neutral"}
-              title="Montar lote"
-              description={
-                readyServices.length
-                  ? `${readyServices.length} serviço(s) disponível(is) para reserva.`
-                  : "Não há serviços elegíveis para um novo lote."
-              }
-              action="Novo lote"
-              onClick={onNewLot}
-            />
-            <OverviewQueueRow
-              tone={documentAttention.length ? "warning" : "success"}
-              title="Documentos de pagamento"
-              description={
-                documentAttention.length
-                  ? `${documentAttention.length} lote(s) precisam de geração ou reenvio.`
-                  : "Nenhum documento pendente."
-              }
-              action="Ver lotes"
-              onClick={() => onNavigate("lots")}
-            />
+          <div className="dashboard-chart" aria-label="Gráfico de lucro do período">
+            {profitTrend.map((item) => (
+              <div className="dashboard-chart-column" key={item.label}>
+                <span>{money(item.margin)}</span>
+                <i style={{ "--bar-size": `${highestProfit ? Math.max(10, (item.margin / highestProfit) * 100) : 10}%` }} />
+                <small>{item.label}</small>
+              </div>
+            ))}
           </div>
+          <div className="dashboard-flow-foot"><span>Receita <b>{money(totals.revenue)}</b></span><span>Repasse <b>{money(totals.repasse)}</b></span><span>Margem <b>{totalMargin}%</b></span></div>
         </section>
 
-        <section className="surface category-panel overview-shortcuts">
-          <div className="surface-head">
-            <div>
-              <span>Atalhos</span>
-              <h2>Ir direto ao trabalho</h2>
-            </div>
+        <section className="surface dashboard-health-panel">
+          <div className="surface-head"><div><span>Controle da carteira</span><h2>O que exige ação</h2></div></div>
+          <div className="overview-queue">
+            <OverviewQueueRow tone={pendingRepasse.length ? "warning" : "success"} title="Repasses pendentes" description={pendingRepasse.length ? `${pendingRepasse.length} serviço(s) sem valor informado.` : "Todos os serviços possuem repasse."} action="Lançar" onClick={() => onNavigate("payments")} />
+            <OverviewQueueRow tone={negativeMargins.length ? "warning" : "success"} title="Margem negativa" description={negativeMargins.length ? `${negativeMargins.length} serviço(s) com repasse acima do Total CP.` : "Nenhum serviço com margem negativa."} action="Revisar" onClick={() => onNavigate("payments")} />
+            <OverviewQueueRow tone={missingLink.length ? "warning" : "success"} title="Vínculos pendentes" description={missingLink.length ? `${missingLink.length} serviço(s) sem vínculo ativo.` : "Vínculos operacionais em dia."} action="Ver" onClick={() => onNavigate("favorecidos")} />
+            <OverviewQueueRow tone={documentAttention.length ? "warning" : "success"} title="Documentos" description={documentAttention.length ? `${documentAttention.length} lote(s) exigem envio ou reenvio.` : "Documentação de pagamento em dia."} action="Lotes" onClick={() => onNavigate("lots")} />
           </div>
-          <button className="overview-shortcut" onClick={onNewLot}>
-            <span className="overview-shortcut-icon"><Plus size={17} /></span>
-            <span><strong>Novo lote</strong><small>Reserve serviços e confira os totais.</small></span>
-            <ChevronRight size={16} />
-          </button>
-          <button className="overview-shortcut" onClick={onNewFavorecido}>
-            <span className="overview-shortcut-icon"><UsersRound size={17} /></span>
-            <span><strong>Cadastrar terceiro</strong><small>Inclua PIX e vínculos de motorista.</small></span>
-            <ChevronRight size={16} />
-          </button>
+        </section>
+      </div>
+
+      <div className="dashboard-grid dashboard-bottom-grid">
+        <DashboardRanking title="Resultado por motorista" subtitle="Quem mais contribuiu para o lucro" rows={driverRanking} total={totals.margin} />
+        <DashboardRanking title="Resultado por favorecido" subtitle="Concentração financeira da carteira" rows={favorecidoRanking} total={totals.margin} />
+        <DashboardRanking title="Resultado por tipo de serviço" subtitle="Classificação operacional disponível" rows={serviceTypeRanking} total={totals.margin} />
+        <section className="surface dashboard-lots-panel">
+          <div className="surface-head"><div><span>Execução</span><h2>Lotes e pagamentos</h2></div><button className="text-button" onClick={() => onNavigate("lots")}>Ver todos <ChevronRight size={14} /></button></div>
+          <div className="dashboard-lot-summary"><span><b>{openLots.length}</b> em aberto</span><span><b>{paidLots.length}</b> pagos</span><span><b>{readyServices.length}</b> prontos</span></div>
+          <button className="dashboard-lot-action" onClick={onNewLot}><Plus size={16} /><span><strong>Montar lote</strong><small>Reserve serviços elegíveis para pagamento.</small></span><ChevronRight size={16} /></button>
         </section>
       </div>
     </section>
   );
 }
 
-function OverviewMetric({ tone, icon, label, value, detail }) {
+function OverviewMetric({ icon, label, value, detail }) {
   return (
-    <article className={`metric-card tone-${tone}`}>
+    <article className="dashboard-metric-card">
       <div className="metric-icon">{icon}</div>
       <div>
         <span>{label}</span>
@@ -849,6 +956,23 @@ function OverviewMetric({ tone, icon, label, value, detail }) {
         <small>{detail}</small>
       </div>
     </article>
+  );
+}
+
+function DashboardRanking({ title, subtitle, rows, total }) {
+  return (
+    <section className="surface dashboard-ranking-panel">
+      <div className="surface-head"><div><span>{subtitle}</span><h2>{title}</h2></div></div>
+      <div className="dashboard-ranking-list">
+        {rows.length ? rows.map((row, index) => (
+          <div className="dashboard-ranking-row" key={row.id}>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <div><strong>{row.name}</strong><small>{row.count} serviço(s)</small></div>
+            <div><b>{money(row.margin)}</b><small>{total ? `${((row.margin / total) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "0%"}</small></div>
+          </div>
+        )) : <p className="dashboard-empty">Sem serviços concluídos no filtro atual.</p>}
+      </div>
+    </section>
   );
 }
 
