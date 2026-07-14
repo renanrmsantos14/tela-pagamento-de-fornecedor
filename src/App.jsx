@@ -14,6 +14,7 @@ import {
   FileText,
   Link2,
   LayoutDashboard,
+  Pin,
   GripVertical,
   Plus,
   RefreshCw,
@@ -96,7 +97,7 @@ const REPASSE_ACTIVE_VIEW_STORAGE_KEY = "betinhos_repasses_active_view_v1";
 const loadRepasseColumns = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(REPASSE_COLUMNS_STORAGE_KEY));
-    if (Array.isArray(saved) && saved.length) return saved;
+    if (Array.isArray(saved) && saved.length) return viewColumns(saved);
   } catch {
     /* Usa a configuração padrão. */
   }
@@ -126,7 +127,9 @@ const viewColumns = (savedColumns) => {
       return {
         ...fallback,
         width: Math.max(110, Number(column.width) || fallback.width),
-        visible: fallback.locked ? true : column.visible !== false,
+        visible: column.visible !== false,
+        locked:
+          typeof column.locked === "boolean" ? column.locked : fallback.locked,
       };
     });
   const present = new Set(mapped.map((column) => column.id));
@@ -978,19 +981,27 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
   const [draggedColumn, setDraggedColumn] = useState("");
   const [resize, setResize] = useState(null);
   const [sort, setSort] = useState({ id: "dataServico", direction: "desc" });
-  const visibleColumns = columns.filter((column) => column.visible);
+  const orderedColumns = [...columns].sort(
+    (left, right) => Number(right.locked) - Number(left.locked),
+  );
+  const visibleColumns = orderedColumns.filter((column) => column.visible);
   const template = visibleColumns
     .map((column) => `${column.width}px`)
     .join(" ");
   const pendingCount = services.filter(
     (service) => service.valorRepasse <= 0,
   ).length;
-  const pickerColumns = columns.filter((column) =>
+  const pickerColumns = orderedColumns.filter((column) =>
     column.label.toLowerCase().includes(columnSearch.toLowerCase()),
   );
   const activeView = views.find((view) => view.id === activeViewId);
   const currentView = () => ({
-    columns: columns.map(({ id, width, visible }) => ({ id, width, visible })),
+    columns: columns.map(({ id, width, visible, locked }) => ({
+      id,
+      width,
+      visible,
+      locked,
+    })),
     density,
     sort,
   });
@@ -1063,10 +1074,11 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
   const reorderColumns = (sourceId, targetId) => {
     if (!sourceId || sourceId === targetId) return;
     setColumns((current) => {
-      const source = current.findIndex((column) => column.id === sourceId);
-      const target = current.findIndex((column) => column.id === targetId);
-      if (current[source].locked || current[target].locked) return current;
-      const next = [...current];
+      const next = [...current].sort(
+        (left, right) => Number(right.locked) - Number(left.locked),
+      );
+      const source = next.findIndex((column) => column.id === sourceId);
+      const target = next.findIndex((column) => column.id === targetId);
       next.splice(target, 0, next.splice(source, 1)[0]);
       return next;
     });
@@ -1079,6 +1091,12 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
     setColumns((current) =>
       current.map((column) =>
         column.id === id ? { ...column, visible: !column.visible } : column,
+      ),
+    );
+  const toggleColumnPin = (id) =>
+    setColumns((current) =>
+      current.map((column) =>
+        column.id === id ? { ...column, locked: !column.locked } : column,
       ),
     );
   const resetColumns = () =>
@@ -1099,7 +1117,9 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
     );
   const moveColumnWithKeyboard = (id, direction) => {
     const target =
-      columns[columns.findIndex((column) => column.id === id) + direction];
+      orderedColumns[
+        orderedColumns.findIndex((column) => column.id === id) + direction
+      ];
     if (!target) return;
     reorderColumns(id, target.id);
   };
@@ -1333,10 +1353,22 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
                     <input
                       type="checkbox"
                       checked={column.visible}
-                      disabled={column.locked}
                       onChange={() => toggleColumn(column.id)}
                     />
-                    {column.label}
+                    <span>{column.label}</span>
+                    <button
+                      type="button"
+                      className={`column-pin ${column.locked ? "is-active" : ""}`}
+                      aria-label={`${column.locked ? "Desafixar" : "Fixar"} ${column.label}`}
+                      aria-pressed={column.locked}
+                      title={column.locked ? "Desafixar coluna" : "Fixar à esquerda"}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        toggleColumnPin(column.id);
+                      }}
+                    >
+                      <Pin size={14} />
+                    </button>
                   </label>
                 ))}
               </div>
@@ -1361,7 +1393,7 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
                 className={`repasse-grid-header ${column.locked ? "is-pinned" : ""}`}
                 key={column.id}
                 style={pinnedStyle(column)}
-                draggable={!column.locked}
+                draggable
                 role="columnheader"
                 tabIndex={0}
                 aria-sort={

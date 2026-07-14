@@ -1780,6 +1780,36 @@ select:focus {
   min-height: 16px;
   padding: 0;
 }
+.column-picker label > span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.column-pin {
+  width: 26px;
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  color: #8997a8;
+  background: transparent;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    transform 140ms var(--ease-out);
+}
+.column-pin.is-active {
+  color: var(--blue);
+  background: #edf3ff;
+}
+.column-pin:active {
+  transform: scale(0.94);
+}
 .repasse-grid-scroll {
   max-width: 100%;
   overflow: auto;
