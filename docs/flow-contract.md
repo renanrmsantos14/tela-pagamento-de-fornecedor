@@ -1,27 +1,16 @@
-# Contrato do Flow de Pagamentos a Terceiros
+# Contrato de documento e envio
 
-O web resource chama o Flow com `POST` e este corpo:
+Após o pagamento, o navegador gera `Pagamento_<LOTE>_v<VERSAO>.pdf` com jsPDF.
+O documento externo contém somente identificação Betinhos, lote/versão, datas,
+favorecido, CPF/CNPJ, PIX, serviços, motoristas, trajetos, repasses e total.
+Não contém cliente, receita, lucro, margem, observações internas ou link OneDrive.
 
-```json
-{
-  "loteId": "GUID_DO_LOTE",
-  "operacao": "enviar",
-  "versao": 1,
-  "contratoOneDrive": "new_FlowURLFlowSalvarArquivosOnedrive"
-}
-```
+O upload faz POST para `window.__ONEDRIVE_FLOW_URL` (ou fallback explícito
+`window.__PAYMENT_FLOW_URL`) com `caminhoCompleto`, `nomeArquivo`,
+`conteudoBase64`, `mimeType` e `metadados`. O caminho é
+`Pagamentos a Terceiros/<ANO>/<FAVORECIDO>/<LOTE>/`.
 
-`operacao` aceita `enviar`, `reenviar` e `gerar-final-pago`.
-
-O Flow deve:
-
-1. Buscar o lote em `cr40f_pagamentoaterceiro` e os itens em `cr40f_itempagamentoaterceiro`.
-2. Montar o PDF operacional com identificador do serviço, data, cliente, trajeto, valor cobrado, repasse e margem.
-3. Salvar o PDF no OneDrive usando o contrato existente `new_FlowURLFlowSalvarArquivosOnedrive` com `caminhoCompleto`, `nomeArquivo`, `conteudoBase64`, `mimeType`, `metadados` e link compartilhável.
-4. Enviar ao e-mail congelado do Terceiro Favorecido com cópia para Financeiro Betinhos.
-5. Registrar o evento no `cr40f_eventopagamentoaterceiro`.
-6. Se a notificação final falhar depois do PIX, manter o lote como `Pago`, gravar `ErroNotificacao` e permitir nova tentativa.
-
-O web resource não calcula repasse a partir de uma coluna legada. O valor deve vir de `cr40f_valorrepasseterceiro` na composição do serviço e ser congelado em `cr40f_valorrepasse` no item do lote.
-
-Nota de metadata DEV: o MCP não expôs `cr40f_reservadeveiculos` para criação de lookup na tabela de itens. Por isso, o item mantém `cr40f_servicoid` como identificador textual do serviço, além do snapshot financeiro. O lookup nativo deve ser adicionado quando a entidade estiver disponível no cache de metadata.
+O envio Dataverse usa `window.__FINANCE_QUEUE_ID` e
+`window.__FINANCE_COPY_EMAIL`, cria e-mail, anexo `activitymimeattachment` e
+executa `SendEmail`. Falha de upload/e-mail não desfaz pagamento: document status
+fica `failed` e o reenvio é permitido.

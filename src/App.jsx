@@ -1,56 +1,1574 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowUpRight, Banknote, CheckCircle2, CircleDollarSign, ClipboardList, FileCheck2, Plus, RefreshCw, Search, Send, UsersRound, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Banknote,
+  CheckCircle2,
+  ChevronRight,
+  CircleDollarSign,
+  ClipboardList,
+  FileDown,
+  FileText,
+  Link2,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  Search,
+  Send,
+  Undo2,
+  UsersRound,
+  X,
+} from "lucide-react";
 import { dataverse } from "./lib/dataverse";
-import { createLotSnapshot, eligibleServices, groupMonthly, money, paymentTotals, validateFavorecido } from "./domain/payment";
+import { buildPaymentPdf } from "./lib/document";
+import {
+  DOCUMENT_STATUS,
+  LOT_STATUS,
+  PAYMENT_STATUS,
+  canCancel,
+  canPay,
+  canRevert,
+  eligibleServices,
+  groupMonthly,
+  marginPercent,
+  money,
+  moneyInput,
+  parseMoney,
+  paymentTotals,
+  profit,
+  validateFavorecido,
+} from "./domain/payment";
 
-const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-const statusLabel = { 100000000: "Rascunho", 100000001: "Falha no envio", 100000002: "Aguardando pagamento", 100000003: "Pago" };
+const months = [
+  "Jan",
+  "Fev",
+  "Mar",
+  "Abr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Set",
+  "Out",
+  "Nov",
+  "Dez",
+];
+const monthRange = () => {
+  const date = new Date();
+  const start = new Date(date.getFullYear(), date.getMonth(), 1);
+  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  return {
+    from: start.toISOString().slice(0, 10),
+    to: end.toISOString().slice(0, 10),
+  };
+};
+const statusText = (lot) =>
+  lot.lotStatus === LOT_STATUS.CANCELLED
+    ? "Cancelado"
+    : lot.paymentStatus === PAYMENT_STATUS.PAID
+      ? lot.documentStatus === DOCUMENT_STATUS.SENT
+        ? "Pago · documento enviado"
+        : lot.documentStatus === DOCUMENT_STATUS.FAILED
+          ? "Pago · falha documental"
+          : "Pago · documento pendente"
+      : "Rascunho";
+const maskPix = (value) =>
+  value?.length > 8 ? `${value.slice(0, 3)}••••${value.slice(-3)}` : value;
 
-function Badge({ status }) { return <span className={`status-badge status-${status}`}>{statusLabel[status] || status}</span>; }
-function Metric({ tone, icon: Icon, label, value, note }) { return <article className={`metric-card tone-${tone}`}><div className="metric-icon"><Icon size={20} /></div><div><span>{label}</span><strong>{value}</strong><small>{note}</small></div></article>; }
-function Drawer({ title, subtitle, children, onClose, wide = false }) { return <div className="drawer-layer"><button className="drawer-backdrop" aria-label="Fechar" onClick={onClose} /><section className={`drawer ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}><header><div><span>{subtitle}</span><h2>{title}</h2></div><button className="icon-button" onClick={onClose} aria-label="Fechar"><X size={20} /></button></header><div className="drawer-body">{children}</div></section></div>; }
-
-function App() {
-  const [services, setServices] = useState([]); const [favorecidos, setFavorecidos] = useState([]); const [lots, setLots] = useState([]);
-  const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState(""); const [notice, setNotice] = useState("");
-  const [year, setYear] = useState(new Date().getFullYear()); const [search, setSearch] = useState(""); const [filterFavorecido, setFilterFavorecido] = useState("all"); const [drawer, setDrawer] = useState(null);
-
-  async function refresh() { setLoading(true); setError(""); try { const [serviceRows, favorecidoRows, lotRows] = await Promise.all([dataverse.listServices(), dataverse.listFavorecidos(), dataverse.listAll("cr40f_pagamentoaterceiro")]); setServices(serviceRows); setFavorecidos(favorecidoRows); setLots(lotRows); } catch (err) { setError(err.message); } finally { setLoading(false); } }
-  useEffect(() => { refresh(); }, []);
-  useEffect(() => { if (!notice) return undefined; const timer = setTimeout(() => setNotice(""), 3500); return () => clearTimeout(timer); }, [notice]);
-
-  const yearServices = useMemo(() => services.filter((service) => new Date(service.dataServico).getFullYear() === Number(year)), [services, year]);
-  const totals = useMemo(() => paymentTotals(yearServices), [yearServices]);
-  const monthly = useMemo(() => groupMonthly(yearServices, year), [yearServices, year]);
-  const eligible = useMemo(() => eligibleServices(services, filterFavorecido === "all" ? "" : filterFavorecido).filter((service) => !search || `${service.identificador} ${service.cliente} ${service.trajeto} ${service.motorista}`.toLowerCase().includes(search.toLowerCase())), [services, filterFavorecido, search]);
-  const missing = yearServices.filter((service) => !service.valorCobrado || !service.valorRepasse).length;
-
-  async function handleCreateFavorecido(form) { setSaving(true); try { await dataverse.createFavorecido(form); setNotice("Terceiro Favorecido cadastrado."); setDrawer(null); await refresh(); } catch (err) { setError(err.message); } finally { setSaving(false); } }
-  async function handleCreateLot(favorecido, selected) { setSaving(true); try { const snapshot = createLotSnapshot(favorecido, selected, year); const created = await dataverse.createPayment({ ...snapshot, favorecido, favorecidoId: favorecido.id }); setNotice(`Lote ${created.identifier || "criado"} reservado.`); setDrawer(null); await refresh(); } catch (err) { setError(err.message); } finally { setSaving(false); } }
-  async function handleSend(lot) { setSaving(true); try { await dataverse.sendPayment(lot, lot.version > 1 ? "reenviar" : "enviar"); setNotice("Documento enviado para geração e notificação."); setDrawer(null); await refresh(); } catch (err) { setError(err.message); } finally { setSaving(false); } }
-  async function handlePaid(lot, proofUrl) { setSaving(true); try { await dataverse.markPaid(lot, proofUrl); setNotice("Pagamento registrado."); setDrawer(null); await refresh(); } catch (err) { setError(err.message); } finally { setSaving(false); } }
-
-  if (!dataverse.available) return <main className="connection-error"><AlertTriangle size={38} /><h1>Pagamentos a Terceiros</h1><p>Abra este web resource dentro do model-driven app para conectar ao Dataverse.</p></main>;
-  return <div className="app-shell">
-    <aside className="sidebar"><div className="brand-block"><div className="brand-mark"><Banknote size={21} /></div><div><strong>Betinhos</strong><span>Financeiro operacional</span></div></div><nav className="main-nav"><button className="active"><CircleDollarSign size={17} />Pagamentos</button><button onClick={() => setDrawer({ type: "lot" })}><ClipboardList size={17} />Lotes de pagamento</button><button onClick={() => setDrawer({ type: "favorecido" })}><UsersRound size={17} />Terceiros Favorecidos</button></nav><button className="primary-button sidebar-create" onClick={() => setDrawer({ type: "lot" })}><Plus size={16} />Novo lote</button><div className="sidebar-foot"><span className={`connection-dot ${dataverse.mockMode ? "mock" : ""}`} /><div><strong>{dataverse.environmentLabel}</strong><span>{dataverse.mockMode ? "modo de prévia" : "Dataverse conectado"}</span></div></div></aside>
-    <main className="app-main"><header className="mobile-header"><div className="brand-mark"><Banknote size={18} /></div><strong>Pagamentos a Terceiros</strong><button className="icon-button" onClick={refresh} aria-label="Atualizar"><RefreshCw size={17} className={loading ? "spin" : ""} /></button></header><div className="content-wrap"><div className="desktop-actions"><span className="environment-pill">{dataverse.environmentLabel}</span><button className="icon-button" onClick={refresh}><RefreshCw size={15} className={loading ? "spin" : ""} />Atualizar</button></div>
-      <section className="page-section"><div className="page-title"><div><span>Financeiro / Operação</span><h1>Pagamentos a Terceiros</h1><p>Consolide repasses, preserve o histórico e envie o documento certo.</p></div><button className="primary-button" onClick={() => setDrawer({ type: "lot" })}><Plus size={16} />Novo lote</button></div>
-      {error && <div className="global-alert error"><AlertTriangle size={17} /><span>{error}</span><button onClick={() => setError("")}>×</button></div>}{notice && <div className="global-alert success"><CheckCircle2 size={17} /><span>{notice}</span></div>}
-      <div className="metrics-grid"><Metric tone="blue" icon={Banknote} label="Receita dos serviços" value={money(totals.revenue)} note={`${totals.count} serviços concluídos em ${year}`} /><Metric tone="green" icon={CircleDollarSign} label="Repasse previsto" value={money(totals.repasse)} note="Campo próprio do repasse" /><Metric tone="blue" icon={ArrowUpRight} label="Margem operacional" value={money(totals.margin)} note="Receita menos repasse" /><Metric tone={missing ? "amber" : "green"} icon={AlertTriangle} label="Pendências de cadastro" value={missing} note={missing ? "Serviços sem preço ou repasse" : "Sem alertas no ano"} /></div>
-      <div className="dashboard-grid"><section className="surface priority-panel"><div className="surface-head"><div><span>Visão anual</span><h2>Movimento por mês</h2></div><label className="year-select"><span>Ano</span><select value={year} onChange={(event) => setYear(event.target.value)}>{[year - 1, year, year + 1].map((value) => <option key={value}>{value}</option>)}</select></label></div><div className="monthly-table"><div className="monthly-head"><span>Mês</span><span>Serviços</span><span>Receita</span><span>Repasse</span><span>Margem</span></div>{monthly.map((row) => <div className="monthly-row" key={row.month}><strong>{months[row.month]}</strong><span>{row.count}</span><span>{money(row.revenue)}</span><span>{money(row.repasse)}</span><span>{money(row.margin)}</span></div>)}</div></section><section className="surface category-panel"><div className="surface-head"><div><span>Distribuição</span><h2>Terceiros Favorecidos</h2></div><button className="text-button" onClick={() => setDrawer({ type: "favorecido" })}>Cadastrar <ArrowUpRight size={14} /></button></div><div className="bar-list">{favorecidos.slice(0, 15).map((favorecido) => { const amount = yearServices.filter((service) => service.favorecidoId === favorecido.id).reduce((sum, service) => sum + service.valorRepasse, 0); const max = Math.max(...favorecidos.map((row) => yearServices.filter((service) => service.favorecidoId === row.id).reduce((sum, service) => sum + service.valorRepasse, 0)), 1); return <div className="bar-row" key={favorecido.id}><div><span>{favorecido.nome}</span><strong>{money(amount)}</strong></div><div className="bar-track"><span style={{ transform: `scaleX(${amount / max})` }} /></div></div>; })}{!favorecidos.length && <div className="empty-small">Nenhum Terceiro Favorecido ativo.</div>}</div></section></div>
-      <section className="surface filter-surface"><div className="search-box"><Search size={17} /><input placeholder="Buscar serviço, cliente, trajeto ou motorista" value={search} onChange={(event) => setSearch(event.target.value)} /></div><div className="filter-grid"><label><span>Terceiro Favorecido</span><select value={filterFavorecido} onChange={(event) => setFilterFavorecido(event.target.value)}><option value="all">Todos os ativos</option>{favorecidos.map((favorecido) => <option key={favorecido.id} value={favorecido.id}>{favorecido.nome}</option>)}</select></label><label><span>Ano do serviço</span><select value={year} onChange={(event) => setYear(event.target.value)}><option>{year - 1}</option><option>{year}</option><option>{year + 1}</option></select></label><div className="filter-summary"><span>Elegíveis para lote</span><strong>{eligible.length}</strong></div><button className="secondary-button" onClick={() => setDrawer({ type: "lot" })}><Plus size={15} />Montar lote</button></div></section>
-      <section className="surface table-surface"><div className="table-head"><span>Serviço</span><span>Data</span><span>Motorista</span><span>Repasse</span><span>Status</span><span /></div>{eligible.filter((service) => new Date(service.dataServico).getFullYear() === Number(year)).map((service) => <button className="service-row" key={service.id} onClick={() => setDrawer({ type: "service", service })}><div className="service-main"><span className="service-line" /><div><strong>{service.identificador}</strong><span>{service.cliente} · {service.trajeto} · {service.motorista}</span></div></div><span>{new Date(service.dataServico).toLocaleDateString("pt-BR")}</span><span>{service.motorista}</span><strong className="money-text">{money(service.valorRepasse)}</strong><Badge status={service.pagamentoId ? 100000003 : 100000000} /><ArrowUpRight size={15} /></button>)}{!eligible.length && <div className="empty-state"><FileCheck2 size={28} /><strong>Nenhum serviço elegível</strong><span>Serviços concluídos sem lote aparecerão aqui.</span></div>}</section>
-      <section className="surface lots-panel"><div className="surface-head"><div><span>Rastreabilidade</span><h2>Últimos lotes</h2></div><button className="text-button" onClick={() => setDrawer({ type: "lot" })}>Novo lote <Plus size={14} /></button></div>{lots.slice(0, 5).map((lot) => <button className="lot-row" key={lot.id || lot.cr40f_pagamentoaterceiroid} onClick={() => setDrawer({ type: "lotDetail", lot })}><div><strong>{lot.identifier || lot.cr40f_identificadorlote || "Lote sem identificação"}</strong><span>{lot.favorecido?.nome || lot.cr40f_emailfavorecidoenvio || "Terceiro Favorecido"}</span></div><strong>{money(lot.repasse || lot.cr40f_totalrepasse)}</strong><Badge status={lot.status || lot.cr40f_status} /><ArrowUpRight size={15} /></button>)}{!lots.length && <div className="empty-small">Os lotes criados aparecerão nesta lista.</div>}</section>
-      </section></div></main><nav className="bottom-nav" aria-label="Navegação principal"><button className="active"><CircleDollarSign size={18} /><span>Pagamentos</span></button><button onClick={() => setDrawer({ type: "lot" })}><ClipboardList size={18} /><span>Lotes</span></button><button onClick={() => setDrawer({ type: "favorecido" })}><UsersRound size={18} /><span>Terceiros</span></button></nav>{drawer?.type === "favorecido" && <FavorecidoDrawer onClose={() => setDrawer(null)} onSave={handleCreateFavorecido} saving={saving} />}{drawer?.type === "lot" && <LotDrawer favorecidos={favorecidos} services={services} year={year} onClose={() => setDrawer(null)} onSave={handleCreateLot} saving={saving} />}{drawer?.type === "lotDetail" && <LotDetailDrawer lot={drawer.lot} onClose={() => setDrawer(null)} onSend={handleSend} onPaid={handlePaid} saving={saving} />}{drawer?.type === "service" && <ServiceDetailDrawer service={drawer.service} favorecidos={favorecidos} onClose={() => setDrawer(null)} />}
-  </div>;
+function Drawer({ title, subtitle, children, onClose, wide = false }) {
+  return (
+    <div className="drawer-layer">
+      <button
+        className="drawer-backdrop"
+        aria-label="Fechar"
+        onClick={onClose}
+      />
+      <section
+        className={`drawer ${wide ? "wide" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <header>
+          <div>
+            <span>{subtitle}</span>
+            <h2>{title}</h2>
+          </div>
+          <button className="icon-button" onClick={onClose} aria-label="Fechar">
+            <X size={20} />
+          </button>
+        </header>
+        <div className="drawer-body">{children}</div>
+      </section>
+    </div>
+  );
+}
+function Badge({ tone = "neutral", children }) {
+  return <span className={`status-badge tone-${tone}`}>{children}</span>;
+}
+function Metric({ label, value, note, tone = "blue" }) {
+  return (
+    <article className={`metric-card tone-${tone}`}>
+      <div className="metric-icon">
+        <CircleDollarSign size={20} />
+      </div>
+      <div>
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <small>{note}</small>
+      </div>
+    </article>
+  );
 }
 
-function FavorecidoDrawer({ onClose, onSave, saving }) { const [form, setForm] = useState({ nome: "", tipoPessoa: "PF", documento: "", tipoChavePix: "CPF/CNPJ", chavePix: "", email: "", telefone: "" }); const [errors, setErrors] = useState({}); const set = (key, value) => setForm((current) => ({ ...current, [key]: value })); return <Drawer title="Novo Terceiro Favorecido" subtitle="Cadastro financeiro" onClose={onClose}><form className="form-stack" onSubmit={(event) => { event.preventDefault(); const validation = validateFavorecido(form); setErrors(validation); if (!Object.keys(validation).length) onSave(form); }}><div className="inline-alert"><UsersRound size={16} />O favorecido é separado do cadastro do motorista.</div><label><span>Nome ou razão social *</span><input value={form.nome} onChange={(event) => set("nome", event.target.value)} autoFocus />{errors.nome && <small className="field-error">{errors.nome}</small>}</label><div className="form-grid"><label><span>Tipo de pessoa</span><select value={form.tipoPessoa} onChange={(event) => set("tipoPessoa", event.target.value)}><option>PF</option><option>PJ</option></select></label><label><span>CPF ou CNPJ *</span><input value={form.documento} onChange={(event) => set("documento", event.target.value)} />{errors.documento && <small className="field-error">{errors.documento}</small>}</label></div><div className="form-divider"><span>Recebimento PIX</span></div><div className="form-grid"><label><span>Tipo da chave</span><select value={form.tipoChavePix} onChange={(event) => set("tipoChavePix", event.target.value)}><option>CPF/CNPJ</option><option>E-mail</option><option>Telefone</option><option>Aleatória</option></select></label><label><span>Chave PIX *</span><input value={form.chavePix} onChange={(event) => set("chavePix", event.target.value)} />{errors.chavePix && <small className="field-error">{errors.chavePix}</small>}</label></div><label><span>E-mail *</span><input type="email" value={form.email} onChange={(event) => set("email", event.target.value)} />{errors.email && <small className="field-error">{errors.email}</small>}</label><label><span>Telefone</span><input value={form.telefone} onChange={(event) => set("telefone", event.target.value)} /></label><div className="drawer-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={saving}>{saving ? <RefreshCw size={16} className="spin" /> : <CheckCircle2 size={16} />}Salvar cadastro</button></div></form></Drawer>; }
+export default function App() {
+  const [services, setServices] = useState([]);
+  const [favorecidos, setFavorecidos] = useState([]);
+  const [drivers, setDrivers] = useState([]);
+  const [links, setLinks] = useState([]);
+  const [lots, setLots] = useState([]);
+  const [tab, setTab] = useState("payments");
+  const [range, setRange] = useState(monthRange);
+  const [search, setSearch] = useState("");
+  const [driverId, setDriverId] = useState("");
+  const [favorecidoFilter, setFavorecidoFilter] = useState("");
+  const [saving, setSaving] = useState({});
+  const [drawer, setDrawer] = useState(null);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [lotDetail, setLotDetail] = useState(null);
+  const [preselected, setPreselected] = useState(new Set());
+  const busy = (key) => Boolean(saving[key]);
+  const setBusy = (key, value) =>
+    setSaving((current) => ({ ...current, [key]: value }));
+  async function refresh() {
+    setBusy("refresh", true);
+    try {
+      const [serviceRows, favorecidoRows, driverRows, linkRows, lotRows] =
+        await Promise.all([
+          dataverse.listFinanceServices(range),
+          dataverse.listFavorecidos(true),
+          dataverse.listDrivers(),
+          dataverse.listLinks(),
+          dataverse.listAll("cr40f_pagamentoaterceiro"),
+        ]);
+      setServices(serviceRows);
+      setFavorecidos(favorecidoRows);
+      setDrivers(driverRows);
+      setLinks(linkRows);
+      setLots(lotRows);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy("refresh", false);
+    }
+  }
+  useEffect(() => {
+    refresh();
+  }, [range.from, range.to]);
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = setTimeout(() => setNotice(""), 3200);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  const activeFavorecidos = favorecidos.filter((row) => row.status === "ativo");
+  const visibleServices = useMemo(
+    () =>
+      services.filter(
+        (service) =>
+          (!driverId || service.motoristaId === driverId) &&
+          (!favorecidoFilter || service.favorecidoId === favorecidoFilter) &&
+          (!search ||
+            `${service.identificador} ${service.motorista} ${service.trajeto}`
+              .toLowerCase()
+              .includes(search.toLowerCase())),
+      ),
+    [services, driverId, favorecidoFilter, search],
+  );
+  const totals = useMemo(
+    () => paymentTotals(visibleServices),
+    [visibleServices],
+  );
+  const missingRepasse = visibleServices.filter(
+    (service) => service.status === "concluido" && service.valorRepasse <= 0,
+  ).length;
+  const negative = visibleServices.filter(
+    (service) => profit(service) < 0,
+  ).length;
+  const openLot = async (lot) => {
+    try {
+      const detail = await dataverse.getLotDetail(lot.id);
+      setLotDetail(detail);
+      setDrawer({ type: "lotDetail" });
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+  async function saveRepasse(service, raw) {
+    const value = parseMoney(raw);
+    if (value === service.valorRepasse) return;
+    setBusy(`repasse-${service.id}`, true);
+    try {
+      const saved = await dataverse.saveServiceRepasse(
+        service.id,
+        value,
+        service.etag,
+      );
+      setServices((rows) =>
+        rows.map((row) => (row.id === service.id ? { ...row, ...saved } : row)),
+      );
+      setNotice(`Repasse de ${service.identificador} salvo.`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(`repasse-${service.id}`, false);
+    }
+  }
+  async function linkService(service, favorecidoId) {
+    setBusy(`link-${service.id}`, true);
+    try {
+      const saved = await dataverse.setPreferredFavorecido(
+        service.id,
+        favorecidoId,
+      );
+      setServices((rows) =>
+        rows.map((row) => (row.id === service.id ? { ...row, ...saved } : row)),
+      );
+      setLinks(await dataverse.listLinks());
+      setPreselected((current) => new Set(current).add(service.id));
+      setNotice("Vínculo criado e serviço pré-selecionado.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(`link-${service.id}`, false);
+    }
+  }
+  async function createLot(input) {
+    setBusy("lot", true);
+    try {
+      const created = await dataverse.createDraftLot(input);
+      setPreselected(new Set());
+      setNotice(`${created.identifier} reservado.`);
+      setDrawer(null);
+      await refresh();
+      await openLot(created);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy("lot", false);
+    }
+  }
+  async function updateLot(lot, input) {
+    setBusy("lot", true);
+    try {
+      const updated = await dataverse.updateDraftLot(lot.id, {
+        favorecidoId: input.favorecido.id,
+        serviceIds: input.services.map((service) => service.id),
+        year: input.year,
+      });
+      setDrawer(null);
+      setNotice(`${updated.identifier} atualizado.`);
+      await refresh();
+      await openLot(updated);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy("lot", false);
+    }
+  }
+  async function runDocument(lot) {
+    setBusy(`document-${lot.id}`, true);
+    try {
+      const detail = await dataverse.getLotDetail(lot.id);
+      const pdf = buildPaymentPdf(detail, detail.items);
+      const upload = await dataverse.saveDocumentToOneDrive(detail, pdf);
+      const email = await dataverse.sendEmailWithPdf(detail, pdf);
+      const updated = await dataverse.registerDocumentResult(lot.id, {
+        ok: true,
+        url: upload.url || upload.link,
+        name: upload.name || pdf.name,
+        emailId: email.id,
+      });
+      setLotDetail(await dataverse.getLotDetail(updated.id));
+      setNotice("PDF salvo e enviado por e-mail.");
+    } catch (err) {
+      await dataverse
+        .registerDocumentResult(lot.id, { ok: false, error: err.message })
+        .catch(() => undefined);
+      setLotDetail(await dataverse.getLotDetail(lot.id).catch(() => lotDetail));
+      setError(err.message);
+    } finally {
+      setBusy(`document-${lot.id}`, false);
+    }
+  }
+  async function markPaid(lot, proofUrl) {
+    setBusy(`pay-${lot.id}`, true);
+    try {
+      const paid = await dataverse.markPaid(lot.id, proofUrl);
+      setLotDetail(await dataverse.getLotDetail(paid.id));
+      setNotice("Pagamento registrado. Gerando documento.");
+      await runDocument(paid);
+      await refresh();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(`pay-${lot.id}`, false);
+    }
+  }
+  async function reasonAction(action, reason) {
+    setBusy(`${action.type}-${action.lot.id}`, true);
+    try {
+      if (action.type === "cancel")
+        await dataverse.cancelLot(action.lot.id, reason);
+      else await dataverse.revertPaid(action.lot.id, reason);
+      setDrawer(null);
+      setLotDetail(null);
+      setNotice(
+        action.type === "cancel"
+          ? "Lote cancelado e serviços liberados."
+          : "Pagamento revertido.",
+      );
+      await refresh();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(`${action.type}-${action.lot.id}`, false);
+    }
+  }
+  async function resetMock() {
+    dataverse.resetMock();
+    setNotice("Dados locais resetados.");
+    await refresh();
+  }
+  if (!dataverse.available)
+    return (
+      <main className="connection-error">
+        <AlertTriangle size={38} />
+        <h1>Pagamentos a Terceiros</h1>
+        <p>Abra dentro do model-driven app ou use a prévia local.</p>
+      </main>
+    );
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <Brand />
+        <Nav tab={tab} onChange={setTab} />
+        <button
+          className="primary-button sidebar-create"
+          onClick={() => setDrawer({ type: "lot" })}
+        >
+          <Plus size={16} />
+          Novo lote
+        </button>
+        <div className="sidebar-foot">
+          <span className="connection-dot mock" />
+          <div>
+            <strong>{dataverse.environmentLabel}</strong>
+            <span>
+              {dataverse.mockMode
+                ? "modo local completo"
+                : "Dataverse conectado"}
+            </span>
+          </div>
+        </div>
+      </aside>
+      <main className="app-main">
+        <header className="mobile-header">
+          <div className="brand-mark">
+            <Banknote size={18} />
+          </div>
+          <strong>Pagamentos a Terceiros</strong>
+          <button
+            className="icon-button"
+            onClick={refresh}
+            aria-label="Atualizar"
+          >
+            <RefreshCw size={17} className={busy("refresh") ? "spin" : ""} />
+          </button>
+        </header>
+        <div className="content-wrap">
+          <div className="desktop-actions">
+            <span className="environment-pill">
+              {dataverse.environmentLabel}
+            </span>
+            <button
+              className="icon-button"
+              onClick={resetMock}
+              disabled={!dataverse.mockMode}
+            >
+              Resetar mock
+            </button>
+            <button className="icon-button" onClick={refresh}>
+              <RefreshCw size={15} className={busy("refresh") ? "spin" : ""} />
+              Atualizar
+            </button>
+          </div>
+          {dataverse.mockMode && (
+            <MockControls
+              onFailure={(key) => {
+                dataverse.setMockFailure(key);
+                setNotice(`Próxima operação: falha simulada em ${key}.`);
+              }}
+            />
+          )}
+          {error && (
+            <Alert tone="error" onClose={() => setError("")}>
+              {error}
+            </Alert>
+          )}
+          {notice && <Alert tone="success">{notice}</Alert>}
+          {tab === "payments" && (
+            <PaymentsView
+              services={visibleServices}
+              drivers={drivers}
+              favorecidos={activeFavorecidos}
+              links={links}
+              range={range}
+              setRange={setRange}
+              search={search}
+              setSearch={setSearch}
+              driverId={driverId}
+              setDriverId={setDriverId}
+              favorecidoFilter={favorecidoFilter}
+              setFavorecidoFilter={setFavorecidoFilter}
+              totals={totals}
+              missingRepasse={missingRepasse}
+              negative={negative}
+              busy={busy}
+              onSaveRepasse={saveRepasse}
+              onLink={linkService}
+              onLot={() => setDrawer({ type: "lot" })}
+            />
+          )}
+          {tab === "lots" && (
+            <LotsView
+              lots={lots}
+              onNew={() => setDrawer({ type: "lot" })}
+              onOpen={openLot}
+            />
+          )}
+          {tab === "favorecidos" && (
+            <FavorecidosView
+              favorecidos={favorecidos}
+              drivers={drivers}
+              links={links}
+              onNew={() => setDrawer({ type: "favorecido" })}
+              onEdit={(favorecido) =>
+                setDrawer({ type: "favorecido", favorecido })
+              }
+              onLinks={(favorecido) => setDrawer({ type: "links", favorecido })}
+              onStatus={async (row) => {
+                await dataverse.setFavorecidoStatus(
+                  row.id,
+                  row.status === "ativo" ? "inativo" : "ativo",
+                );
+                await refresh();
+              }}
+            />
+          )}
+        </div>
+      </main>
+      <nav className="bottom-nav" aria-label="Navegação principal">
+        <button
+          className={tab === "payments" ? "active" : ""}
+          onClick={() => setTab("payments")}
+        >
+          <CircleDollarSign size={18} />
+          <span>Carteira</span>
+        </button>
+        <button
+          className={tab === "lots" ? "active" : ""}
+          onClick={() => setTab("lots")}
+        >
+          <ClipboardList size={18} />
+          <span>Lotes</span>
+        </button>
+        <button
+          className={tab === "favorecidos" ? "active" : ""}
+          onClick={() => setTab("favorecidos")}
+        >
+          <UsersRound size={18} />
+          <span>Terceiros</span>
+        </button>
+      </nav>
+      {drawer?.type === "favorecido" && (
+        <FavorecidoDrawer
+          favorecido={drawer.favorecido}
+          saving={busy("favorecido")}
+          onClose={() => setDrawer(null)}
+          onSave={async (form) => {
+            setBusy("favorecido", true);
+            try {
+              if (drawer.favorecido) {
+                await dataverse.updateFavorecido(drawer.favorecido.id, form);
+              } else {
+                await dataverse.createFavorecido(form);
+              }
+              setDrawer(null);
+              setNotice(
+                drawer.favorecido
+                  ? "Terceiro Favorecido atualizado."
+                  : "Terceiro Favorecido cadastrado.",
+              );
+              await refresh();
+            } catch (err) {
+              setError(err.message);
+            } finally {
+              setBusy("favorecido", false);
+            }
+          }}
+        />
+      )}
+      {drawer?.type === "links" && (
+        <LinksDrawer
+          favorecido={drawer.favorecido}
+          drivers={drivers}
+          links={links}
+          onClose={() => setDrawer(null)}
+          onSave={async (id) => {
+            await dataverse.upsertLink(id, drawer.favorecido.id);
+            await refresh();
+          }}
+          onDeactivate={async (id) => {
+            await dataverse.setLinkStatus(id, "inativo");
+            await refresh();
+          }}
+        />
+      )}
+      {(drawer?.type === "lot" || drawer?.type === "editLot") && (
+        <LotDrawer
+          favorecidos={activeFavorecidos}
+          services={services}
+          links={links}
+          range={range}
+          preselected={preselected}
+          existingLot={drawer.lot}
+          saving={busy("lot")}
+          onClose={() => setDrawer(null)}
+          onSave={(input) =>
+            drawer.lot ? updateLot(drawer.lot, input) : createLot(input)
+          }
+        />
+      )}
+      {drawer?.type === "lotDetail" && lotDetail && (
+        <LotDetailDrawer
+          lot={lotDetail}
+          busy={busy}
+          onClose={() => setDrawer(null)}
+          onPay={markPaid}
+          onSend={runDocument}
+          onEdit={() => setDrawer({ type: "editLot", lot: lotDetail })}
+          onCancel={() =>
+            setDrawer({
+              type: "reason",
+              action: { type: "cancel", lot: lotDetail },
+            })
+          }
+          onRevert={() =>
+            setDrawer({
+              type: "reason",
+              action: { type: "revert", lot: lotDetail },
+            })
+          }
+        />
+      )}
+      {drawer?.type === "reason" && (
+        <ReasonDrawer
+          action={drawer.action}
+          saving={busy(`${drawer.action.type}-${drawer.action.lot.id}`)}
+          onClose={() => setDrawer({ type: "lotDetail" })}
+          onSave={reasonAction}
+        />
+      )}
+    </div>
+  );
+}
 
-function LotDrawer({ favorecidos, services, year, onClose, onSave, saving }) { const [favorecidoId, setFavorecidoId] = useState(favorecidos[0]?.id || ""); const available = eligibleServices(services, favorecidoId); const [selected, setSelected] = useState(available.map((service) => service.id)); useEffect(() => setSelected(available.map((service) => service.id)), [favorecidoId, services.length]); const favorecido = favorecidos.find((row) => row.id === favorecidoId); const chosen = available.filter((service) => selected.includes(service.id)); const totals = paymentTotals(chosen); return <Drawer title="Montar lote" subtitle="Reserva imediata de serviços" wide onClose={onClose}><div className="form-stack"><label><span>Terceiro Favorecido</span><select value={favorecidoId} onChange={(event) => setFavorecidoId(event.target.value)}>{favorecidos.map((row) => <option key={row.id} value={row.id}>{row.nome}</option>)}</select></label><div className="lot-summary"><div><span>Serviços</span><strong>{totals.count}</strong></div><div><span>Repasse</span><strong>{money(totals.repasse)}</strong></div><div><span>Margem</span><strong>{money(totals.margin)}</strong></div></div><div className="selection-head"><div><strong>Serviços elegíveis</strong><span>Todos começam selecionados. Remova apenas exceções.</span></div><button className="text-button" onClick={() => setSelected(selected.length === available.length ? [] : available.map((service) => service.id))}>{selected.length === available.length ? "Limpar" : "Selecionar todos"}</button></div><div className="selection-list">{available.map((service) => <label className="selection-row" key={service.id}><input type="checkbox" checked={selected.includes(service.id)} onChange={() => setSelected((current) => current.includes(service.id) ? current.filter((id) => id !== service.id) : [...current, service.id])} /><div><strong>{service.identificador}</strong><span>{new Date(service.dataServico).toLocaleDateString("pt-BR")} · {service.trajeto}</span></div><b>{money(service.valorRepasse)}</b></label>)}{!available.length && <div className="empty-small">Não há serviços concluídos disponíveis para este favorecido.</div>}</div><div className="inline-alert"><AlertTriangle size={16} />Ao salvar, os serviços ficam reservados no lote. Cancelar o envio libera a seleção.</div><div className="drawer-actions"><button className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={!favorecido || !chosen.length || saving} onClick={() => onSave(favorecido, chosen)}>{saving ? <RefreshCw size={16} className="spin" /> : <ClipboardList size={16} />}Criar lote e reservar</button></div></div></Drawer>; }
+function Brand() {
+  return (
+    <div className="brand-block">
+      <div className="brand-mark">
+        <Banknote size={21} />
+      </div>
+      <div>
+        <strong>Betinhos</strong>
+        <span>Financeiro operacional</span>
+      </div>
+    </div>
+  );
+}
+function Nav({ tab, onChange }) {
+  return (
+    <nav className="main-nav">
+      <button
+        className={tab === "payments" ? "active" : ""}
+        onClick={() => onChange("payments")}
+      >
+        <CircleDollarSign size={17} />
+        Carteira financeira
+      </button>
+      <button
+        className={tab === "lots" ? "active" : ""}
+        onClick={() => onChange("lots")}
+      >
+        <ClipboardList size={17} />
+        Lotes de pagamento
+      </button>
+      <button
+        className={tab === "favorecidos" ? "active" : ""}
+        onClick={() => onChange("favorecidos")}
+      >
+        <UsersRound size={17} />
+        Terceiros Favorecidos
+      </button>
+    </nav>
+  );
+}
+function Alert({ tone, children, onClose }) {
+  return (
+    <div className={`global-alert ${tone}`}>
+      <CheckCircle2 size={17} />
+      <span>{children}</span>
+      {onClose && <button onClick={onClose}>×</button>}
+    </div>
+  );
+}
+function MockControls({ onFailure }) {
+  return (
+    <section className="mock-controls" aria-label="Cenários de teste local">
+      <span>Cenários locais</span>
+      {[
+        ["repasse", "Falhar repasse"],
+        ["reserve", "Colidir reserva"],
+        ["onedrive", "Falhar OneDrive"],
+        ["email", "Falhar e-mail"],
+      ].map(([key, label]) => (
+        <button key={key} type="button" onClick={() => onFailure(key)}>
+          {label}
+        </button>
+      ))}
+    </section>
+  );
+}
 
-function LotDetailDrawer({ lot, onClose, onSend, onPaid, saving }) { const [proofUrl, setProofUrl] = useState(""); const status = lot.status || lot.cr40f_status; const repasse = lot.repasse || lot.cr40f_totalrepasse || 0; return <Drawer title={lot.identifier || lot.cr40f_identificadorlote || "Detalhe do lote"} subtitle="Controle do pagamento" onClose={onClose}><div className="detail-stack"><div className="detail-hero"><div><Badge status={status} /><span>Versão {lot.version || lot.cr40f_versaoenvio || 1}</span></div><h3>{lot.favorecido?.nome || lot.cr40f_emailfavorecidoenvio || "Terceiro Favorecido"}</h3><p>Repasse consolidado de {money(repasse)}. O documento final inclui serviços, receita, repasse e margem.</p><div className="detail-meta"><span><strong>Serviços</strong>{lot.count || lot.cr40f_quantidadeservicos || "—"}</span><span><strong>E-mail</strong>{lot.favorecido?.email || lot.cr40f_emailfavorecidoenvio || "—"}</span></div></div>{status !== 100000003 && <div className="detail-card"><h3>Próxima ação</h3><div className="detail-actions"><button onClick={() => onSend(lot)} disabled={saving}><Send size={18} /><div><strong>{lot.version > 1 ? "Reenviar documento" : "Enviar documento"}</strong><span>PDF operacional + notificação ao favorecido e Financeiro</span></div><ArrowUpRight size={16} /></button><label className="proof-input"><span>Comprovante (opcional)</span><input placeholder="URL do comprovante em OneDrive" value={proofUrl} onChange={(event) => setProofUrl(event.target.value)} /></label><button onClick={() => onPaid(lot, proofUrl)} disabled={saving}><CheckCircle2 size={18} /><div><strong>Registrar como pago</strong><span>PIX confirmado. Comprovante é opcional.</span></div><ArrowUpRight size={16} /></button></div></div>}{status === 100000003 && <div className="inline-alert success-alert"><CheckCircle2 size={16} />Pagamento confirmado. O lote permanece auditável.</div>}<div className="detail-card"><h3>Contrato de automação</h3><p className="muted-copy">O Flow recebe o ID do lote e a operação, consulta o Dataverse, gera o PDF, salva no OneDrive e notifica os destinatários.</p></div></div></Drawer>; }
+function PaymentsView({
+  services,
+  drivers,
+  favorecidos,
+  links,
+  range,
+  setRange,
+  search,
+  setSearch,
+  driverId,
+  setDriverId,
+  favorecidoFilter,
+  setFavorecidoFilter,
+  totals,
+  missingRepasse,
+  negative,
+  busy,
+  onSaveRepasse,
+  onLink,
+  onLot,
+}) {
+  const monthly = groupMonthly(services, Number(range.from.slice(0, 4)));
+  return (
+    <section className="page-section">
+      <div className="page-title">
+        <div>
+          <span>Financeiro / operação</span>
+          <h1>Carteira de repasses</h1>
+          <p>
+            Preencha valores, veja lucro real e prepare lotes sem sair da tela.
+          </p>
+        </div>
+        <button className="primary-button" onClick={onLot}>
+          <Plus size={16} />
+          Montar lote
+        </button>
+      </div>
+      <div className="metrics-grid">
+        <Metric
+          label="Receita"
+          value={money(totals.revenue)}
+          note={`${totals.count} serviços no filtro`}
+        />
+        <Metric
+          label="Repasse"
+          value={money(totals.repasse)}
+          note="Atualização em tempo real"
+          tone="green"
+        />
+        <Metric
+          label="Lucro"
+          value={money(totals.margin)}
+          note={`Margem ${totals.marginPercent.toFixed(1)}%`}
+          tone={totals.margin < 0 ? "amber" : "blue"}
+        />
+        <Metric
+          label="Pendências"
+          value={missingRepasse}
+          note={
+            negative
+              ? `${negative} margem(ns) negativa(s)`
+              : "Sem margem negativa"
+          }
+          tone={missingRepasse || negative ? "amber" : "green"}
+        />
+      </div>
+      <section className="surface filter-surface">
+        <div className="search-box">
+          <Search size={17} />
+          <input
+            placeholder="Buscar serviço, motorista ou trajeto"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
+        <div className="finance-filter-grid">
+          <label>
+            <span>De</span>
+            <input
+              type="date"
+              value={range.from}
+              onChange={(event) =>
+                setRange((current) => ({
+                  ...current,
+                  from: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <label>
+            <span>Até</span>
+            <input
+              type="date"
+              value={range.to}
+              onChange={(event) =>
+                setRange((current) => ({ ...current, to: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>Motorista</span>
+            <select
+              value={driverId}
+              onChange={(event) => setDriverId(event.target.value)}
+            >
+              <option value="">Todos</option>
+              {drivers.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Favorecido</span>
+            <select
+              value={favorecidoFilter}
+              onChange={(event) => setFavorecidoFilter(event.target.value)}
+            >
+              <option value="">Todos</option>
+              {favorecidos.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </section>
+      <section className="surface table-surface finance-list">
+        <div className="finance-head">
+          <span>Serviço</span>
+          <span>Repasse</span>
+          <span>Lucro / margem</span>
+          <span>Favorecido</span>
+        </div>
+        {services
+          .filter((row) => row.status === "concluido")
+          .map((service) => (
+            <ServiceFinanceRow
+              key={service.id}
+              service={service}
+              favorecidos={favorecidos}
+              linked={links.some(
+                (link) =>
+                  link.status === "ativo" &&
+                  link.motoristaId === service.motoristaId &&
+                  link.favorecidoId === service.favorecidoId,
+              )}
+              saving={
+                busy(`repasse-${service.id}`) || busy(`link-${service.id}`)
+              }
+              onSave={onSaveRepasse}
+              onLink={onLink}
+            />
+          ))}
+        {!services.length && (
+          <div className="empty-state">
+            <FileText size={28} />
+            <strong>Nenhum serviço no período</strong>
+            <span>Amplie o intervalo ou ajuste os filtros.</span>
+          </div>
+        )}
+      </section>
+      <section className="surface priority-panel monthly-mini">
+        <div className="surface-head">
+          <div>
+            <span>Visão anual</span>
+            <h2>Movimento por mês</h2>
+          </div>
+        </div>
+        <div className="monthly-table">
+          <div className="monthly-head">
+            <span>Mês</span>
+            <span>Serviços</span>
+            <span>Receita</span>
+            <span>Repasse</span>
+            <span>Lucro</span>
+          </div>
+          {monthly.map((row) => (
+            <div className="monthly-row" key={row.month}>
+              <strong>{months[row.month]}</strong>
+              <span>{row.count}</span>
+              <span>{money(row.revenue)}</span>
+              <span>{money(row.repasse)}</span>
+              <span>{money(row.margin)}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </section>
+  );
+}
+function ServiceFinanceRow({
+  service,
+  favorecidos,
+  linked,
+  saving,
+  onSave,
+  onLink,
+}) {
+  const [draft, setDraft] = useState(moneyInput(service.valorRepasse));
+  useEffect(
+    () => setDraft(moneyInput(service.valorRepasse)),
+    [service.valorRepasse],
+  );
+  const currentProfit = profit({ ...service, valorRepasse: parseMoney(draft) });
+  const currentMargin = marginPercent({
+    ...service,
+    valorRepasse: parseMoney(draft),
+  });
+  const pending = parseMoney(draft) <= 0;
+  return (
+    <article className={`finance-row ${currentProfit < 0 ? "negative" : ""}`}>
+      <div className="service-main">
+        <span className="service-line" />
+        <div>
+          <strong>{service.identificador}</strong>
+          <span>
+            {new Date(service.dataServico).toLocaleDateString("pt-BR")} ·{" "}
+            {service.motorista} · {service.trajeto}
+          </span>
+        </div>
+      </div>
+      <label className="inline-money">
+        <span>Repasse</span>
+        <input
+          inputMode="decimal"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={() => onSave(service, draft)}
+          aria-label={`Repasse de ${service.identificador}`}
+        />
+        {saving && <small>Salvando…</small>}
+      </label>
+      <div className="profit-cell">
+        <span>{money(currentProfit)}</span>
+        <small>{currentMargin.toFixed(1)}% de margem</small>
+        {currentProfit < 0 && (
+          <b>
+            <AlertTriangle size={13} /> Margem negativa permitida
+          </b>
+        )}
+      </div>
+      <div className="beneficiary-cell">
+        {linked && service.favorecidoId ? (
+          <Badge tone="green">Vinculado</Badge>
+        ) : (
+          <select
+            value=""
+            disabled={saving}
+            onChange={(event) =>
+              event.target.value && onLink(service, event.target.value)
+            }
+          >
+            <option value="">Vincular favorecido</option>
+            {favorecidos.map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.nome}
+              </option>
+            ))}
+          </select>
+        )}
+        {pending && <small className="field-error">Repasse pendente</small>}
+      </div>
+    </article>
+  );
+}
 
-function ServiceDetailDrawer({ service, favorecidos, onClose }) { const favorecido = favorecidos.find((row) => row.id === service.favorecidoId); const missing = !service.valorCobrado || !service.valorRepasse; return <Drawer title={service.identificador} subtitle="Detalhe do serviço" onClose={onClose}><div className="detail-stack"><div className="detail-hero"><div><Badge status={service.pagamentoId ? 100000003 : 100000000} /><span>{new Date(service.dataServico).toLocaleDateString("pt-BR")}</span></div><h3>{service.cliente}</h3><p>{service.trajeto}</p><div className="detail-meta"><span><strong>Motorista</strong>{service.motorista}</span><span><strong>Terceiro Favorecido</strong>{favorecido?.nome || "Não vinculado"}</span><span><strong>Valor cobrado</strong>{money(service.valorCobrado)}</span><span><strong>Repasse</strong>{service.valorRepasse ? money(service.valorRepasse) : "Não definido"}</span></div></div>{missing && <div className="inline-alert"><AlertTriangle size={16} />Este serviço não pode entrar em lote enquanto preço e repasse não estiverem preenchidos.</div>}<div className="detail-card"><h3>Regra financeira</h3><p className="muted-copy">O repasse vem exclusivamente de `cr40f_valorrepasseterceiro` na composição. O valor é congelado no item do lote.</p></div></div></Drawer>; }
+function LotsView({ lots, onNew, onOpen }) {
+  return (
+    <section className="page-section">
+      <div className="page-title">
+        <div>
+          <span>Rastreabilidade</span>
+          <h1>Lotes de pagamento</h1>
+          <p>Rascunhos, pagamentos e documentos em uma trilha auditável.</p>
+        </div>
+        <button className="primary-button" onClick={onNew}>
+          <Plus size={16} />
+          Novo lote
+        </button>
+      </div>
+      <section className="surface lots-panel">
+        {lots.map((lot) => (
+          <button className="lot-row" key={lot.id} onClick={() => onOpen(lot)}>
+            <div>
+              <strong>{lot.identifier}</strong>
+              <span>
+                {lot.favorecido?.nome ||
+                  JSON.parse(lot.favorecidoSnapshot || "{}").nome ||
+                  "Terceiro Favorecido"}
+              </span>
+            </div>
+            <strong>{money(lot.repasse)}</strong>
+            <Badge
+              tone={
+                lot.paymentStatus === PAYMENT_STATUS.PAID ? "green" : "blue"
+              }
+            >
+              {statusText(lot)}
+            </Badge>
+            <ChevronRight size={16} />
+          </button>
+        ))}
+        {!lots.length && (
+          <div className="empty-small">Nenhum lote criado neste ambiente.</div>
+        )}
+      </section>
+    </section>
+  );
+}
 
-export default App;
+function FavorecidosView({
+  favorecidos,
+  drivers,
+  links,
+  onNew,
+  onEdit,
+  onLinks,
+  onStatus,
+}) {
+  return (
+    <section className="page-section">
+      <div className="page-title">
+        <div>
+          <span>Cadastros financeiros</span>
+          <h1>Terceiros Favorecidos</h1>
+          <p>Gerencie dados PIX, status e vínculos com motoristas.</p>
+        </div>
+        <button className="primary-button" onClick={onNew}>
+          <Plus size={16} />
+          Novo terceiro
+        </button>
+      </div>
+      <section className="surface favorecido-list">
+        {favorecidos.map((row) => {
+          const count = links.filter(
+            (link) => link.favorecidoId === row.id && link.status === "ativo",
+          ).length;
+          return (
+            <article className="favorecido-row" key={row.id}>
+              <div>
+                <strong>{row.nome}</strong>
+                <span>
+                  {row.tipoPessoa} · {row.documento} · PIX{" "}
+                  {maskPix(row.chavePix)}
+                </span>
+                <small>{count} motorista(s) ativo(s)</small>
+              </div>
+              <Badge tone={row.status === "ativo" ? "green" : "neutral"}>
+                {row.status}
+              </Badge>
+              <button className="secondary-button" onClick={() => onLinks(row)}>
+                <Link2 size={15} />
+                Vínculos
+              </button>
+              <button className="text-button" onClick={() => onEdit(row)}>
+                Editar
+              </button>
+              <button className="text-button" onClick={() => onStatus(row)}>
+                {row.status === "ativo" ? "Inativar" : "Ativar"}
+              </button>
+            </article>
+          );
+        })}
+      </section>
+    </section>
+  );
+}
+
+function FavorecidoDrawer({ favorecido, onClose, onSave, saving }) {
+  const [form, setForm] = useState({
+    nome: favorecido?.nome || "",
+    tipoPessoa: favorecido?.tipoPessoa || "PF",
+    documento: favorecido?.documento || "",
+    tipoChavePix: favorecido?.tipoChavePix || "CPF/CNPJ",
+    chavePix: favorecido?.chavePix || "",
+    email: favorecido?.email || "",
+    telefone: favorecido?.telefone || "",
+  });
+  const [errors, setErrors] = useState({});
+  const set = (key, value) =>
+    setForm((current) => ({ ...current, [key]: value }));
+  return (
+    <Drawer
+      title={
+        favorecido ? "Editar Terceiro Favorecido" : "Novo Terceiro Favorecido"
+      }
+      subtitle="Cadastro financeiro"
+      onClose={onClose}
+    >
+      <form
+        className="form-stack"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const validation = validateFavorecido(form);
+          setErrors(validation);
+          if (!Object.keys(validation).length) onSave(form);
+        }}
+      >
+        <label>
+          <span>Nome ou razão social *</span>
+          <input
+            value={form.nome}
+            onChange={(event) => set("nome", event.target.value)}
+            autoFocus
+          />
+          {errors.nome && <small className="field-error">{errors.nome}</small>}
+        </label>
+        <div className="form-grid">
+          <label>
+            <span>Tipo</span>
+            <select
+              value={form.tipoPessoa}
+              onChange={(event) => set("tipoPessoa", event.target.value)}
+            >
+              <option>PF</option>
+              <option>PJ</option>
+            </select>
+          </label>
+          <label>
+            <span>CPF ou CNPJ *</span>
+            <input
+              value={form.documento}
+              onChange={(event) => set("documento", event.target.value)}
+            />
+            {errors.documento && (
+              <small className="field-error">{errors.documento}</small>
+            )}
+          </label>
+        </div>
+        <div className="form-grid">
+          <label>
+            <span>Tipo da chave PIX</span>
+            <select
+              value={form.tipoChavePix}
+              onChange={(event) => set("tipoChavePix", event.target.value)}
+            >
+              <option>CPF/CNPJ</option>
+              <option>E-mail</option>
+              <option>Telefone</option>
+              <option>Aleatória</option>
+            </select>
+          </label>
+          <label>
+            <span>Chave PIX *</span>
+            <input
+              value={form.chavePix}
+              onChange={(event) => set("chavePix", event.target.value)}
+            />
+            {errors.chavePix && (
+              <small className="field-error">{errors.chavePix}</small>
+            )}
+          </label>
+        </div>
+        <label>
+          <span>E-mail *</span>
+          <input
+            type="email"
+            value={form.email}
+            onChange={(event) => set("email", event.target.value)}
+          />
+          {errors.email && (
+            <small className="field-error">{errors.email}</small>
+          )}
+        </label>
+        <label>
+          <span>Telefone</span>
+          <input
+            value={form.telefone}
+            onChange={(event) => set("telefone", event.target.value)}
+          />
+        </label>
+        <div className="drawer-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>
+            Cancelar
+          </button>
+          <button className="primary-button" disabled={saving}>
+            <Save size={16} />
+            {saving
+              ? "Salvando…"
+              : favorecido
+                ? "Salvar alterações"
+                : "Salvar cadastro"}
+          </button>
+        </div>
+      </form>
+    </Drawer>
+  );
+}
+function LinksDrawer({
+  favorecido,
+  drivers,
+  links,
+  onClose,
+  onSave,
+  onDeactivate,
+}) {
+  const [driverId, setDriverId] = useState("");
+  const active = links.filter(
+    (row) => row.favorecidoId === favorecido.id && row.status === "ativo",
+  );
+  return (
+    <Drawer
+      title={`Vínculos · ${favorecido.nome}`}
+      subtitle="Motoristas ativos"
+      onClose={onClose}
+    >
+      <div className="form-stack">
+        <label>
+          <span>Adicionar motorista</span>
+          <select
+            value={driverId}
+            onChange={(event) => setDriverId(event.target.value)}
+          >
+            <option value="">Selecione</option>
+            {drivers
+              .filter(
+                (row) => !active.some((link) => link.motoristaId === row.id),
+              )
+              .map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.nome}
+                </option>
+              ))}
+          </select>
+        </label>
+        <button
+          className="primary-button"
+          disabled={!driverId}
+          onClick={async () => {
+            await onSave(driverId);
+            setDriverId("");
+          }}
+        >
+          Vincular motorista
+        </button>
+        <div className="selection-list">
+          {active.map((link) => (
+            <div className="selection-row" key={link.id}>
+              <div>
+                <strong>
+                  {drivers.find((row) => row.id === link.motoristaId)?.nome ||
+                    link.motoristaId}
+                </strong>
+                <span>Vínculo ativo</span>
+              </div>
+              <Badge tone="green">Ativo</Badge>
+              <button
+                className="text-button"
+                onClick={() => onDeactivate(link.id)}
+              >
+                Inativar
+              </button>
+            </div>
+          ))}
+          {!active.length && (
+            <div className="empty-small">Nenhum motorista vinculado.</div>
+          )}
+        </div>
+      </div>
+    </Drawer>
+  );
+}
+function LotDrawer({
+  favorecidos,
+  services,
+  links,
+  range,
+  preselected,
+  existingLot,
+  saving,
+  onClose,
+  onSave,
+}) {
+  const [favorecidoId, setFavorecidoId] = useState(
+    existingLot?.favorecidoId || favorecidos[0]?.id || "",
+  );
+  const [from, setFrom] = useState(range.from);
+  const [to, setTo] = useState(range.to);
+  const available = useMemo(() => {
+    const scoped = services.filter(
+      (row) =>
+        row.dataServico.slice(0, 10) >= from &&
+        row.dataServico.slice(0, 10) <= to,
+    );
+    const eligible = eligibleServices(scoped, favorecidoId, links);
+    const reservedHere = scoped.filter(
+      (row) => row.pagamentoId === existingLot?.id,
+    );
+    return [
+      ...eligible,
+      ...reservedHere.filter(
+        (row) => !eligible.some((candidate) => candidate.id === row.id),
+      ),
+    ];
+  }, [services, favorecidoId, links, from, to, existingLot?.id]);
+  const [selected, setSelected] = useState([]);
+  useEffect(
+    () =>
+      setSelected(
+        available
+          .filter(
+            (row) =>
+              existingLot?.items?.some((item) => item.serviceId === row.id) ||
+              (!existingLot &&
+                (preselected.has(row.id) || row.favorecidoId === favorecidoId)),
+          )
+          .map((row) => row.id),
+      ),
+    [favorecidoId, available.length, existingLot, preselected],
+  );
+  const chosen = available.filter((row) => selected.includes(row.id));
+  const totals = paymentTotals(chosen);
+  const favorecido = favorecidos.find((row) => row.id === favorecidoId);
+  return (
+    <Drawer
+      title={existingLot ? "Editar rascunho" : "Montar lote"}
+      subtitle="Reserva segura de serviços"
+      wide
+      onClose={onClose}
+    >
+      <div className="form-stack">
+        <label>
+          <span>Terceiro Favorecido</span>
+          <select
+            value={favorecidoId}
+            onChange={(event) => setFavorecidoId(event.target.value)}
+          >
+            {favorecidos.map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="form-grid">
+          <label>
+            <span>De</span>
+            <input
+              type="date"
+              value={from}
+              onChange={(event) => setFrom(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Até</span>
+            <input
+              type="date"
+              value={to}
+              onChange={(event) => setTo(event.target.value)}
+            />
+          </label>
+        </div>
+        <div className="lot-summary">
+          <div>
+            <span>Serviços</span>
+            <strong>{totals.count}</strong>
+          </div>
+          <div>
+            <span>Repasse</span>
+            <strong>{money(totals.repasse)}</strong>
+          </div>
+          <div>
+            <span>Lucro</span>
+            <strong>{money(totals.margin)}</strong>
+          </div>
+        </div>
+        {totals.margin < 0 && (
+          <div className="inline-alert warning-alert">
+            <AlertTriangle size={16} />
+            Este lote possui margem negativa, mas pode ser criado.
+          </div>
+        )}
+        <div className="selection-list">
+          {available.map((service) => (
+            <label className="selection-row" key={service.id}>
+              <input
+                type="checkbox"
+                checked={selected.includes(service.id)}
+                onChange={() =>
+                  setSelected((current) =>
+                    current.includes(service.id)
+                      ? current.filter((id) => id !== service.id)
+                      : [...current, service.id],
+                  )
+                }
+              />
+              <div>
+                <strong>{service.identificador}</strong>
+                <span>
+                  {service.motorista} · {service.trajeto}
+                </span>
+              </div>
+              <b>{money(service.valorRepasse)}</b>
+            </label>
+          ))}
+          {!available.length && (
+            <div className="empty-small">
+              Não há serviços elegíveis neste período.
+            </div>
+          )}
+        </div>
+        <div className="drawer-actions">
+          <button className="secondary-button" onClick={onClose}>
+            Cancelar
+          </button>
+          <button
+            className="primary-button"
+            disabled={!favorecido || !chosen.length || saving}
+            onClick={() =>
+              onSave({
+                favorecido,
+                services: chosen,
+                year: Number(from.slice(0, 4)),
+              })
+            }
+          >
+            <ClipboardList size={16} />
+            {saving
+              ? "Reservando…"
+              : existingLot
+                ? "Salvar rascunho"
+                : "Criar lote"}
+          </button>
+        </div>
+      </div>
+    </Drawer>
+  );
+}
+function LotDetailDrawer({
+  lot,
+  busy,
+  onClose,
+  onPay,
+  onSend,
+  onEdit,
+  onCancel,
+  onRevert,
+}) {
+  const [proofUrl, setProofUrl] = useState("");
+  const isPaid = lot.paymentStatus === PAYMENT_STATUS.PAID;
+  return (
+    <Drawer
+      title={lot.identifier}
+      subtitle="Controle e auditoria"
+      onClose={onClose}
+    >
+      <div className="detail-stack">
+        <div className="detail-hero">
+          <div>
+            <Badge tone={isPaid ? "green" : "blue"}>{statusText(lot)}</Badge>
+            <span>Versão {lot.version}</span>
+          </div>
+          <h3>
+            {lot.favorecido?.nome ||
+              JSON.parse(lot.favorecidoSnapshot || "{}").nome}
+          </h3>
+          <p>
+            {money(lot.repasse)} · {lot.count} serviço(s) · margem{" "}
+            {lot.marginPercent?.toFixed(1) || "0.0"}%
+          </p>
+        </div>
+        <div className="detail-card">
+          <h3>Serviços congelados</h3>
+          <div className="compact-list">
+            {lot.items.map((item) => (
+              <div key={item.id}>
+                <strong>{item.identificador}</strong>
+                <span>
+                  {item.motorista} · {money(item.valorRepasse)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="detail-card">
+          <h3>Ações</h3>
+          <div className="detail-actions">
+            {canPay(lot) && (
+              <button onClick={onEdit}>
+                <ClipboardList size={18} />
+                <div>
+                  <strong>Editar rascunho</strong>
+                  <span>Altera período, favorecido e serviços reservados.</span>
+                </div>
+                <ChevronRight size={16} />
+              </button>
+            )}
+            {canPay(lot) && (
+              <>
+                <label className="proof-input">
+                  <span>Comprovante opcional</span>
+                  <input
+                    value={proofUrl}
+                    onChange={(event) => setProofUrl(event.target.value)}
+                    placeholder="URL interna do comprovante"
+                  />
+                </label>
+                <button
+                  disabled={busy(`pay-${lot.id}`)}
+                  onClick={() => onPay(lot, proofUrl)}
+                >
+                  <CheckCircle2 size={18} />
+                  <div>
+                    <strong>Registrar como pago</strong>
+                    <span>Confirma pagamento integral e gera documento.</span>
+                  </div>
+                  <ChevronRight size={16} />
+                </button>
+              </>
+            )}
+            {isPaid && (
+              <button
+                disabled={busy(`document-${lot.id}`)}
+                onClick={() => onSend(lot)}
+              >
+                <Send size={18} />
+                <div>
+                  <strong>
+                    {lot.documentStatus === DOCUMENT_STATUS.FAILED
+                      ? "Reenviar documento"
+                      : "Gerar documento"}
+                  </strong>
+                  <span>Salva no OneDrive e envia PDF anexado.</span>
+                </div>
+                <ChevronRight size={16} />
+              </button>
+            )}
+            {canRevert(lot) && (
+              <button onClick={onRevert}>
+                <Undo2 size={18} />
+                <div>
+                  <strong>Desmarcar pago</strong>
+                  <span>Exige motivo e preserva histórico.</span>
+                </div>
+                <ChevronRight size={16} />
+              </button>
+            )}
+            {canCancel(lot) && (
+              <button onClick={onCancel}>
+                <X size={18} />
+                <div>
+                  <strong>Cancelar lote</strong>
+                  <span>Libera serviços para nova seleção.</span>
+                </div>
+                <ChevronRight size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+        {lot.documentUrl && (
+          <a
+            className="document-link"
+            href={lot.documentUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <FileDown size={16} />
+            Abrir documento atual
+          </a>
+        )}
+        <div className="detail-card">
+          <h3>Linha do tempo</h3>
+          <div className="timeline">
+            {lot.events.map((event) => (
+              <div key={event.id}>
+                <span />
+                <div>
+                  <strong>{event.message}</strong>
+                  <small>
+                    {new Date(event.createdAt).toLocaleString("pt-BR")} ·{" "}
+                    {event.user}
+                    {event.reason ? ` · Motivo: ${event.reason}` : ""}
+                  </small>
+                  {event.detail && <em>{event.detail}</em>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Drawer>
+  );
+}
+function ReasonDrawer({ action, saving, onClose, onSave }) {
+  const [reason, setReason] = useState("");
+  const label =
+    action.type === "cancel" ? "cancelamento" : "reversão de pagamento";
+  return (
+    <Drawer
+      title={`Motivo do ${label}`}
+      subtitle="Auditoria obrigatória"
+      onClose={onClose}
+    >
+      <div className="form-stack">
+        <label>
+          <span>Motivo *</span>
+          <textarea
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            autoFocus
+          />
+        </label>
+        <div className="drawer-actions">
+          <button className="secondary-button" onClick={onClose}>
+            Voltar
+          </button>
+          <button
+            className="primary-button"
+            disabled={!reason.trim() || saving}
+            onClick={() => onSave(action, reason)}
+          >
+            {saving ? "Salvando…" : "Confirmar"}
+          </button>
+        </div>
+      </div>
+    </Drawer>
+  );
+}
