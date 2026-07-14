@@ -192,10 +192,10 @@ p {
   padding: 0 11px;
   display: inline-flex;
   align-items: center;
-  border: 1px solid #cbd9f8;
+  border: 1px solid #dbe2ea;
   border-radius: 999px;
-  color: #173f89;
-  background: #edf3ff;
+  color: #536274;
+  background: #f7f9fc;
   font-size: 11px;
   font-weight: 800;
 }
@@ -343,8 +343,8 @@ p {
 .tone-blue .metric-icon,
 .tone-amber .metric-icon,
 .tone-green .metric-icon {
-  color: #2159d2;
-  background: #edf3ff;
+  color: #62748a;
+  background: #f1f4f7;
 }
 .surface {
   min-width: 0;
@@ -386,8 +386,8 @@ p {
   box-shadow: 0 0 0 4px rgba(216, 146, 24, 0.11);
 }
 .overview-queue-row.is-info .overview-queue-dot {
-  background: #3974d7;
-  box-shadow: 0 0 0 4px rgba(57, 116, 215, 0.11);
+  background: #8b98a8;
+  box-shadow: 0 0 0 4px rgba(139, 152, 168, 0.11);
 }
 .overview-queue-row.is-success .overview-queue-dot {
   background: #1a9a60;
@@ -2073,15 +2073,15 @@ select:focus {
 }
 @media (hover: hover) and (pointer: fine) {
   .repasse-grid-row:hover {
-    background: #f8fafd;
-    box-shadow: inset 3px 0 #8ba9e7;
+    background: #fafbfd;
+    box-shadow: inset 3px 0 #d7e0ea;
   }
   .repasse-grid-row:hover .repasse-grid-cell.is-pinned {
     background: #f8fafd;
   }
   .repasse-grid-header:hover {
-    color: #285db5;
-    background: #edf3ff;
+    color: #40526a;
+    background: #f6f8fb;
   }
   .column-picker label:hover {
     background: #f5f8fc;
