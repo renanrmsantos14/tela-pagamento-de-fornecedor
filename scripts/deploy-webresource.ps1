@@ -2,7 +2,7 @@ param(
   [Parameter(Mandatory = $true)]
   [string] $EnvironmentUrl,
 
-  [string] $WebResourceName = "TelaPagamentoFornecedores.html",
+  [string] $WebResourceName = "cr40f_TelaPagamentoFornecedores.html",
 
   [string] $DisplayName = "Tela - Pagamento de Fornecedores",
 
@@ -40,8 +40,8 @@ function Invoke-JsonPost([string] $Uri, [hashtable] $Headers, [object] $Body) {
     -Body $json
 }
 
-if ($WebResourceName -notmatch '^Tela') {
-  throw "WebResourceName deve começar com 'Tela': $WebResourceName"
+if ($WebResourceName -notmatch '^cr40f_Tela') {
+  throw "WebResourceName deve usar o prefixo Dataverse 'cr40f_' e conter Tela: $WebResourceName"
 }
 
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
