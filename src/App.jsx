@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { dataverse } from "./lib/dataverse";
 import { buildPaymentPdf } from "./lib/document";
+import SearchableSelect from "./SearchableSelect";
 import {
   DOCUMENT_STATUS,
   LOT_STATUS,
@@ -1173,20 +1174,22 @@ function FavorecidoCell({ service, favorecidos, linked, saving, onLink }) {
     );
   }
   return (
-    <select
+    <SearchableSelect
       value=""
       disabled={saving}
-      onChange={(event) =>
-        event.target.value && onLink(service, event.target.value)
-      }
-    >
-      <option value="">Vincular favorecido</option>
-      {favorecidos.map((row) => (
-        <option key={row.id} value={row.id}>
-          {row.nome}
-        </option>
-      ))}
-    </select>
+      placeholder="Vincular favorecido"
+      aria-label={`Vincular favorecido de ${service.identificador}`}
+      className="repasse-favorecido-select"
+      options={[
+        { value: "", label: "Vincular favorecido" },
+        ...favorecidos.map((row) => ({
+          value: row.id,
+          label: row.nome,
+          search: `${row.documento || ""} ${row.email || ""}`,
+        })),
+      ]}
+      onChange={(value) => value && onLink(service, value)}
+    />
   );
 }
 
