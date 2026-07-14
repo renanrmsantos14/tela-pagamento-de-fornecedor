@@ -340,17 +340,11 @@ p {
   color: #94a3b8;
   font-size: var(--text-xs);
 }
-.tone-blue .metric-icon {
+.tone-blue .metric-icon,
+.tone-amber .metric-icon,
+.tone-green .metric-icon {
   color: #2159d2;
   background: #edf3ff;
-}
-.tone-amber .metric-icon {
-  color: #a46900;
-  background: #fff7e6;
-}
-.tone-green .metric-icon {
-  color: #168f57;
-  background: #eaf8f1;
 }
 .surface {
   min-width: 0;
@@ -2632,15 +2626,15 @@ textarea:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.tone-green {
+.status-badge.tone-green {
   color: #147a4b;
   background: #e9f8f0;
 }
-.tone-blue {
+.status-badge.tone-blue {
   color: #285db5;
   background: #edf3ff;
 }
-.tone-amber {
+.status-badge.tone-amber {
   color: #9a4e12;
   background: #fff0e5;
 }
