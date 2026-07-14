@@ -8,8 +8,8 @@
   --blue: #2159d2;
   --blue-soft: #edf3ff;
   --surface: #fff;
-  --surface-soft: #f7f9fc;
-  --line: #e2e8f0;
+  --surface-soft: #f7f7f6;
+  --line: #e6e6e4;
   --muted: #64748b;
   --danger: #c12f45;
   --warning: #b17a00;
@@ -1547,9 +1547,9 @@ select:focus {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid #e5ebf1;
+  border-bottom: 1px solid #e7e7e5;
   border-radius: 12px 12px 0 0;
-  background: #f7f9fc;
+  background: #f8f8f7;
 }
 .repasse-grid-summary {
   min-width: 0;
@@ -1830,9 +1830,9 @@ select:focus {
   top: 0;
   z-index: 4;
   min-height: 42px;
-  border-bottom: 1px solid #dfe7ef;
-  color: #66758a;
-  background: #f6f8fb;
+  border-bottom: 1px solid #e1e1df;
+  color: #66706f;
+  background: #f6f6f5;
   box-shadow: 0 2px 5px rgba(0, 26, 61, 0.035);
   font-size: 11px;
   font-weight: 800;
@@ -1846,7 +1846,7 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 3px;
-  border-right: 1px solid #e5ebf1;
+  border-right: 1px solid #e7e7e5;
   cursor: grab;
   user-select: none;
   transition:
@@ -1918,16 +1918,16 @@ select:focus {
   z-index: 3;
 }
 .repasse-grid-header.is-pinned {
-  background: #f0f5ff;
+  background: #f6f6f5;
   box-shadow:
-    2px 0 0 #d9e5fb,
-    8px 0 14px rgba(0, 26, 61, 0.04);
+    2px 0 0 #e2e2e0,
+    8px 0 14px rgba(20, 20, 20, 0.025);
 }
 .repasse-grid-cell.is-pinned {
   background: inherit;
   box-shadow:
-    2px 0 0 #e5ebf3,
-    8px 0 14px rgba(0, 26, 61, 0.025);
+    2px 0 0 #e7e7e5,
+    8px 0 14px rgba(20, 20, 20, 0.02);
 }
 .repasse-grid-row.is-pending .repasse-grid-cell.is-pinned {
   background: #fffdf9;
@@ -1937,7 +1937,7 @@ select:focus {
   padding: 8px;
   display: flex;
   align-items: center;
-  border-right: 1px solid #f0f3f6;
+  border-right: 1px solid #eeeeec;
   color: #40526a;
   font-size: var(--text-sm);
   transition: background-color 140ms ease;
@@ -2103,15 +2103,15 @@ select:focus {
 }
 @media (hover: hover) and (pointer: fine) {
   .repasse-grid-row:hover {
-    background: #fafbfd;
-    box-shadow: inset 3px 0 #d7e0ea;
+    background: #fafaf9;
+    box-shadow: inset 3px 0 #dededb;
   }
   .repasse-grid-row:hover .repasse-grid-cell.is-pinned {
-    background: #f8fafd;
+    background: #fafaf9;
   }
   .repasse-grid-header:hover {
-    color: #40526a;
-    background: #f6f8fb;
+    color: #4e5353;
+    background: #f4f4f3;
   }
   .column-picker label:hover {
     background: #f5f8fc;
