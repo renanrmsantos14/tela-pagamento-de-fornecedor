@@ -16,6 +16,7 @@ export const CHOICES = Object.freeze({ completedComposition: 100000001, activeEm
 
 function cleanGuid(value) { return String(value || "").replace(/[{}]/g, ""); }
 function localHost() { return typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname); }
+function localPreviewHost() { return localHost() || (typeof window !== "undefined" && window.location.port === "5192") || import.meta.env?.DEV === true; }
 function getXrm() { return typeof window === "undefined" ? null : window.Xrm || window.parent?.Xrm || window.top?.Xrm || null; }
 function escapeOData(value) { return String(value).replace(/'/g, "''"); }
 function newId(prefix) { return `${prefix}-${crypto.randomUUID()}`; }
@@ -57,7 +58,7 @@ function buildMockState() {
 
 class DataverseClient {
   constructor() {
-    this.xrm = getXrm(); this.clientUrl = this.xrm?.Utility?.getGlobalContext?.().getClientUrl?.() || ""; this.apiRoot = this.clientUrl ? `${this.clientUrl}/api/data/${API_VERSION}` : ""; this.mockMode = !this.clientUrl && localHost(); this.cache = new Map(); this.mock = buildMockState();
+    this.xrm = getXrm(); this.clientUrl = this.xrm?.Utility?.getGlobalContext?.().getClientUrl?.() || ""; this.apiRoot = this.clientUrl ? `${this.clientUrl}/api/data/${API_VERSION}` : ""; this.mockMode = !this.clientUrl && localPreviewHost(); this.cache = new Map(); this.mock = buildMockState();
   }
 
   get available() { return Boolean(this.clientUrl || this.mockMode); }

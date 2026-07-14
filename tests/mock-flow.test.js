@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { paymentTotals } from "../src/domain/payment.js";
 
 test("executa o fluxo local completo: reservar, enviar, pagar e auditar", async () => {
-  globalThis.window = { location: { hostname: "localhost" }, parent: {}, top: {} };
+  globalThis.window = { location: { hostname: "10.113.2.46", port: "5192" }, parent: {}, top: {} };
   const { dataverse, TABLES } = await import(`../src/lib/dataverse.js?mock=${Date.now()}`);
   assert.equal(dataverse.mockMode, true);
   const favorecidos = await dataverse.listFavorecidos();
