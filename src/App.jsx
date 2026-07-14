@@ -1343,7 +1343,7 @@ function RepasseInput({ service, saving, onSave }) {
       )}
       {status?.type === "saved" && !changed && (
         <span className="repasse-save-icon is-saved" title="Repasse salvo">
-          <CheckCircle2 size={13} aria-label="Repasse salvo" />
+          <CheckCircle2 size={21} strokeWidth={2.6} aria-label="Repasse salvo" />
         </span>
       )}
       {status?.type === "error" && (

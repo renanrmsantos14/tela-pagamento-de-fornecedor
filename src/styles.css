@@ -1869,7 +1869,9 @@ select:focus {
   animation: none;
 }
 .repasse-save-icon.is-saved {
-  color: #23815f;
+  color: var(--blue);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(4px);
 }
 .repasse-save-icon.is-error {
   color: var(--danger);
