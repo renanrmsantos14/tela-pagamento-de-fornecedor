@@ -404,14 +404,6 @@ export default function App() {
               Atualizar
             </button>
           </div>
-          {dataverse.mockMode && (
-            <MockControls
-              onFailure={(key) => {
-                dataverse.setMockFailure(key);
-                setNotice(`Próxima operação: falha simulada em ${key}.`);
-              }}
-            />
-          )}
           {error && (
             <Alert tone="error" onClose={() => setError("")}>
               {error}
@@ -631,24 +623,6 @@ function Alert({ tone, children, onClose }) {
     </div>
   );
 }
-function MockControls({ onFailure }) {
-  return (
-    <section className="mock-controls" aria-label="Cenários de teste local">
-      <span>Cenários locais</span>
-      {[
-        ["repasse", "Falhar repasse"],
-        ["reserve", "Colidir reserva"],
-        ["onedrive", "Falhar OneDrive"],
-        ["email", "Falhar e-mail"],
-      ].map(([key, label]) => (
-        <button key={key} type="button" onClick={() => onFailure(key)}>
-          {label}
-        </button>
-      ))}
-    </section>
-  );
-}
-
 function PaymentsView({
   services,
   drivers,
