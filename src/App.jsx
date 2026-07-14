@@ -22,6 +22,7 @@ import {
   Save,
   Search,
   Send,
+  TableProperties,
   Undo2,
   UsersRound,
   X,
@@ -993,6 +994,14 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
     density,
     sort,
   });
+  const viewHasChanges =
+    activeView &&
+    JSON.stringify(currentView()) !==
+      JSON.stringify({
+        columns: activeView.columns,
+        density: activeView.density,
+        sort: activeView.sort,
+      });
   const sortedServices = useMemo(() => {
     const isDate = ["dataServico", "dataFinalizacao"].includes(sort.id);
     const isCurrency = ["valorRepasse", "valorCobrado"].includes(sort.id);
@@ -1198,21 +1207,22 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
               }}
               aria-expanded={showViews}
             >
-              <Save size={16} />
+              <TableProperties size={16} />
               {activeView ? activeView.name : "Views"}
             </button>
             {showViews && (
               <div className="saved-view-menu" role="dialog" aria-label="Views salvas">
                 <div className="saved-view-head">
                   <div>
-                    <strong>Views salvas</strong>
-                    <span>Ordem, largura e colunas</span>
+                    <strong>Views da tabela</strong>
+                    <span>
+                      {activeView
+                        ? viewHasChanges
+                          ? "Alterações não salvas"
+                          : "View ativa"
+                        : "Layout atual não salvo"}
+                    </span>
                   </div>
-                  {activeView && (
-                    <button className="text-button" onClick={updateView}>
-                      Atualizar
-                    </button>
-                  )}
                 </div>
                 <div className="saved-view-list">
                   {views.map((view) => (
@@ -1229,7 +1239,25 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
                     <span className="saved-view-empty">Nenhuma view salva.</span>
                   )}
                 </div>
+                {activeView && (
+                  <div className="saved-view-active">
+                    <div>
+                      <span>View ativa</span>
+                      <strong>{activeView.name}</strong>
+                    </div>
+                    <button
+                      className="secondary-button"
+                      onClick={updateView}
+                      disabled={!viewHasChanges}
+                    >
+                      <Save size={15} />
+                      Salvar alterações
+                    </button>
+                  </div>
+                )}
                 <div className="saved-view-create">
+                  <span>Salvar layout como nova view</span>
+                  <div>
                   <input
                     value={viewName}
                     onChange={(event) => setViewName(event.target.value)}
@@ -1241,8 +1269,9 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
                   />
                   <button className="primary-button" onClick={saveView}>
                     <Save size={15} />
-                    Salvar
+                    Criar
                   </button>
+                  </div>
                 </div>
                 <div className="saved-view-foot">
                   {viewMessage && <span>{viewMessage}</span>}

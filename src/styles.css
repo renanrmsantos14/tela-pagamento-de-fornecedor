@@ -1677,7 +1677,44 @@ select:focus {
 .saved-view-empty {
   padding: 10px 6px;
 }
+.saved-view-active {
+  padding: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #e4ebf5;
+  border-radius: 8px;
+  background: #f8faff;
+}
+.saved-view-active > div {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+.saved-view-active span,
+.saved-view-create > span {
+  color: #78879a;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.saved-view-active strong {
+  overflow: hidden;
+  color: var(--navy);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.saved-view-active .secondary-button {
+  min-height: 34px;
+  flex: 0 0 auto;
+  padding-inline: 9px;
+}
 .saved-view-create {
+  display: grid;
+  gap: 5px;
+}
+.saved-view-create > div {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 7px;
