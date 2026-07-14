@@ -423,6 +423,7 @@ export default function App() {
               services={visibleServices}
               drivers={drivers}
               favorecidos={activeFavorecidos}
+              allFavorecidos={favorecidos}
               links={links}
               range={range}
               setRange={setRange}
@@ -652,6 +653,7 @@ function PaymentsView({
   services,
   drivers,
   favorecidos,
+  allFavorecidos,
   links,
   range,
   setRange,
@@ -739,7 +741,7 @@ function PaymentsView({
       </section>
       <RepasseGrid
         services={services.filter((row) => row.status === "concluido")}
-        favorecidos={favorecidos}
+        favorecidos={allFavorecidos}
         links={links}
         busy={busy}
         onSave={onSaveRepasse}
@@ -1168,8 +1170,19 @@ function RepasseInput({ service, saving, onSave }) {
   );
 }
 function FavorecidoCell({ service, favorecidos, linked, saving, onLink }) {
-  if (linked && service.favorecidoId)
-    return <Badge tone="green">Vinculado</Badge>;
+  if (linked && service.favorecidoId) {
+    const favorecido = favorecidos.find(
+      (row) => row.id === service.favorecidoId,
+    );
+    return (
+      <div className="favorecido-linked">
+        <Badge tone="green">Vinculado</Badge>
+        <span title={favorecido?.nome || "Favorecido"}>
+          {favorecido?.nome || "Favorecido"}
+        </span>
+      </div>
+    );
+  }
   return (
     <select
       value=""

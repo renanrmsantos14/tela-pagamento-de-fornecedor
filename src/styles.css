@@ -2231,6 +2231,29 @@ textarea:focus-visible {
   min-height: 36px;
   font-size: var(--text-xs);
 }
+.favorecido-linked {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  text-align: center;
+}
+.favorecido-linked .status-badge {
+  justify-content: center;
+  line-height: 1;
+}
+.favorecido-linked > span {
+  max-width: 100%;
+  overflow: hidden;
+  color: #53657b;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .tone-green {
   color: #147a4b;
   background: #e9f8f0;
