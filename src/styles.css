@@ -1860,7 +1860,7 @@ select:focus {
   background: rgba(249, 252, 250, 0.3);
   backdrop-filter: blur(2px);
   pointer-events: none;
-  animation: repasse-save-confirmation 650ms var(--ease-out) forwards;
+  animation: repasse-save-confirmation 480ms var(--ease-out) forwards;
 }
 .repasse-save-icon.is-saving {
   color: #315d9e;
@@ -1885,16 +1885,19 @@ select:focus {
 @keyframes repasse-save-confirmation {
   0% {
     opacity: 0;
-    transform: scale(0.98);
+    transform: scale(0.9);
   }
-  18%,
-  62% {
-    opacity: 0.94;
+  34% {
+    opacity: 0.96;
+    transform: scale(1.04);
+  }
+  60% {
+    opacity: 0.9;
     transform: scale(1);
   }
   100% {
     opacity: 0;
-    transform: scale(0.985);
+    transform: scale(1.02);
   }
 }
 .repasse-grid-cell select {
