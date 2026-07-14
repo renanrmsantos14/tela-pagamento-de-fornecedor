@@ -1225,10 +1225,39 @@ select:focus {
   border-radius: 12px 12px 0 0;
   background: linear-gradient(100deg, #fff 0%, #f5f8fd 100%);
 }
-.repasse-grid-summary { min-width: 0; display: flex; align-items: center; gap: 8px; color: #617188; font-size: var(--text-sm); font-weight: 700; }
-.repasse-grid-summary strong { padding: 4px 8px; border-radius: 7px; color: #fff; background: var(--navy); font-size: 12px; font-variant-numeric: tabular-nums; }
-.repasse-grid-summary b { padding: 4px 7px; border-radius: 999px; color: #9a4e12; background: #fff0e5; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
-.repasse-grid-summary small { overflow: hidden; color: #8491a2; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.repasse-grid-summary {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #617188;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.repasse-grid-summary strong {
+  padding: 4px 8px;
+  border-radius: 7px;
+  color: #fff;
+  background: var(--navy);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.repasse-grid-summary b {
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #9a4e12;
+  background: #fff0e5;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.repasse-grid-summary small {
+  overflow: hidden;
+  color: #8491a2;
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .column-picker-wrap {
   position: relative;
@@ -1297,7 +1326,7 @@ select:focus {
   border-bottom: 1px solid #dfe7ef;
   color: #66758a;
   background: #f6f8fb;
-  box-shadow: 0 2px 5px rgba(0,26,61,.035);
+  box-shadow: 0 2px 5px rgba(0, 26, 61, 0.035);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.045em;
@@ -1313,7 +1342,9 @@ select:focus {
   border-right: 1px solid #e5ebf1;
   cursor: grab;
   user-select: none;
-  transition: color 140ms ease, background-color 140ms ease;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
 }
 .repasse-grid-header:active {
   cursor: grabbing;
@@ -1358,11 +1389,19 @@ select:focus {
   min-height: 58px;
   border-bottom: 1px solid #edf1f5;
   background: #fff;
-  transition: background-color 140ms ease, box-shadow 140ms ease;
+  transition:
+    background-color 140ms ease,
+    box-shadow 140ms ease;
 }
-.repasse-grid-row.is-pending { background: #fffdf9; }
-.repasse-grid-row.is-pending .cell-identificador { box-shadow: inset 3px 0 #e3a030; }
-.repasse-grid-row.is-pending .cell-valorRepasse { background: #fff8eb; }
+.repasse-grid-row.is-pending {
+  background: #fffdf9;
+}
+.repasse-grid-row.is-pending .cell-identificador {
+  box-shadow: inset 3px 0 #e3a030;
+}
+.repasse-grid-row.is-pending .cell-valorRepasse {
+  background: #fff8eb;
+}
 .repasse-grid-cell {
   min-width: 0;
   padding: 8px;
@@ -1385,7 +1424,9 @@ select:focus {
   color: var(--navy);
   font-weight: 800;
 }
-.repasse-grid-cell.cell-valorRepasse { padding-inline: 10px; }
+.repasse-grid-cell.cell-valorRepasse {
+  padding-inline: 10px;
+}
 .repasse-grid-cell.cell-observacaoOperacao,
 .repasse-grid-cell.cell-observacaoFinal {
   align-items: flex-start;
@@ -1428,8 +1469,14 @@ select:focus {
   }
 }
 @media (hover: hover) and (pointer: fine) {
-  .repasse-grid-row:hover { background: #f8fafd; box-shadow: inset 3px 0 #8ba9e7; }
-  .repasse-grid-header:hover { color: #285db5; background: #edf3ff; }
+  .repasse-grid-row:hover {
+    background: #f8fafd;
+    box-shadow: inset 3px 0 #8ba9e7;
+  }
+  .repasse-grid-header:hover {
+    color: #285db5;
+    background: #edf3ff;
+  }
   .column-picker label:hover {
     background: #f5f8fc;
   }
@@ -1445,8 +1492,15 @@ select:focus {
     min-height: 58px;
     padding: 9px 11px;
   }
-  .repasse-grid-summary { max-width: calc(100% - 112px); flex-wrap: wrap; gap: 5px 7px; line-height: 1.2; }
-  .repasse-grid-summary small { flex-basis: 100%; }
+  .repasse-grid-summary {
+    max-width: calc(100% - 112px);
+    flex-wrap: wrap;
+    gap: 5px 7px;
+    line-height: 1.2;
+  }
+  .repasse-grid-summary small {
+    flex-basis: 100%;
+  }
   .repasse-grid-scroll {
     border-radius: 0 0 12px 12px;
   }
