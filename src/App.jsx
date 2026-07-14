@@ -16,6 +16,7 @@ import {
   GripVertical,
   Plus,
   RefreshCw,
+  Rows3,
   RotateCcw,
   Save,
   Search,
@@ -85,6 +86,7 @@ const REPASSE_COLUMNS = [
   { id: "favorecido", label: "Favorecido", width: 180 },
 ];
 const REPASSE_COLUMNS_STORAGE_KEY = "betinhos_repasses_columns_v2";
+const REPASSE_DENSITY_STORAGE_KEY = "betinhos_repasses_density_v1";
 const loadRepasseColumns = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(REPASSE_COLUMNS_STORAGE_KEY));
@@ -94,6 +96,10 @@ const loadRepasseColumns = () => {
   }
   return REPASSE_COLUMNS.map((column) => ({ ...column, visible: true }));
 };
+const loadRepasseDensity = () =>
+  localStorage.getItem(REPASSE_DENSITY_STORAGE_KEY) === "compact"
+    ? "compact"
+    : "comfortable";
 
 function Drawer({ title, subtitle, children, onClose, wide = false }) {
   return (
@@ -744,6 +750,7 @@ function PaymentsView({
 }
 function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
   const [columns, setColumns] = useState(loadRepasseColumns);
+  const [density, setDensity] = useState(loadRepasseDensity);
   const [showPicker, setShowPicker] = useState(false);
   const [columnSearch, setColumnSearch] = useState("");
   const [draggedColumn, setDraggedColumn] = useState("");
@@ -789,6 +796,9 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
   useEffect(() => {
     localStorage.setItem(REPASSE_COLUMNS_STORAGE_KEY, JSON.stringify(columns));
   }, [columns]);
+  useEffect(() => {
+    localStorage.setItem(REPASSE_DENSITY_STORAGE_KEY, density);
+  }, [density]);
   useEffect(() => {
     if (!resize) return undefined;
     const move = (event) => {
@@ -892,7 +902,9 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
   };
 
   return (
-    <section className="surface repasse-grid-shell">
+    <section
+      className={`surface repasse-grid-shell ${density === "compact" ? "is-compact" : ""}`}
+    >
       <div className="repasse-grid-toolbar">
         <div className="repasse-grid-summary">
           <strong>{services.length}</strong>
@@ -900,47 +912,62 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
           {pendingCount > 0 && <b>{pendingCount} pendente(s)</b>}
           <small>Configuração salva automaticamente.</small>
         </div>
-        <div className="column-picker-wrap">
+        <div className="repasse-grid-actions">
           <button
-            className="secondary-button"
-            onClick={() => setShowPicker((value) => !value)}
-            aria-expanded={showPicker}
+            className={`secondary-button density-button ${density === "compact" ? "is-active" : ""}`}
+            onClick={() =>
+              setDensity((current) =>
+                current === "compact" ? "comfortable" : "compact",
+              )
+            }
+            aria-pressed={density === "compact"}
+            title="Alternar densidade das linhas"
           >
-            <Columns3 size={16} />
-            Colunas
+            <Rows3 size={16} />
+            {density === "compact" ? "Compacta" : "Compactar"}
           </button>
-          {showPicker && (
-            <div
-              className="column-picker"
-              role="dialog"
-              aria-label="Escolher colunas"
+          <div className="column-picker-wrap">
+            <button
+              className="secondary-button"
+              onClick={() => setShowPicker((value) => !value)}
+              aria-expanded={showPicker}
             >
-              <div>
-                <strong>Exibir colunas</strong>
-                <button className="text-button" onClick={resetColumns}>
-                  Restaurar
-                </button>
+              <Columns3 size={16} />
+              Colunas
+            </button>
+            {showPicker && (
+              <div
+                className="column-picker"
+                role="dialog"
+                aria-label="Escolher colunas"
+              >
+                <div>
+                  <strong>Exibir colunas</strong>
+                  <button className="text-button" onClick={resetColumns}>
+                    Restaurar
+                  </button>
+                </div>
+                <input
+                  className="column-search"
+                  value={columnSearch}
+                  onChange={(event) => setColumnSearch(event.target.value)}
+                  placeholder="Localizar coluna"
+                  aria-label="Localizar coluna"
+                />
+                {pickerColumns.map((column) => (
+                  <label key={column.id}>
+                    <input
+                      type="checkbox"
+                      checked={column.visible}
+                      disabled={column.locked}
+                      onChange={() => toggleColumn(column.id)}
+                    />
+                    {column.label}
+                  </label>
+                ))}
               </div>
-              <input
-                className="column-search"
-                value={columnSearch}
-                onChange={(event) => setColumnSearch(event.target.value)}
-                placeholder="Localizar coluna"
-                aria-label="Localizar coluna"
-              />
-              {pickerColumns.map((column) => (
-                <label key={column.id}>
-                  <input
-                    type="checkbox"
-                    checked={column.visible}
-                    disabled={column.locked}
-                    onChange={() => toggleColumn(column.id)}
-                  />
-                  {column.label}
-                </label>
-              ))}
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
       <div className="repasse-grid-scroll">

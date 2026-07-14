@@ -1259,6 +1259,16 @@ select:focus {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.repasse-grid-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.density-button.is-active {
+  border-color: #7fa4e4;
+  color: #1f559f;
+  background: #edf4ff;
+}
 .column-picker-wrap {
   position: relative;
 }
@@ -1458,7 +1468,7 @@ select:focus {
 }
 .repasse-grid-cell.cell-observacaoOperacao,
 .repasse-grid-cell.cell-observacaoFinal {
-  align-items: flex-start;
+  align-items: center;
 }
 .currency-cell {
   color: var(--navy);
@@ -1532,6 +1542,19 @@ select:focus {
   min-width: 0;
   min-height: 36px;
   font-size: var(--text-xs);
+}
+.repasse-grid-shell.is-compact .repasse-grid-row {
+  min-height: 46px;
+}
+.repasse-grid-shell.is-compact .repasse-grid-cell {
+  padding-block: 4px;
+}
+.repasse-grid-shell.is-compact .grid-money-input input,
+.repasse-grid-shell.is-compact .repasse-grid-cell select {
+  min-height: 32px;
+}
+.repasse-grid-shell.is-compact .repasse-save-icon {
+  top: 9px;
 }
 @keyframes picker-enter {
   from {
