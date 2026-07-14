@@ -6,9 +6,11 @@ import {
   ChevronRight,
   CircleDollarSign,
   ClipboardList,
+  Columns3,
   FileDown,
   FileText,
   Link2,
+  GripVertical,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -64,6 +66,32 @@ const formatServiceDate = (value, fallback = "") =>
     : fallback;
 const maskPix = (value) =>
   value?.length > 8 ? `${value.slice(0, 3)}••••${value.slice(-3)}` : value;
+const REPASSE_COLUMNS = [
+  { id: "identificador", label: "Serviço", width: 150, locked: true },
+  { id: "dataServico", label: "Data e hora", width: 150 },
+  { id: "dataFinalizacao", label: "Finalização", width: 150 },
+  { id: "trajeto", label: "Trajeto", width: 220 },
+  { id: "motorista", label: "Motorista", width: 170 },
+  { id: "tipoVeiculo", label: "Tipo de veículo", width: 155 },
+  { id: "veiculo", label: "Veículo", width: 175 },
+  { id: "cliente", label: "Cliente", width: 180 },
+  { id: "observacaoOperacao", label: "Observação operacional", width: 260 },
+  { id: "observacaoFinal", label: "Observação final", width: 240 },
+  { id: "valorCobrado", label: "Valor cobrado", width: 135 },
+  { id: "valorRepasse", label: "Repasse", width: 140, locked: true },
+  { id: "favorecido", label: "Favorecido", width: 180 },
+];
+const loadRepasseColumns = () => {
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem("betinhos_repasses_columns_v1"),
+    );
+    if (Array.isArray(saved) && saved.length) return saved;
+  } catch {
+    /* Usa a configuração padrão. */
+  }
+  return REPASSE_COLUMNS.map((column) => ({ ...column, visible: true }));
+};
 
 function Drawer({ title, subtitle, children, onClose, wide = false }) {
   return (
@@ -701,133 +729,267 @@ function PaymentsView({
           </label>
         </div>
       </section>
-      <section className="surface table-surface finance-list">
-        <div className="finance-head">
-          <span>Serviço</span>
-          <span>Valor cobrado</span>
-          <span>Repasse</span>
-          <span>Favorecido</span>
-        </div>
-        {services
-          .filter((row) => row.status === "concluido")
-          .map((service) => (
-            <ServiceFinanceRow
-              key={service.id}
-              service={service}
-              favorecidos={favorecidos}
-              linked={links.some(
-                (link) =>
-                  link.status === "ativo" &&
-                  link.motoristaId === service.motoristaId &&
-                  link.favorecidoId === service.favorecidoId,
-              )}
-              saving={
-                busy(`repasse-${service.id}`) || busy(`link-${service.id}`)
-              }
-              onSave={onSaveRepasse}
-              onLink={onLink}
-            />
-          ))}
-        {!services.length && (
-          <div className="empty-state">
-            <FileText size={28} />
-            <strong>Nenhum serviço no período</strong>
-            <span>Amplie o intervalo ou ajuste os filtros.</span>
-          </div>
-        )}
-      </section>
+      <RepasseGrid
+        services={services.filter((row) => row.status === "concluido")}
+        favorecidos={favorecidos}
+        links={links}
+        busy={busy}
+        onSave={onSaveRepasse}
+        onLink={onLink}
+      />
     </section>
   );
 }
-function ServiceFinanceRow({
-  service,
-  favorecidos,
-  linked,
-  saving,
-  onSave,
-  onLink,
-}) {
+function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
+  const [columns, setColumns] = useState(loadRepasseColumns);
+  const [showPicker, setShowPicker] = useState(false);
+  const [draggedColumn, setDraggedColumn] = useState("");
+  const [resize, setResize] = useState(null);
+  const visibleColumns = columns.filter((column) => column.visible);
+  const template = visibleColumns
+    .map((column) => `${column.width}px`)
+    .join(" ");
+  const pendingCount = services.filter(
+    (service) => service.valorRepasse <= 0,
+  ).length;
+
+  useEffect(() => {
+    localStorage.setItem(
+      "betinhos_repasses_columns_v1",
+      JSON.stringify(columns),
+    );
+  }, [columns]);
+  useEffect(() => {
+    if (!resize) return undefined;
+    const move = (event) => {
+      const width = Math.max(110, resize.width + event.clientX - resize.startX);
+      setColumns((current) =>
+        current.map((column) =>
+          column.id === resize.id ? { ...column, width } : column,
+        ),
+      );
+    };
+    const stop = () => setResize(null);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop, { once: true });
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+  }, [resize]);
+
+  const moveColumn = (targetId) => {
+    if (!draggedColumn || draggedColumn === targetId) return;
+    setColumns((current) => {
+      const source = current.findIndex((column) => column.id === draggedColumn);
+      const target = current.findIndex((column) => column.id === targetId);
+      const next = [...current];
+      next.splice(target, 0, next.splice(source, 1)[0]);
+      return next;
+    });
+    setDraggedColumn("");
+  };
+  const toggleColumn = (id) =>
+    setColumns((current) =>
+      current.map((column) =>
+        column.id === id ? { ...column, visible: !column.visible } : column,
+      ),
+    );
+  const resetColumns = () =>
+    setColumns(REPASSE_COLUMNS.map((column) => ({ ...column, visible: true })));
+  const cell = (service, column) => {
+    const linked = links.some(
+      (link) =>
+        link.status === "ativo" &&
+        link.motoristaId === service.motoristaId &&
+        link.favorecidoId === service.favorecidoId,
+    );
+    if (column.id === "valorRepasse")
+      return (
+        <RepasseInput
+          service={service}
+          saving={busy(`repasse-${service.id}`) || busy(`link-${service.id}`)}
+          onSave={onSave}
+        />
+      );
+    if (column.id === "favorecido")
+      return (
+        <FavorecidoCell
+          service={service}
+          favorecidos={favorecidos}
+          linked={linked}
+          saving={busy(`link-${service.id}`)}
+          onLink={onLink}
+        />
+      );
+    if (column.id === "valorCobrado")
+      return (
+        <strong className="currency-cell">{money(service.valorCobrado)}</strong>
+      );
+    if (column.id === "dataServico" || column.id === "dataFinalizacao")
+      return (
+        <span>{formatServiceDate(service[column.id], "Não informado")}</span>
+      );
+    return (
+      <span title={service[column.id] || "Não informado"}>
+        {service[column.id] || "Não informado"}
+      </span>
+    );
+  };
+
+  return (
+    <section className="surface repasse-grid-shell">
+      <div className="repasse-grid-toolbar">
+        <div className="repasse-grid-summary">
+          <strong>{services.length}</strong>
+          <span>serviços concluídos</span>
+          {pendingCount > 0 && <b>{pendingCount} pendente(s)</b>}
+          <small>Arraste cabeçalhos ou puxe as bordas para ajustar a view.</small>
+        </div>
+        <div className="column-picker-wrap">
+          <button
+            className="secondary-button"
+            onClick={() => setShowPicker((value) => !value)}
+            aria-expanded={showPicker}
+          >
+            <Columns3 size={16} />
+            Colunas
+          </button>
+          {showPicker && (
+            <div
+              className="column-picker"
+              role="dialog"
+              aria-label="Escolher colunas"
+            >
+              <div>
+                <strong>Exibir colunas</strong>
+                <button className="text-button" onClick={resetColumns}>
+                  Restaurar
+                </button>
+              </div>
+              {columns.map((column) => (
+                <label key={column.id}>
+                  <input
+                    type="checkbox"
+                    checked={column.visible}
+                    disabled={column.locked}
+                    onChange={() => toggleColumn(column.id)}
+                  />
+                  {column.label}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="repasse-grid-scroll">
+        <div
+          className="repasse-grid"
+          style={{
+            gridTemplateColumns: template,
+            minWidth: template ? undefined : 0,
+          }}
+        >
+          <div
+            className="repasse-grid-head"
+            style={{ gridTemplateColumns: template }}
+          >
+            {visibleColumns.map((column) => (
+              <div
+                className="repasse-grid-header"
+                key={column.id}
+                draggable
+                onDragStart={() => setDraggedColumn(column.id)}
+                onDragEnd={() => setDraggedColumn("")}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => moveColumn(column.id)}
+              >
+                <GripVertical size={14} aria-hidden="true" />
+                <span>{column.label}</span>
+                <button
+                  className="column-resizer"
+                  aria-label={`Redimensionar ${column.label}`}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setResize({
+                      id: column.id,
+                      startX: event.clientX,
+                      width: column.width,
+                    });
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+          {services.map((service) => (
+            <div
+              className={`repasse-grid-row ${service.valorRepasse <= 0 ? "is-pending" : ""}`}
+              key={service.id}
+              style={{ gridTemplateColumns: template }}
+            >
+              {visibleColumns.map((column) => (
+                <div
+                  className={`repasse-grid-cell cell-${column.id}`}
+                  key={column.id}
+                >
+                  {cell(service, column)}
+                </div>
+              ))}
+            </div>
+          ))}
+          {!services.length && (
+            <div className="empty-state">
+              <FileText size={28} />
+              <strong>Nenhum serviço no período</strong>
+              <span>Amplie o intervalo ou ajuste os filtros.</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+function RepasseInput({ service, saving, onSave }) {
   const [draft, setDraft] = useState(moneyInput(service.valorRepasse));
   useEffect(
     () => setDraft(moneyInput(service.valorRepasse)),
     [service.valorRepasse],
   );
-  const pending = parseMoney(draft) <= 0;
   return (
-    <article className="finance-row">
-      <div className="service-main">
-        <span className="service-line" />
-        <div>
-          <strong>{service.identificador}</strong>
-          <span>
-            {formatServiceDate(service.dataServico)} · {service.motorista} ·{" "}
-            {service.tipoVeiculo || "Veículo não informado"}
-          </span>
-          <span>{service.trajeto}</span>
-          <details className="service-details">
-            <summary>Dados operacionais</summary>
-            <div>
-              <span>
-                <b>Finalização</b>
-                {formatServiceDate(service.dataFinalizacao, "Não informado")}
-              </span>
-              <span>
-                <b>Veículo</b>
-                {service.veiculo || "Não informado"}
-              </span>
-              <span>
-                <b>Cliente</b>
-                {service.cliente || "Não informado"}
-              </span>
-              <span>
-                <b>Observação operacional</b>
-                {service.observacaoOperacao || "Não informado"}
-              </span>
-              <span>
-                <b>Observação final</b>
-                {service.observacaoFinal || "Não informado"}
-              </span>
-            </div>
-          </details>
-        </div>
-      </div>
-      <div className="charged-cell">
-        <span>Valor cobrado</span>
-        <strong>{money(service.valorCobrado)}</strong>
-      </div>
-      <label className="inline-money">
-        <span>Repasse</span>
-        <input
-          inputMode="decimal"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={() => onSave(service, draft)}
-          aria-label={`Repasse de ${service.identificador}`}
-        />
-        {saving && <small>Salvando…</small>}
-      </label>
-      <div className="beneficiary-cell">
-        {linked && service.favorecidoId ? (
-          <Badge tone="green">Vinculado</Badge>
-        ) : (
-          <select
-            value=""
-            disabled={saving}
-            onChange={(event) =>
-              event.target.value && onLink(service, event.target.value)
-            }
-          >
-            <option value="">Vincular favorecido</option>
-            {favorecidos.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.nome}
-              </option>
-            ))}
-          </select>
-        )}
-        {pending && <small className="field-error">Repasse pendente</small>}
-      </div>
-    </article>
+    <label className="grid-money-input">
+      <input
+        inputMode="decimal"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => onSave(service, draft)}
+        aria-label={`Repasse de ${service.identificador}`}
+      />
+      {saving && <small>Salvando…</small>}
+      {parseMoney(draft) <= 0 && (
+        <small className="field-error">Pendente</small>
+      )}
+    </label>
+  );
+}
+function FavorecidoCell({ service, favorecidos, linked, saving, onLink }) {
+  if (linked && service.favorecidoId)
+    return <Badge tone="green">Vinculado</Badge>;
+  return (
+    <select
+      value=""
+      disabled={saving}
+      onChange={(event) =>
+        event.target.value && onLink(service, event.target.value)
+      }
+    >
+      <option value="">Vincular favorecido</option>
+      {favorecidos.map((row) => (
+        <option key={row.id} value={row.id}>
+          {row.nome}
+        </option>
+      ))}
+    </select>
   );
 }
 
