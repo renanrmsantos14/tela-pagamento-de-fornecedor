@@ -1124,7 +1124,7 @@ function RepasseInput({ service, saving, onSave }) {
           minimumFractionDigits: 1,
           maximumFractionDigits: 1,
         })}
-        % lucro
+        %
       </small>
       {status?.type === "saving" && (
         <span
@@ -1681,7 +1681,7 @@ function LotDetailDrawer({
               JSON.parse(lot.favorecidoSnapshot || "{}").nome}
           </h3>
           <p>
-            {money(lot.repasse)} · {lot.count} serviço(s) · % lucro{" "}
+            {money(lot.repasse)} · {lot.count} serviço(s) ·{" "}
             {lot.marginPercent?.toFixed(1) || "0.0"}%
           </p>
         </div>
