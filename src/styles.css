@@ -1494,6 +1494,24 @@ select:focus {
   min-height: 14px;
   font-size: 10px;
 }
+.repasse-margin {
+  color: #617188;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: right;
+  transition: color 140ms ease;
+}
+.repasse-margin.is-positive {
+  color: #23815f;
+}
+.repasse-margin.is-neutral {
+  color: #9a6811;
+}
+.repasse-margin.is-negative {
+  color: var(--danger);
+}
 .repasse-save-icon {
   position: absolute;
   top: 12px;

@@ -37,6 +37,7 @@ import {
   eligibleServices,
   money,
   moneyInput,
+  marginPercent,
   parseMoney,
   paymentTotals,
   validateFavorecido,
@@ -72,6 +73,7 @@ const maskPix = (value) =>
   value?.length > 8 ? `${value.slice(0, 3)}••••${value.slice(-3)}` : value;
 const REPASSE_COLUMNS = [
   { id: "identificador", label: "Serviço", width: 150, locked: true },
+  { id: "valorCobrado", label: "Total CP", width: 135, locked: true },
   { id: "valorRepasse", label: "Repasse", width: 140, locked: true },
   { id: "dataServico", label: "Data e hora", width: 150 },
   { id: "dataFinalizacao", label: "Finalização", width: 150 },
@@ -82,10 +84,9 @@ const REPASSE_COLUMNS = [
   { id: "cliente", label: "Cliente", width: 180 },
   { id: "observacaoOperacao", label: "Observação operacional", width: 260 },
   { id: "observacaoFinal", label: "Observação final", width: 240 },
-  { id: "valorCobrado", label: "Valor cobrado", width: 135 },
   { id: "favorecido", label: "Favorecido", width: 180 },
 ];
-const REPASSE_COLUMNS_STORAGE_KEY = "betinhos_repasses_columns_v2";
+const REPASSE_COLUMNS_STORAGE_KEY = "betinhos_repasses_columns_v3";
 const REPASSE_DENSITY_STORAGE_KEY = "betinhos_repasses_density_v1";
 const loadRepasseColumns = () => {
   try {
@@ -1088,6 +1089,13 @@ function RepasseInput({ service, saving, onSave }) {
   }, [feedback]);
   const value = parseMoney(draft);
   const changed = value !== service.valorRepasse;
+  const currentMargin = marginPercent({ ...service, valorRepasse: value });
+  const marginTone =
+    currentMargin < 0
+      ? "is-negative"
+      : currentMargin === 0
+        ? "is-neutral"
+        : "is-positive";
   const save = async () => {
     if (!changed || saving) return;
     setFeedback({ type: "saving" });
@@ -1111,6 +1119,13 @@ function RepasseInput({ service, saving, onSave }) {
         onBlur={save}
         aria-label={`Repasse de ${service.identificador}`}
       />
+      <small className={`repasse-margin ${marginTone}`}>
+        {currentMargin.toLocaleString("pt-BR", {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1,
+        })}
+        % margem
+      </small>
       {status?.type === "saving" && (
         <span
           className="repasse-save-icon is-saving"
