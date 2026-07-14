@@ -212,9 +212,9 @@ export default function App() {
       setServices((rows) =>
         rows.map((row) => (row.id === service.id ? { ...row, ...saved } : row)),
       );
-      setNotice(`Repasse de ${service.identificador} salvo.`);
+      return saved;
     } catch (err) {
-      setError(err.message);
+      throw err;
     } finally {
       setBusy(`repasse-${service.id}`, false);
     }
@@ -1073,21 +1073,66 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
 }
 function RepasseInput({ service, saving, onSave }) {
   const [draft, setDraft] = useState(moneyInput(service.valorRepasse));
+  const [feedback, setFeedback] = useState(null);
   useEffect(
     () => setDraft(moneyInput(service.valorRepasse)),
     [service.valorRepasse],
   );
+  const value = parseMoney(draft);
+  const changed = value !== service.valorRepasse;
+  const save = async () => {
+    if (!changed || saving) return;
+    setFeedback({ type: "saving" });
+    try {
+      await onSave(service, draft);
+      setFeedback({ type: "saved" });
+    } catch (err) {
+      setFeedback({ type: "error", message: err.message });
+    }
+  };
+  const status = saving ? { type: "saving" } : feedback;
   return (
     <label className="grid-money-input">
       <input
         inputMode="decimal"
         value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={() => onSave(service, draft)}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          setFeedback(null);
+        }}
+        onBlur={save}
         aria-label={`Repasse de ${service.identificador}`}
       />
-      {saving && <small>Salvando…</small>}
-      {parseMoney(draft) <= 0 && (
+      {status?.type === "saving" && (
+        <small className="repasse-save-status is-saving">
+          <RefreshCw size={11} className="spin" aria-hidden="true" />
+          Salvando
+        </small>
+      )}
+      {status?.type === "saved" && !changed && (
+        <small className="repasse-save-status is-saved">
+          <CheckCircle2 size={12} aria-hidden="true" />
+          Salvo agora
+        </small>
+      )}
+      {status?.type === "error" && (
+        <small className="repasse-save-status is-error" title={status.message}>
+          Não salvo
+          <button
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={save}
+          >
+            Tentar novamente
+          </button>
+        </small>
+      )}
+      {!status && changed && (
+        <small className="repasse-save-status is-dirty">
+          Alteração não salva
+        </small>
+      )}
+      {!status && !changed && value <= 0 && (
         <small className="field-error">Pendente</small>
       )}
     </label>

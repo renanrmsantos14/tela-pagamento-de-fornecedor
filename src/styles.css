@@ -1480,7 +1480,44 @@ select:focus {
   font-variant-numeric: tabular-nums;
 }
 .grid-money-input small {
+  min-height: 14px;
   font-size: 10px;
+}
+.repasse-save-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #5c6f85;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.repasse-save-status.is-saving {
+  color: #315d9e;
+}
+.repasse-save-status.is-saved {
+  color: #23815f;
+}
+.repasse-save-status.is-dirty {
+  color: #9a6811;
+}
+.repasse-save-status.is-error {
+  color: var(--danger);
+}
+.repasse-save-status button {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  border-radius: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.repasse-save-status button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 .repasse-grid-cell select {
   min-width: 0;
