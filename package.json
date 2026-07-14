@@ -7,7 +7,9 @@
     "dev": "node scripts/dev-with-port.mjs",
     "test": "node --test tests/domain.test.js tests/mock-flow.test.js",
     "build": "vite build",
-    "wr": "vite build"
+    "wr": "vite build",
+    "deploy:webresource": "powershell -ExecutionPolicy Bypass -File scripts/deploy-webresource.ps1",
+    "push": "powershell -ExecutionPolicy Bypass -File scripts/deploy-webresource.ps1 -EnvironmentUrl https://appbetinhosdev.crm2.dynamics.com/ -WebResourceName TelaPagamentoFornecedores.html -SolutionUniqueName appbetinhos"
   },
   "dependencies": {
     "@fontsource/manrope": "^5.2.6",
