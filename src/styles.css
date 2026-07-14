@@ -365,6 +365,110 @@ p {
   grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
   gap: 12px;
 }
+.overview-queue {
+  display: grid;
+}
+.overview-queue-row {
+  min-width: 0;
+  min-height: 70px;
+  padding: 10px 0;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid #edf1f5;
+}
+.overview-queue-row:first-child {
+  border-top: 0;
+}
+.overview-queue-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9aa8b8;
+}
+.overview-queue-row.is-warning .overview-queue-dot {
+  background: #d89218;
+  box-shadow: 0 0 0 4px rgba(216, 146, 24, 0.11);
+}
+.overview-queue-row.is-info .overview-queue-dot {
+  background: #3974d7;
+  box-shadow: 0 0 0 4px rgba(57, 116, 215, 0.11);
+}
+.overview-queue-row.is-success .overview-queue-dot {
+  background: #1a9a60;
+  box-shadow: 0 0 0 4px rgba(26, 154, 96, 0.11);
+}
+.overview-queue-row > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.overview-queue-row strong,
+.overview-shortcut strong {
+  color: var(--navy);
+  font-size: var(--text-md);
+}
+.overview-queue-row p,
+.overview-shortcut small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.overview-queue-row .text-button {
+  min-height: 34px;
+  padding-inline: 8px;
+  white-space: nowrap;
+}
+.overview-shortcuts {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+}
+.overview-shortcuts .surface-head {
+  margin-bottom: 4px;
+}
+.overview-shortcut {
+  width: 100%;
+  min-height: 68px;
+  padding: 8px 0;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-top: 1px solid #edf1f5;
+  color: #65748a;
+  background: transparent;
+  text-align: left;
+  transition: color 140ms ease, transform 140ms var(--ease-out);
+}
+.overview-shortcut-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: #285db5;
+  background: #edf3ff;
+}
+.overview-shortcut > span:nth-child(2) {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.overview-shortcut > svg {
+  justify-self: end;
+}
+.overview-shortcut:hover {
+  color: var(--blue);
+}
+.overview-shortcut:active {
+  transform: scale(0.985);
+}
 .priority-panel,
 .category-panel,
 .lots-panel {
@@ -1705,30 +1809,34 @@ select:focus {
 .grid-money-input {
   width: 100%;
   display: grid;
-  gap: 2px;
+  gap: 0;
   position: relative;
 }
 .grid-money-input input {
   min-width: 0;
   min-height: 36px;
   padding: 0 30px 0 8px;
-  border-color: #ccd8e6;
+  border-color: #d8e0e9;
   color: var(--navy);
   background: #fff;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 .grid-money-input input:focus {
-  border-color: #9ab4e7;
-  box-shadow: 0 0 0 1px rgba(33, 89, 210, 0.18);
+  border-color: #8fa9d1;
+  box-shadow: none;
+}
+.grid-money-input input:focus-visible {
+  outline: 0;
+  box-shadow: none;
 }
 .grid-money-input small {
-  min-height: 14px;
-  font-size: 10px;
+  min-height: 12px;
+  font-size: 9px;
 }
 .repasse-margin {
-  color: #617188;
-  font-size: 10px;
+  color: #78879a;
+  font-size: 9px;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   line-height: 1.15;
@@ -1736,7 +1844,7 @@ select:focus {
   transition: color 140ms ease;
 }
 .repasse-margin.is-positive {
-  color: #23815f;
+  color: #6e7f90;
 }
 .repasse-margin.is-neutral {
   color: #9a6811;
@@ -1974,7 +2082,7 @@ textarea:focus-visible {
     min-height: 62px;
     padding: 5px;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
     border: 1px solid rgba(0, 26, 61, 0.1);
     border-radius: 18px;
@@ -2002,6 +2110,13 @@ textarea:focus-visible {
   }
   .dashboard-grid {
     grid-template-columns: 1fr;
+  }
+  .overview-queue-row {
+    grid-template-columns: 9px minmax(0, 1fr) auto;
+  }
+  .overview-queue-row p,
+  .overview-shortcut small {
+    white-space: normal;
   }
   .metrics-grid,
   .metric-card,

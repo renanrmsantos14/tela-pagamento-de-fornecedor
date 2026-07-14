@@ -13,6 +13,7 @@ import {
   FileDown,
   FileText,
   Link2,
+  LayoutDashboard,
   GripVertical,
   Plus,
   RefreshCw,
@@ -140,7 +141,7 @@ export default function App() {
   const [drivers, setDrivers] = useState([]);
   const [links, setLinks] = useState([]);
   const [lots, setLots] = useState([]);
-  const [tab, setTab] = useState("payments");
+  const [tab, setTab] = useState("overview");
   const [range, setRange] = useState(monthRange);
   const [search, setSearch] = useState("");
   const [driverId, setDriverId] = useState("");
@@ -412,6 +413,16 @@ export default function App() {
             </Alert>
           )}
           {notice && <Alert tone="success">{notice}</Alert>}
+          {tab === "overview" && (
+            <OverviewView
+              services={services}
+              lots={lots}
+              links={links}
+              onNavigate={setTab}
+              onNewLot={() => setDrawer({ type: "lot" })}
+              onNewFavorecido={() => setDrawer({ type: "favorecido" })}
+            />
+          )}
           {tab === "payments" && (
             <PaymentsView
               services={visibleServices}
@@ -461,6 +472,13 @@ export default function App() {
         </div>
       </main>
       <nav className="bottom-nav" aria-label="Navegação principal">
+        <button
+          className={tab === "overview" ? "active" : ""}
+          onClick={() => setTab("overview")}
+        >
+          <LayoutDashboard size={18} />
+          <span>Visão geral</span>
+        </button>
         <button
           className={tab === "payments" ? "active" : ""}
           onClick={() => setTab("payments")}
@@ -593,6 +611,13 @@ function Nav({ tab, onChange }) {
   return (
     <nav className="main-nav">
       <button
+        className={tab === "overview" ? "active" : ""}
+        onClick={() => onChange("overview")}
+      >
+        <LayoutDashboard size={17} />
+        Visão geral
+      </button>
+      <button
         className={tab === "payments" ? "active" : ""}
         onClick={() => onChange("payments")}
       >
@@ -623,6 +648,186 @@ function Alert({ tone, children, onClose }) {
       <span>{children}</span>
       {onClose && <button onClick={onClose}>×</button>}
     </div>
+  );
+}
+function OverviewView({
+  services,
+  lots,
+  links,
+  onNavigate,
+  onNewLot,
+  onNewFavorecido,
+}) {
+  const completedServices = services.filter(
+    (service) => service.status === "concluido",
+  );
+  const totals = paymentTotals(completedServices);
+  const pendingRepasse = completedServices.filter(
+    (service) => Number(service.valorRepasse || 0) <= 0,
+  );
+  const readyServices = eligibleServices(completedServices, "", links).filter(
+    (service) =>
+      links.some(
+        (link) =>
+          link.status === "ativo" &&
+          link.motoristaId === service.motoristaId &&
+          link.favorecidoId === service.favorecidoId,
+      ),
+  );
+  const openLots = lots.filter(
+    (lot) =>
+      lot.lotStatus === LOT_STATUS.DRAFT &&
+      lot.paymentStatus === PAYMENT_STATUS.OPEN,
+  );
+  const documentAttention = lots.filter(
+    (lot) =>
+      lot.paymentStatus === PAYMENT_STATUS.PAID &&
+      [
+        DOCUMENT_STATUS.NOT_GENERATED,
+        DOCUMENT_STATUS.FAILED,
+        DOCUMENT_STATUS.RESEND_REQUIRED,
+      ].includes(lot.documentStatus),
+  );
+  const totalMargin = totals.marginPercent.toLocaleString("pt-BR", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+
+  return (
+    <section className="page-section overview-page">
+      <div className="page-title">
+        <div>
+          <span>Financeiro operacional</span>
+          <h1>Visão geral</h1>
+          <p>Prioridades do período, sem misturar lançamento, lote e cadastro.</p>
+        </div>
+      </div>
+
+      <section className="metrics-grid" aria-label="Resumo financeiro">
+        <OverviewMetric
+          tone="blue"
+          icon={<Banknote size={20} />}
+          label="Total CP"
+          value={money(totals.revenue)}
+          detail={`${totals.count} serviço(s) concluído(s)`}
+        />
+        <OverviewMetric
+          tone="green"
+          icon={<CircleDollarSign size={20} />}
+          label="Repasses lançados"
+          value={money(totals.repasse)}
+          detail={`${totalMargin}% no período`}
+        />
+        <OverviewMetric
+          tone="amber"
+          icon={<AlertTriangle size={20} />}
+          label="Aguardando repasse"
+          value={String(pendingRepasse.length)}
+          detail="serviços sem valor definido"
+        />
+        <OverviewMetric
+          tone="blue"
+          icon={<ClipboardList size={20} />}
+          label="Lotes em aberto"
+          value={String(openLots.length)}
+          detail="rascunhos ainda não pagos"
+        />
+      </section>
+
+      <div className="dashboard-grid overview-grid">
+        <section className="surface priority-panel">
+          <div className="surface-head">
+            <div>
+              <span>Próximas ações</span>
+              <h2>O que precisa de atenção</h2>
+            </div>
+          </div>
+          <div className="overview-queue">
+            <OverviewQueueRow
+              tone={pendingRepasse.length ? "warning" : "success"}
+              title="Lançar repasses"
+              description={
+                pendingRepasse.length
+                  ? `${pendingRepasse.length} serviço(s) aguardando valor.`
+                  : "Todos os serviços concluídos têm repasse informado."
+              }
+              action="Abrir"
+              onClick={() => onNavigate("payments")}
+            />
+            <OverviewQueueRow
+              tone={readyServices.length ? "info" : "neutral"}
+              title="Montar lote"
+              description={
+                readyServices.length
+                  ? `${readyServices.length} serviço(s) disponível(is) para reserva.`
+                  : "Não há serviços elegíveis para um novo lote."
+              }
+              action="Novo lote"
+              onClick={onNewLot}
+            />
+            <OverviewQueueRow
+              tone={documentAttention.length ? "warning" : "success"}
+              title="Documentos de pagamento"
+              description={
+                documentAttention.length
+                  ? `${documentAttention.length} lote(s) precisam de geração ou reenvio.`
+                  : "Nenhum documento pendente."
+              }
+              action="Ver lotes"
+              onClick={() => onNavigate("lots")}
+            />
+          </div>
+        </section>
+
+        <section className="surface category-panel overview-shortcuts">
+          <div className="surface-head">
+            <div>
+              <span>Atalhos</span>
+              <h2>Ir direto ao trabalho</h2>
+            </div>
+          </div>
+          <button className="overview-shortcut" onClick={onNewLot}>
+            <span className="overview-shortcut-icon"><Plus size={17} /></span>
+            <span><strong>Novo lote</strong><small>Reserve serviços e confira os totais.</small></span>
+            <ChevronRight size={16} />
+          </button>
+          <button className="overview-shortcut" onClick={onNewFavorecido}>
+            <span className="overview-shortcut-icon"><UsersRound size={17} /></span>
+            <span><strong>Cadastrar terceiro</strong><small>Inclua PIX e vínculos de motorista.</small></span>
+            <ChevronRight size={16} />
+          </button>
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function OverviewMetric({ tone, icon, label, value, detail }) {
+  return (
+    <article className={`metric-card tone-${tone}`}>
+      <div className="metric-icon">{icon}</div>
+      <div>
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <small>{detail}</small>
+      </div>
+    </article>
+  );
+}
+
+function OverviewQueueRow({ tone, title, description, action, onClick }) {
+  return (
+    <article className={`overview-queue-row is-${tone}`}>
+      <span className="overview-queue-dot" aria-hidden="true" />
+      <div>
+        <strong>{title}</strong>
+        <p>{description}</p>
+      </div>
+      <button className="text-button" onClick={onClick}>
+        {action}
+        <ChevronRight size={14} />
+      </button>
+    </article>
   );
 }
 function PaymentsView({
