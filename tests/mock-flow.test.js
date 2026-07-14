@@ -10,6 +10,20 @@ async function client() {
   return import(`../src/lib/dataverse.js?mock=${Date.now()}-${Math.random()}`);
 }
 
+test("lista de lançamento traz contexto operacional para precificar", async () => {
+  const { dataverse } = await client();
+  dataverse.resetMock();
+  const service = (await dataverse.listFinanceServices()).find(
+    (row) => row.status === "concluido",
+  );
+  assert.ok(service.dataServico);
+  assert.ok(service.dataFinalizacao);
+  assert.ok(service.trajeto);
+  assert.ok(service.motorista);
+  assert.ok(service.tipoVeiculo);
+  assert.ok(service.observacaoOperacao);
+});
+
 test("fluxo local: repasse, vínculo, rascunho, pagamento, documento e auditoria", async () => {
   const { dataverse } = await client();
   dataverse.resetMock();

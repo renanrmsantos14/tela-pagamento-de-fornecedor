@@ -29,30 +29,13 @@ import {
   canPay,
   canRevert,
   eligibleServices,
-  groupMonthly,
-  marginPercent,
   money,
   moneyInput,
   parseMoney,
   paymentTotals,
-  profit,
   validateFavorecido,
 } from "./domain/payment";
 
-const months = [
-  "Jan",
-  "Fev",
-  "Mar",
-  "Abr",
-  "Mai",
-  "Jun",
-  "Jul",
-  "Ago",
-  "Set",
-  "Out",
-  "Nov",
-  "Dez",
-];
 const monthRange = () => {
   const date = new Date();
   const start = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -72,6 +55,13 @@ const statusText = (lot) =>
           ? "Pago · falha documental"
           : "Pago · documento pendente"
       : "Rascunho";
+const formatServiceDate = (value, fallback = "") =>
+  value
+    ? new Date(value).toLocaleString("pt-BR", {
+        dateStyle: "short",
+        timeStyle: "short",
+      })
+    : fallback;
 const maskPix = (value) =>
   value?.length > 8 ? `${value.slice(0, 3)}••••${value.slice(-3)}` : value;
 
@@ -106,21 +96,6 @@ function Drawer({ title, subtitle, children, onClose, wide = false }) {
 function Badge({ tone = "neutral", children }) {
   return <span className={`status-badge tone-${tone}`}>{children}</span>;
 }
-function Metric({ label, value, note, tone = "blue" }) {
-  return (
-    <article className={`metric-card tone-${tone}`}>
-      <div className="metric-icon">
-        <CircleDollarSign size={20} />
-      </div>
-      <div>
-        <span>{label}</span>
-        <strong>{value}</strong>
-        <small>{note}</small>
-      </div>
-    </article>
-  );
-}
-
 export default function App() {
   const [services, setServices] = useState([]);
   const [favorecidos, setFavorecidos] = useState([]);
@@ -185,16 +160,6 @@ export default function App() {
       ),
     [services, driverId, favorecidoFilter, search],
   );
-  const totals = useMemo(
-    () => paymentTotals(visibleServices),
-    [visibleServices],
-  );
-  const missingRepasse = visibleServices.filter(
-    (service) => service.status === "concluido" && service.valorRepasse <= 0,
-  ).length;
-  const negative = visibleServices.filter(
-    (service) => profit(service) < 0,
-  ).length;
   const openLot = async (lot) => {
     try {
       const detail = await dataverse.getLotDetail(lot.id);
@@ -431,13 +396,9 @@ export default function App() {
               setDriverId={setDriverId}
               favorecidoFilter={favorecidoFilter}
               setFavorecidoFilter={setFavorecidoFilter}
-              totals={totals}
-              missingRepasse={missingRepasse}
-              negative={negative}
               busy={busy}
               onSaveRepasse={saveRepasse}
               onLink={linkService}
-              onLot={() => setDrawer({ type: "lot" })}
             />
           )}
           {tab === "lots" && (
@@ -474,7 +435,7 @@ export default function App() {
           onClick={() => setTab("payments")}
         >
           <CircleDollarSign size={18} />
-          <span>Carteira</span>
+          <span>Repasses</span>
         </button>
         <button
           className={tab === "lots" ? "active" : ""}
@@ -605,7 +566,7 @@ function Nav({ tab, onChange }) {
         onClick={() => onChange("payments")}
       >
         <CircleDollarSign size={17} />
-        Carteira financeira
+        Lançar repasses
       </button>
       <button
         className={tab === "lots" ? "active" : ""}
@@ -664,58 +625,18 @@ function PaymentsView({
   setDriverId,
   favorecidoFilter,
   setFavorecidoFilter,
-  totals,
-  missingRepasse,
-  negative,
   busy,
   onSaveRepasse,
   onLink,
-  onLot,
 }) {
-  const monthly = groupMonthly(services, Number(range.from.slice(0, 4)));
   return (
     <section className="page-section">
       <div className="page-title">
         <div>
           <span>Financeiro / operação</span>
-          <h1>Carteira de repasses</h1>
-          <p>
-            Preencha valores, veja lucro real e prepare lotes sem sair da tela.
-          </p>
+          <h1>Lançar repasses</h1>
+          <p>Confira o serviço e registre somente o valor a repassar.</p>
         </div>
-        <button className="primary-button" onClick={onLot}>
-          <Plus size={16} />
-          Montar lote
-        </button>
-      </div>
-      <div className="metrics-grid">
-        <Metric
-          label="Receita"
-          value={money(totals.revenue)}
-          note={`${totals.count} serviços no filtro`}
-        />
-        <Metric
-          label="Repasse"
-          value={money(totals.repasse)}
-          note="Atualização em tempo real"
-          tone="green"
-        />
-        <Metric
-          label="Lucro"
-          value={money(totals.margin)}
-          note={`Margem ${totals.marginPercent.toFixed(1)}%`}
-          tone={totals.margin < 0 ? "amber" : "blue"}
-        />
-        <Metric
-          label="Pendências"
-          value={missingRepasse}
-          note={
-            negative
-              ? `${negative} margem(ns) negativa(s)`
-              : "Sem margem negativa"
-          }
-          tone={missingRepasse || negative ? "amber" : "green"}
-        />
       </div>
       <section className="surface filter-surface">
         <div className="search-box">
@@ -783,8 +704,8 @@ function PaymentsView({
       <section className="surface table-surface finance-list">
         <div className="finance-head">
           <span>Serviço</span>
+          <span>Valor cobrado</span>
           <span>Repasse</span>
-          <span>Lucro / margem</span>
           <span>Favorecido</span>
         </div>
         {services
@@ -815,32 +736,6 @@ function PaymentsView({
           </div>
         )}
       </section>
-      <section className="surface priority-panel monthly-mini">
-        <div className="surface-head">
-          <div>
-            <span>Visão anual</span>
-            <h2>Movimento por mês</h2>
-          </div>
-        </div>
-        <div className="monthly-table">
-          <div className="monthly-head">
-            <span>Mês</span>
-            <span>Serviços</span>
-            <span>Receita</span>
-            <span>Repasse</span>
-            <span>Lucro</span>
-          </div>
-          {monthly.map((row) => (
-            <div className="monthly-row" key={row.month}>
-              <strong>{months[row.month]}</strong>
-              <span>{row.count}</span>
-              <span>{money(row.revenue)}</span>
-              <span>{money(row.repasse)}</span>
-              <span>{money(row.margin)}</span>
-            </div>
-          ))}
-        </div>
-      </section>
     </section>
   );
 }
@@ -857,23 +752,48 @@ function ServiceFinanceRow({
     () => setDraft(moneyInput(service.valorRepasse)),
     [service.valorRepasse],
   );
-  const currentProfit = profit({ ...service, valorRepasse: parseMoney(draft) });
-  const currentMargin = marginPercent({
-    ...service,
-    valorRepasse: parseMoney(draft),
-  });
   const pending = parseMoney(draft) <= 0;
   return (
-    <article className={`finance-row ${currentProfit < 0 ? "negative" : ""}`}>
+    <article className="finance-row">
       <div className="service-main">
         <span className="service-line" />
         <div>
           <strong>{service.identificador}</strong>
           <span>
-            {new Date(service.dataServico).toLocaleDateString("pt-BR")} ·{" "}
-            {service.motorista} · {service.trajeto}
+            {formatServiceDate(service.dataServico)} · {service.motorista} ·{" "}
+            {service.tipoVeiculo || "Veículo não informado"}
           </span>
+          <span>{service.trajeto}</span>
+          <details className="service-details">
+            <summary>Dados operacionais</summary>
+            <div>
+              <span>
+                <b>Finalização</b>
+                {formatServiceDate(service.dataFinalizacao, "Não informado")}
+              </span>
+              <span>
+                <b>Veículo</b>
+                {service.veiculo || "Não informado"}
+              </span>
+              <span>
+                <b>Cliente</b>
+                {service.cliente || "Não informado"}
+              </span>
+              <span>
+                <b>Observação operacional</b>
+                {service.observacaoOperacao || "Não informado"}
+              </span>
+              <span>
+                <b>Observação final</b>
+                {service.observacaoFinal || "Não informado"}
+              </span>
+            </div>
+          </details>
         </div>
+      </div>
+      <div className="charged-cell">
+        <span>Valor cobrado</span>
+        <strong>{money(service.valorCobrado)}</strong>
       </div>
       <label className="inline-money">
         <span>Repasse</span>
@@ -886,15 +806,6 @@ function ServiceFinanceRow({
         />
         {saving && <small>Salvando…</small>}
       </label>
-      <div className="profit-cell">
-        <span>{money(currentProfit)}</span>
-        <small>{currentMargin.toFixed(1)}% de margem</small>
-        {currentProfit < 0 && (
-          <b>
-            <AlertTriangle size={13} /> Margem negativa permitida
-          </b>
-        )}
-      </div>
       <div className="beneficiary-cell">
         {linked && service.favorecidoId ? (
           <Badge tone="green">Vinculado</Badge>

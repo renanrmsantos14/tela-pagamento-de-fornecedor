@@ -46,6 +46,29 @@ const getXrm = () =>
     ? null
     : window.Xrm || window.parent?.Xrm || window.top?.Xrm || null;
 const escapeOData = (value) => String(value).replace(/'/g, "''");
+const normalizeLabel = (value) =>
+  String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+const reservationDetailLabels = Object.freeze({
+  dataFinalizacao: [
+    "horário de finalização",
+    "data/hora de finalização",
+    "finalização",
+  ],
+  observacaoOperacao: ["observação de operação", "observações da operação"],
+  tipoVeiculo: ["tipo de veículo", "tipo veículo"],
+  veiculo: ["veículo"],
+  observacaoFinal: ["observação final", "observações finais"],
+});
+const fieldValue = (row, logicalName) =>
+  logicalName
+    ? row[`${logicalName}@OData.Community.Display.V1.FormattedValue`] ||
+      row[logicalName] ||
+      ""
+    : "";
 
 const drivers = [
   "Carlos Henrique",
@@ -149,6 +172,9 @@ function seedServices() {
       dataServico: new Date(
         Date.UTC(2026, index % 12, 3 + (index % 24), 15),
       ).toISOString(),
+      dataFinalizacao: new Date(
+        Date.UTC(2026, index % 12, 3 + (index % 24), 15, 45 + (index % 3) * 20),
+      ).toISOString(),
       cliente: [
         "Diretoria Acme",
         "Grupo Horizonte",
@@ -157,8 +183,24 @@ function seedServices() {
         "Operação Sul",
       ][index % 5],
       trajeto: routes[index % routes.length],
+      observacaoOperacao: [
+        "Aguardar no desembarque",
+        "Bagagem de mão",
+        "Recepção no saguão",
+        "Sem observação operacional",
+      ][index % 4],
       motorista: driver.nome,
       motoristaId: driver.id,
+      tipoVeiculo: ["Sedan executivo", "SUV executivo", "Van executiva"][
+        index % 3
+      ],
+      veiculo: [
+        "Toyota Corolla",
+        "Chevrolet Trailblazer",
+        "Mercedes-Benz Sprinter",
+      ][index % 3],
+      observacaoFinal:
+        index % 5 === 0 ? "Serviço concluído sem intercorrências." : "",
       favorecidoId: noLink
         ? ""
         : seedLinks().find((link) => link.motoristaId === driver.id)
@@ -554,6 +596,31 @@ class DataverseClient {
         status === "ativo" ? CHOICES.activeLink : CHOICES.inactiveLink,
     });
   }
+  async reservationOperationalFields() {
+    const cacheKey = "reservationOperationalFields";
+    if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+    const response = await this.request(
+      "GET",
+      `/EntityDefinitions(LogicalName='${escapeOData(TABLES.reservation)}')/Attributes?$select=LogicalName,DisplayName`,
+    ).catch(() => ({ value: [] }));
+    const attributes = response.value || [];
+    const resolved = Object.fromEntries(
+      Object.entries(reservationDetailLabels).map(([key, labels]) => {
+        const attribute = attributes.find((row) => {
+          const label = normalizeLabel(
+            row.DisplayName?.UserLocalizedLabel?.Label ||
+              row.DisplayName?.LocalizedLabels?.[0]?.Label,
+          );
+          return labels.some(
+            (candidate) => label === normalizeLabel(candidate),
+          );
+        });
+        return [key, attribute?.LogicalName || ""];
+      }),
+    );
+    this.cache.set(cacheKey, resolved);
+    return resolved;
+  }
   async listFinanceServices(filters = {}) {
     if (this.mockMode)
       return clone(
@@ -564,6 +631,8 @@ class DataverseClient {
             (!filters.motoristaId || row.motoristaId === filters.motoristaId),
         ),
       );
+    const operationalFields = await this.reservationOperationalFields();
+    const extraFields = Object.values(operationalFields).filter(Boolean);
     const [compositionRows, reservationRows] = await Promise.all([
       this.listAll(
         TABLES.composition,
@@ -571,7 +640,7 @@ class DataverseClient {
       ),
       this.listAll(
         TABLES.reservation,
-        "?$select=cr40f_reservadeveiculosid,cr40f_id,cr40f_dataehorriodesada,cr40f_trajeto,cr40f_destino,_cr40f_motorista_value,_cr40f_cliente_value&$top=5000",
+        `?$select=cr40f_reservadeveiculosid,cr40f_id,cr40f_dataehorriodesada,cr40f_trajeto,cr40f_destino,_cr40f_motorista_value,_cr40f_cliente_value${extraFields.length ? `,${extraFields.join(",")}` : ""}&$top=5000`,
       ),
     ]);
     const reservations = new Map(
@@ -593,6 +662,10 @@ class DataverseClient {
         ),
         identificador: composition.cr40f_id || reservation.cr40f_id || "Sem ID",
         dataServico: reservation.cr40f_dataehorriodesada || "",
+        dataFinalizacao: fieldValue(
+          reservation,
+          operationalFields.dataFinalizacao,
+        ),
         cliente:
           reservation[
             "_cr40f_cliente_value@OData.Community.Display.V1.FormattedValue"
@@ -606,6 +679,16 @@ class DataverseClient {
             "_cr40f_motorista_value@OData.Community.Display.V1.FormattedValue"
           ] || "Não informado",
         motoristaId: cleanGuid(reservation._cr40f_motorista_value),
+        tipoVeiculo: fieldValue(reservation, operationalFields.tipoVeiculo),
+        veiculo: fieldValue(reservation, operationalFields.veiculo),
+        observacaoOperacao: fieldValue(
+          reservation,
+          operationalFields.observacaoOperacao,
+        ),
+        observacaoFinal: fieldValue(
+          reservation,
+          operationalFields.observacaoFinal,
+        ),
         favorecidoId: cleanGuid(composition._cr40f_terceirofavorecido_value),
         pagamentoId: cleanGuid(composition._cr40f_pagamentoaterceiro_value),
         valorCobrado: Number(composition.new_valortotal || 0),

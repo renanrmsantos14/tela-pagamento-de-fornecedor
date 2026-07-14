@@ -12,6 +12,15 @@ Campos obrigatórios adicionais na composição:
 
 Auditar os três campos acima. Limpar o lookup de lote no cancelamento; manter no pagamento.
 
+## Dados operacionais para lançar repasse
+
+A lista de lançamento consulta a metadata real da reserva e resolve, por rótulo,
+os campos **Horário de finalização**, **Observação de operação**, **Tipo de
+veículo**, **Veículo** e **Observação final**. Campos inexistentes não recebem
+nome lógico presumido: aparecem como `Não informado` até serem criados ou
+rotulados no Dataverse. A data/hora inicial, trajeto, motorista e cliente usam
+os campos já existentes da reserva.
+
 ## Tabelas
 
 ### `cr40f_terceirofavorecido`
