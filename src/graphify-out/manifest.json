@@ -1,0 +1,27 @@
+{
+  "App.jsx": {
+    "mtime": 1784054774.9020507,
+    "ast_hash": "8a845bd459609d0e2fba060d35143861",
+    "semantic_hash": "8a845bd459609d0e2fba060d35143861"
+  },
+  "domain/payment.js": {
+    "mtime": 1784054689.326752,
+    "ast_hash": "1cfa8ef8849c1b17e8d317a13db788c9",
+    "semantic_hash": "1cfa8ef8849c1b17e8d317a13db788c9"
+  },
+  "lib/dataverse.js": {
+    "mtime": 1784054689.2389467,
+    "ast_hash": "91b01fd576234c5d788f324dea1c238d",
+    "semantic_hash": "91b01fd576234c5d788f324dea1c238d"
+  },
+  "lib/document.js": {
+    "mtime": 1784054689.3707373,
+    "ast_hash": "c6aebc7394e9253fdcd96f236b6afa3a",
+    "semantic_hash": "c6aebc7394e9253fdcd96f236b6afa3a"
+  },
+  "main.jsx": {
+    "mtime": 1784049274.09235,
+    "ast_hash": "e230798efef22b5e68ecbbfa62f418e2",
+    "semantic_hash": "e230798efef22b5e68ecbbfa62f418e2"
+  }
+}
