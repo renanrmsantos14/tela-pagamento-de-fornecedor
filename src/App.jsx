@@ -90,6 +90,8 @@ const REPASSE_COLUMNS = [
 ];
 const REPASSE_COLUMNS_STORAGE_KEY = "betinhos_repasses_columns_v3";
 const REPASSE_DENSITY_STORAGE_KEY = "betinhos_repasses_density_v1";
+const REPASSE_VIEWS_STORAGE_KEY = "betinhos_repasses_views_v1";
+const REPASSE_ACTIVE_VIEW_STORAGE_KEY = "betinhos_repasses_active_view_v1";
 const loadRepasseColumns = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(REPASSE_COLUMNS_STORAGE_KEY));
@@ -103,6 +105,37 @@ const loadRepasseDensity = () =>
   localStorage.getItem(REPASSE_DENSITY_STORAGE_KEY) === "compact"
     ? "compact"
     : "comfortable";
+const loadRepasseViews = () => {
+  try {
+    const views = JSON.parse(localStorage.getItem(REPASSE_VIEWS_STORAGE_KEY));
+    return Array.isArray(views) ? views : [];
+  } catch {
+    return [];
+  }
+};
+const loadActiveRepasseView = () =>
+  localStorage.getItem(REPASSE_ACTIVE_VIEW_STORAGE_KEY) || "";
+const viewColumns = (savedColumns) => {
+  const defaults = new Map(REPASSE_COLUMNS.map((column) => [column.id, column]));
+  const saved = Array.isArray(savedColumns) ? savedColumns : [];
+  const mapped = saved
+    .filter((column) => defaults.has(column.id))
+    .map((column) => {
+      const fallback = defaults.get(column.id);
+      return {
+        ...fallback,
+        width: Math.max(110, Number(column.width) || fallback.width),
+        visible: fallback.locked ? true : column.visible !== false,
+      };
+    });
+  const present = new Set(mapped.map((column) => column.id));
+  return [
+    ...mapped,
+    ...REPASSE_COLUMNS.filter((column) => !present.has(column.id)).map(
+      (column) => ({ ...column, visible: true }),
+    ),
+  ];
+};
 
 function Drawer({ title, subtitle, children, onClose, wide = false }) {
   return (
@@ -934,8 +967,13 @@ function PaymentsView({
 function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
   const [columns, setColumns] = useState(loadRepasseColumns);
   const [density, setDensity] = useState(loadRepasseDensity);
+  const [views, setViews] = useState(loadRepasseViews);
+  const [activeViewId, setActiveViewId] = useState(loadActiveRepasseView);
   const [showPicker, setShowPicker] = useState(false);
+  const [showViews, setShowViews] = useState(false);
   const [columnSearch, setColumnSearch] = useState("");
+  const [viewName, setViewName] = useState("");
+  const [viewMessage, setViewMessage] = useState("");
   const [draggedColumn, setDraggedColumn] = useState("");
   const [resize, setResize] = useState(null);
   const [sort, setSort] = useState({ id: "dataServico", direction: "desc" });
@@ -949,6 +987,12 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
   const pickerColumns = columns.filter((column) =>
     column.label.toLowerCase().includes(columnSearch.toLowerCase()),
   );
+  const activeView = views.find((view) => view.id === activeViewId);
+  const currentView = () => ({
+    columns: columns.map(({ id, width, visible }) => ({ id, width, visible })),
+    density,
+    sort,
+  });
   const sortedServices = useMemo(() => {
     const isDate = ["dataServico", "dataFinalizacao"].includes(sort.id);
     const isCurrency = ["valorRepasse", "valorCobrado"].includes(sort.id);
@@ -982,6 +1026,12 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
   useEffect(() => {
     localStorage.setItem(REPASSE_DENSITY_STORAGE_KEY, density);
   }, [density]);
+  useEffect(() => {
+    localStorage.setItem(REPASSE_VIEWS_STORAGE_KEY, JSON.stringify(views));
+  }, [views]);
+  useEffect(() => {
+    localStorage.setItem(REPASSE_ACTIVE_VIEW_STORAGE_KEY, activeViewId);
+  }, [activeViewId]);
   useEffect(() => {
     if (!resize) return undefined;
     const move = (event) => {
@@ -1044,6 +1094,49 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
     if (!target) return;
     reorderColumns(id, target.id);
   };
+  const applyView = (view) => {
+    setColumns(viewColumns(view.columns));
+    setDensity(view.density === "compact" ? "compact" : "comfortable");
+    setSort(view.sort || { id: "dataServico", direction: "desc" });
+    setActiveViewId(view.id);
+    setViewMessage(`View “${view.name}” aplicada.`);
+    setShowViews(false);
+  };
+  const saveView = () => {
+    const name = viewName.trim();
+    if (!name) {
+      setViewMessage("Informe um nome para salvar a view.");
+      return;
+    }
+    if (views.some((view) => view.name.toLowerCase() === name.toLowerCase())) {
+      setViewMessage("Já existe uma view com este nome.");
+      return;
+    }
+    const view = {
+      id: `view-${Date.now()}`,
+      name,
+      ...currentView(),
+    };
+    setViews((current) => [...current, view]);
+    setActiveViewId(view.id);
+    setViewName("");
+    setViewMessage(`View “${name}” salva.`);
+  };
+  const updateView = () => {
+    if (!activeView) return;
+    setViews((current) =>
+      current.map((view) =>
+        view.id === activeView.id ? { ...view, ...currentView() } : view,
+      ),
+    );
+    setViewMessage(`View “${activeView.name}” atualizada.`);
+  };
+  const deleteView = () => {
+    if (!activeView) return;
+    setViews((current) => current.filter((view) => view.id !== activeView.id));
+    setActiveViewId("");
+    setViewMessage(`View “${activeView.name}” excluída.`);
+  };
   const cell = (service, column) => {
     const linked = links.some(
       (link) =>
@@ -1096,6 +1189,72 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
           <small>Configuração salva automaticamente.</small>
         </div>
         <div className="repasse-grid-actions">
+          <div className="saved-view-wrap">
+            <button
+              className={`secondary-button ${activeView ? "is-active" : ""}`}
+              onClick={() => {
+                setShowViews((value) => !value);
+                setShowPicker(false);
+              }}
+              aria-expanded={showViews}
+            >
+              <Save size={16} />
+              {activeView ? activeView.name : "Views"}
+            </button>
+            {showViews && (
+              <div className="saved-view-menu" role="dialog" aria-label="Views salvas">
+                <div className="saved-view-head">
+                  <div>
+                    <strong>Views salvas</strong>
+                    <span>Ordem, largura e colunas</span>
+                  </div>
+                  {activeView && (
+                    <button className="text-button" onClick={updateView}>
+                      Atualizar
+                    </button>
+                  )}
+                </div>
+                <div className="saved-view-list">
+                  {views.map((view) => (
+                    <button
+                      className={view.id === activeViewId ? "is-selected" : ""}
+                      key={view.id}
+                      onClick={() => applyView(view)}
+                    >
+                      <span>{view.name}</span>
+                      {view.id === activeViewId && <CheckCircle2 size={14} />}
+                    </button>
+                  ))}
+                  {!views.length && (
+                    <span className="saved-view-empty">Nenhuma view salva.</span>
+                  )}
+                </div>
+                <div className="saved-view-create">
+                  <input
+                    value={viewName}
+                    onChange={(event) => setViewName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") saveView();
+                    }}
+                    placeholder="Nome da nova view"
+                    aria-label="Nome da nova view"
+                  />
+                  <button className="primary-button" onClick={saveView}>
+                    <Save size={15} />
+                    Salvar
+                  </button>
+                </div>
+                <div className="saved-view-foot">
+                  {viewMessage && <span>{viewMessage}</span>}
+                  {activeView && (
+                    <button className="text-button" onClick={deleteView}>
+                      Excluir view
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           <button
             className={`secondary-button density-button ${density === "compact" ? "is-active" : ""}`}
             onClick={() =>
@@ -1112,7 +1271,10 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
           <div className="column-picker-wrap">
             <button
               className="secondary-button"
-              onClick={() => setShowPicker((value) => !value)}
+              onClick={() => {
+                setShowPicker((value) => !value);
+                setShowViews(false);
+              }}
               aria-expanded={showPicker}
             >
               <Columns3 size={16} />
