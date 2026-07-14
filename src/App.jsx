@@ -844,7 +844,9 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
           <strong>{services.length}</strong>
           <span>serviços concluídos</span>
           {pendingCount > 0 && <b>{pendingCount} pendente(s)</b>}
-          <small>Arraste cabeçalhos ou puxe as bordas para ajustar a view.</small>
+          <small>
+            Arraste cabeçalhos ou puxe as bordas para ajustar a view.
+          </small>
         </div>
         <div className="column-picker-wrap">
           <button
