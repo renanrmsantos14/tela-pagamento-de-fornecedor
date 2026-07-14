@@ -1468,11 +1468,12 @@ select:focus {
   width: 100%;
   display: grid;
   gap: 2px;
+  position: relative;
 }
 .grid-money-input input {
   min-width: 0;
   min-height: 36px;
-  padding: 0 8px;
+  padding: 0 30px 0 8px;
   border-color: #ccd8e6;
   color: var(--navy);
   background: #fff;
@@ -1483,41 +1484,49 @@ select:focus {
   min-height: 14px;
   font-size: 10px;
 }
-.repasse-save-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: #5c6f85;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-.repasse-save-status.is-saving {
-  color: #315d9e;
-}
-.repasse-save-status.is-saved {
-  color: #23815f;
-}
-.repasse-save-status.is-dirty {
-  color: #9a6811;
-}
-.repasse-save-status.is-error {
-  color: var(--danger);
-}
-.repasse-save-status button {
-  min-height: auto;
+.repasse-save-icon {
+  position: absolute;
+  top: 12px;
+  right: 8px;
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
   padding: 0;
   border: 0;
-  border-bottom: 1px solid currentColor;
-  border-radius: 0;
-  color: inherit;
+  border-radius: 50%;
   background: transparent;
-  font: inherit;
-  font-weight: 800;
+  animation: repasse-status 1.8s var(--ease-out) forwards;
+}
+.repasse-save-icon.is-saving {
+  color: #315d9e;
+  animation: none;
+}
+.repasse-save-icon.is-saved {
+  color: #23815f;
+}
+.repasse-save-icon.is-error {
+  color: var(--danger);
   cursor: pointer;
 }
-.repasse-save-status button:focus-visible {
+.repasse-save-icon:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 2px;
+}
+@keyframes repasse-status {
+  0% {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+  15%,
+  72% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
 }
 .repasse-grid-cell select {
   min-width: 0;

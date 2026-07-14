@@ -1078,6 +1078,11 @@ function RepasseInput({ service, saving, onSave }) {
     () => setDraft(moneyInput(service.valorRepasse)),
     [service.valorRepasse],
   );
+  useEffect(() => {
+    if (!feedback || feedback.type === "saving") return undefined;
+    const timeout = window.setTimeout(() => setFeedback(null), 1850);
+    return () => window.clearTimeout(timeout);
+  }, [feedback]);
   const value = parseMoney(draft);
   const changed = value !== service.valorRepasse;
   const save = async () => {
@@ -1092,7 +1097,7 @@ function RepasseInput({ service, saving, onSave }) {
   };
   const status = saving ? { type: "saving" } : feedback;
   return (
-    <label className="grid-money-input">
+    <div className="grid-money-input">
       <input
         inputMode="decimal"
         value={draft}
@@ -1104,38 +1109,35 @@ function RepasseInput({ service, saving, onSave }) {
         aria-label={`Repasse de ${service.identificador}`}
       />
       {status?.type === "saving" && (
-        <small className="repasse-save-status is-saving">
-          <RefreshCw size={11} className="spin" aria-hidden="true" />
-          Salvando
-        </small>
+        <span
+          className="repasse-save-icon is-saving"
+          role="status"
+          aria-label="Salvando repasse"
+        >
+          <RefreshCw size={12} className="spin" aria-hidden="true" />
+        </span>
       )}
       {status?.type === "saved" && !changed && (
-        <small className="repasse-save-status is-saved">
-          <CheckCircle2 size={12} aria-hidden="true" />
-          Salvo agora
-        </small>
+        <span className="repasse-save-icon is-saved" title="Repasse salvo">
+          <CheckCircle2 size={13} aria-label="Repasse salvo" />
+        </span>
       )}
       {status?.type === "error" && (
-        <small className="repasse-save-status is-error" title={status.message}>
-          Não salvo
-          <button
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={save}
-          >
-            Tentar novamente
-          </button>
-        </small>
-      )}
-      {!status && changed && (
-        <small className="repasse-save-status is-dirty">
-          Alteração não salva
-        </small>
+        <button
+          type="button"
+          className="repasse-save-icon is-error"
+          title={`${status.message} Clique para tentar novamente.`}
+          aria-label="Repasse não salvo. Tentar novamente"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={save}
+        >
+          <AlertTriangle size={13} aria-hidden="true" />
+        </button>
       )}
       {!status && !changed && value <= 0 && (
         <small className="field-error">Pendente</small>
       )}
-    </label>
+    </div>
   );
 }
 function FavorecidoCell({ service, favorecidos, linked, saving, onLink }) {
