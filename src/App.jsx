@@ -1124,7 +1124,7 @@ function RepasseInput({ service, saving, onSave }) {
           minimumFractionDigits: 1,
           maximumFractionDigits: 1,
         })}
-        % margem
+        % lucro
       </small>
       {status?.type === "saving" && (
         <span
@@ -1593,7 +1593,7 @@ function LotDrawer({
         {totals.margin < 0 && (
           <div className="inline-alert warning-alert">
             <AlertTriangle size={16} />
-            Este lote possui margem negativa, mas pode ser criado.
+            Este lote possui lucro negativo, mas pode ser criado.
           </div>
         )}
         <div className="selection-list">
@@ -1681,7 +1681,7 @@ function LotDetailDrawer({
               JSON.parse(lot.favorecidoSnapshot || "{}").nome}
           </h3>
           <p>
-            {money(lot.repasse)} · {lot.count} serviço(s) · margem{" "}
+            {money(lot.repasse)} · {lot.count} serviço(s) · % lucro{" "}
             {lot.marginPercent?.toFixed(1) || "0.0"}%
           </p>
         </div>
