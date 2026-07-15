@@ -1563,8 +1563,9 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
           </div>
         </div>
       </div>
-      <div className="repasse-grid-scroll" ref={gridScrollRef}>
-        <div
+      <div className="repasse-grid-viewport">
+        <div className="repasse-grid-scroll" ref={gridScrollRef}>
+          <div
           className="repasse-grid"
           style={{
             gridTemplateColumns: template,
@@ -1686,6 +1687,7 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
               <span>Amplie o intervalo ou ajuste os filtros.</span>
             </div>
           )}
+          </div>
         </div>
         {horizontalScroll.contentWidth > horizontalScroll.viewportWidth && (
           <div
