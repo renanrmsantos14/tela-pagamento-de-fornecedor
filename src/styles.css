@@ -2531,6 +2531,10 @@ select:focus {
   color: var(--navy);
   font-weight: 800;
 }
+.repasse-grid-cell.cell-identificador .service-identifier-link {
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 1px;
+}
 .service-identifier-link {
   display: block;
   max-width: 100%;
