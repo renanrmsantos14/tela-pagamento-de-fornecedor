@@ -177,6 +177,23 @@ const orderRepasseColumns = (columns) => [
   ...columns.filter((column) => column.locked),
   ...columns.filter((column) => !column.locked),
 ];
+const resolveColumnDrop = (columns, sourceId, targetId, placement) => {
+  if (!sourceId || sourceId === targetId) return null;
+  const source = columns.find((column) => column.id === sourceId);
+  const target = columns.find((column) => column.id === targetId);
+  if (!source || !target) return null;
+  if (source.locked === target.locked) return { targetId, placement };
+
+  const firstUnlocked = columns.find((column) => !column.locked);
+  const lastLocked = [...columns].reverse().find((column) => column.locked);
+  if (source.locked && target.id === firstUnlocked?.id && placement === "before") {
+    return { targetId, placement: "before" };
+  }
+  if (!source.locked && target.id === lastLocked?.id && placement === "after") {
+    return { targetId, placement: "after" };
+  }
+  return null;
+};
 const viewColumns = (savedColumns) => {
   const defaults = new Map(REPASSE_COLUMNS.map((column) => [column.id, column]));
   const saved = Array.isArray(savedColumns) ? savedColumns : [];
@@ -1488,13 +1505,11 @@ function RepasseGrid({
   }, [resize]);
 
   const reorderColumns = (sourceId, targetId, placement = "before") => {
-    if (!sourceId || sourceId === targetId) return;
     setColumns((current) => {
       const next = orderRepasseColumns(current);
+      const drop = resolveColumnDrop(next, sourceId, targetId, placement);
+      if (!drop) return current;
       const source = next.findIndex((column) => column.id === sourceId);
-      const target = next.findIndex((column) => column.id === targetId);
-      if (source < 0 || target < 0 || next[source].locked !== next[target].locked)
-        return current;
       previousColumnPositionsRef.current = new Map(
         [...columnRowRefs.current].map(([id, element]) => [
           id,
@@ -1502,8 +1517,8 @@ function RepasseGrid({
         ]),
       );
       const [column] = next.splice(source, 1);
-      const targetIndex = next.findIndex((item) => item.id === targetId);
-      next.splice(targetIndex + (placement === "after" ? 1 : 0), 0, column);
+      const targetIndex = next.findIndex((item) => item.id === drop.targetId);
+      next.splice(targetIndex + (drop.placement === "after" ? 1 : 0), 0, column);
       return next;
     });
   };
@@ -1552,8 +1567,10 @@ function RepasseGrid({
     const index = orderedColumns.findIndex((column) => column.id === id);
     const source = orderedColumns[index];
     const target = orderedColumns[index + direction];
-    if (!source || !target || source.locked !== target.locked) return;
-    reorderColumns(id, target.id);
+    if (!source || !target) return;
+    const placement =
+      source.locked === target.locked || direction > 0 ? "before" : "after";
+    reorderColumns(id, target.id, placement);
   };
   const applyView = (view) => {
     setColumns(viewColumns(view.columns));
@@ -1798,11 +1815,21 @@ function RepasseGrid({
                             ? "before"
                             : "after",
                       };
+                      const resolvedTarget = resolveColumnDrop(
+                        orderedColumns,
+                        draggedColumn,
+                        nextTarget.id,
+                        nextTarget.placement,
+                      );
+                      if (!resolvedTarget) return;
                       setDropTarget((current) =>
-                        current?.id === nextTarget.id &&
-                        current.placement === nextTarget.placement
+                        current?.id === resolvedTarget.targetId &&
+                        current.placement === resolvedTarget.placement
                           ? current
-                          : nextTarget,
+                          : {
+                              id: resolvedTarget.targetId,
+                              placement: resolvedTarget.placement,
+                            },
                       );
                     }}
                     onDrop={(event) => {
