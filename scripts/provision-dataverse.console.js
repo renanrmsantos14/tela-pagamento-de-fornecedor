@@ -74,6 +74,8 @@
     "cr40f_reservadeveculos",
   ];
 
+  const provisionedTableNames = new Set(tables.map(({ logicalName }) => logicalName));
+
   const label = (text) => ({
     "@odata.type": "Microsoft.Dynamics.CRM.Label",
     LocalizedLabels: [
@@ -478,6 +480,17 @@
     }
   };
 
+  const removeAttributeFromProvisionedTable = async (entity, logicalName, reason) => {
+    if (!provisionedTableNames.has(entity)) return false;
+    log("coluna incompat\\u00edvel removida", `${entity}.${logicalName} (${reason})`);
+    await request("DELETE", metadataAttributePath(entity, logicalName));
+    await waitFor(
+      async () => !(await getAttribute(entity, logicalName)),
+      `remocao de ${entity}.${logicalName}`,
+    );
+    return true;
+  };
+
   const ensureTable = async (definition) => {
     let table = await getTable(definition.logicalName);
     if (table) {
@@ -509,7 +522,16 @@
 
   const ensureColumn = async (entity, column) => {
     const logicalName = column.SchemaName.toLowerCase();
-    const existing = await getAttribute(entity, logicalName);
+    let existing = await getAttribute(entity, logicalName);
+    const acceptedTypesForReplacement = column.acceptedExistingTypes || [column.AttributeType];
+    if (existing && !acceptedTypesForReplacement.includes(existing.AttributeType)) {
+      const removed = await removeAttributeFromProvisionedTable(
+        entity,
+        logicalName,
+        `${existing.AttributeType}; esperado ${acceptedTypesForReplacement.join(" ou ")}`,
+      );
+      if (removed) existing = null;
+    }
     if (existing) {
       const acceptedTypes = column.acceptedExistingTypes || [column.AttributeType];
       if (!acceptedTypes.includes(existing.AttributeType)) {
@@ -573,13 +595,7 @@
 
   const ensurePicklist = async (entity, column) => {
     const logicalName = column.SchemaName.toLowerCase();
-    const existing = await getAttribute(entity, logicalName);
-    if (!existing) {
-      await ensureColumn(entity, column);
-    } else {
-      assertType(existing, TYPE_NAMES.Picklist, entity, logicalName);
-      log("Choice existente", `${entity}.${logicalName}`);
-    }
+    await ensureColumn(entity, column);
     await ensureChoiceOptions(entity, logicalName, column.OptionSet.Options.map((option) => ({
       value: option.Value,
       label: option.Label.UserLocalizedLabel?.Label || option.Label.LocalizedLabels[0].Label,
@@ -627,17 +643,35 @@
 
   const ensureLookup = async (definition) => {
     const logicalName = definition.attributeSchemaName.toLowerCase();
-    const existing = await getAttribute(definition.source, logicalName);
+    let existing = await getAttribute(definition.source, logicalName);
+    if (existing && existing.AttributeType !== TYPE_NAMES.Lookup) {
+      const removed = await removeAttributeFromProvisionedTable(
+        definition.source,
+        logicalName,
+        `${existing.AttributeType}; esperado ${TYPE_NAMES.Lookup}`,
+      );
+      if (removed) existing = null;
+    }
     if (existing) {
       assertType(existing, TYPE_NAMES.Lookup, definition.source, logicalName);
       const lookup = await getLookupAttribute(definition.source, logicalName);
-      if (!lookup?.Targets?.includes(definition.target)) {
+      if (!lookup?.Targets?.includes(definition.target) && provisionedTableNames.has(definition.source)) {
+        await removeAttributeFromProvisionedTable(
+          definition.source,
+          logicalName,
+          `Lookup aponta para tabela diferente de ${definition.target}`,
+        );
+        existing = null;
+      }
+      if (!lookup?.Targets?.includes(definition.target) && existing) {
         throw new Error(
           `${definition.source}.${logicalName} existe, mas não aponta para ${definition.target}.`,
         );
       }
-      log("lookup existente", `${definition.source}.${logicalName} -> ${definition.target}`);
-      return existing;
+      if (existing) {
+        log("lookup existente", `${definition.source}.${logicalName} -> ${definition.target}`);
+        return existing;
+      }
     }
 
     const targetTable = await getTable(definition.target);
