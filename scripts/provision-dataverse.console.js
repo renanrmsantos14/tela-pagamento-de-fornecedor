@@ -586,6 +586,45 @@
     })));
   };
 
+  const relationshipPayload = (definition, targetTable) => ({
+    "@odata.type": "Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
+    SchemaName: definition.relationshipSchemaName,
+    ReferencedEntity: definition.target,
+    ReferencedAttribute: targetTable.PrimaryIdAttribute,
+    ReferencingEntity: definition.source,
+    Lookup: {
+      "@odata.type": "Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+      AttributeType: TYPE_NAMES.Lookup,
+      AttributeTypeName: { Value: "LookupType" },
+      SchemaName: definition.attributeSchemaName,
+      DisplayName: label(definition.displayName),
+      Description: label(definition.displayName),
+      RequiredLevel: {
+        Value: "None",
+        CanBeChanged: true,
+        ManagedPropertyLogicalName: "canmodifyrequirementlevelsettings",
+      },
+    },
+  });
+
+  const validateRelationshipPayload = (payload) => {
+    const lookup = payload.Lookup;
+    if (!lookup || lookup["@odata.type"] !== "Microsoft.Dynamics.CRM.LookupAttributeMetadata") {
+      throw new Error("Payload de lookup inv\u00e1lido antes do POST em RelationshipDefinitions.");
+    }
+    if (lookup.AttributeType !== TYPE_NAMES.Lookup || lookup.AttributeTypeName?.Value !== "LookupType") {
+      throw new Error("Payload de lookup sem AttributeType/AttributeTypeName compat\u00edvel.");
+    }
+    if ("IsValidForAdvancedFind" in lookup) {
+      throw new Error(
+        "IsValidForAdvancedFind n\u00e3o deve ser enviado como valor simples no payload de relacionamento.",
+      );
+    }
+    if (lookup.RequiredLevel?.ManagedPropertyLogicalName !== "canmodifyrequirementlevelsettings") {
+      throw new Error("RequiredLevel do lookup n\u00e3o est\u00e1 no formato de propriedade gerenciada.");
+    }
+  };
+
   const ensureLookup = async (definition) => {
     const logicalName = definition.attributeSchemaName.toLowerCase();
     const existing = await getAttribute(definition.source, logicalName);
@@ -606,22 +645,9 @@
       throw new Error(`Tabela alvo inexistente para lookup: ${definition.target}.`);
     }
 
-    await request("POST", "/RelationshipDefinitions", {
-      "@odata.type": "Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
-      SchemaName: definition.relationshipSchemaName,
-      ReferencedEntity: definition.target,
-      ReferencedAttribute: targetTable.PrimaryIdAttribute,
-      ReferencingEntity: definition.source,
-      ReferencingEntityNavigationPropertyName: definition.attributeSchemaName,
-      Lookup: {
-        "@odata.type": "Microsoft.Dynamics.CRM.LookupAttributeMetadata",
-        SchemaName: definition.attributeSchemaName,
-        DisplayName: label(definition.displayName),
-        Description: label(definition.displayName),
-        RequiredLevel: { Value: "None" },
-        IsValidForAdvancedFind: true,
-      },
-    });
+    const payload = relationshipPayload(definition, targetTable);
+    validateRelationshipPayload(payload);
+    await request("POST", "/RelationshipDefinitions", payload);
     await waitFor(
       () => getAttribute(definition.source, logicalName),
       `o lookup ${definition.source}.${logicalName}`,
