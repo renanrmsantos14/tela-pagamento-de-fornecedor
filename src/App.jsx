@@ -1828,9 +1828,11 @@ function RepasseInput({ service, saving, onSave }) {
     }
   };
   const status = saving ? { type: "saving" } : feedback;
+  const pending = !status && !changed && value <= 0;
   return (
     <div className="grid-money-input">
       <input
+        className={pending ? "is-pending" : undefined}
         inputMode="decimal"
         value={draft}
         onChange={(event) => {
@@ -1873,9 +1875,7 @@ function RepasseInput({ service, saving, onSave }) {
           <AlertTriangle size={13} aria-hidden="true" />
         </button>
       )}
-      {!status && !changed && value <= 0 && (
-        <small className="field-error">Pendente</small>
-      )}
+      {pending && <Badge tone="amber">Repasse pendente</Badge>}
     </div>
   );
 }

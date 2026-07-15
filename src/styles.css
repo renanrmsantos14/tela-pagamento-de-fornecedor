@@ -2505,6 +2505,13 @@ select:focus {
   background: #fff;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+.grid-money-input input.is-pending {
+  border-color: #e4bd6c;
+  background: #fffdf8;
 }
 .grid-money-input input:focus {
   border-color: #8fa9d1;
@@ -2517,6 +2524,13 @@ select:focus {
 .grid-money-input small {
   min-height: 12px;
   font-size: 9px;
+}
+.grid-money-input > .status-badge {
+  min-height: 16px;
+  margin-top: 3px;
+  padding: 0 6px;
+  font-size: 9px;
+  line-height: 1;
 }
 .repasse-margin {
   color: #78879a;
