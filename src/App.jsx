@@ -675,6 +675,14 @@ export default function App() {
               autosaveErrors={autosaveErrors}
               onSaveRepasse={saveRepasse}
               onLink={linkService}
+              onGenerateLot={(selectedServices) => {
+                if (!selectedServices.length) return;
+                setPreselected(new Set(selectedServices.map((service) => service.id)));
+                setDrawer({
+                  type: "lot",
+                  favorecidoId: selectedServices[0].favorecidoId,
+                });
+              }}
             />
           )}
           {tab === "lots" && (
@@ -803,6 +811,7 @@ export default function App() {
           links={links}
           range={range}
           preselected={preselected}
+          initialFavorecidoId={drawer.favorecidoId}
           existingLot={drawer.lot}
           saving={busy("lot")}
           onClose={() => setDrawer(null)}
@@ -1165,6 +1174,7 @@ function PaymentsView({
   autosaveErrors,
   onSaveRepasse,
   onLink,
+  onGenerateLot,
 }) {
   const [statusFilter, setStatusFilter] = useState([]);
   const statusDefaultApplied = useRef(false);
@@ -1269,6 +1279,8 @@ function PaymentsView({
         autosaveErrors={autosaveErrors}
         onSave={onSaveRepasse}
         onLink={onLink}
+        links={links}
+        onGenerateLot={onGenerateLot}
       />
     </section>
   );
@@ -1280,6 +1292,8 @@ function RepasseGrid({
   autosaveErrors,
   onSave,
   onLink,
+  links,
+  onGenerateLot,
 }) {
   const [columns, setColumns] = useState(loadRepasseColumns);
   const [density, setDensity] = useState(loadRepasseDensity);
@@ -1294,6 +1308,7 @@ function RepasseGrid({
   const [dropTarget, setDropTarget] = useState(null);
   const [resize, setResize] = useState(null);
   const [sort, setSort] = useState({ id: "dataServico", direction: "desc" });
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const orderedColumns = useMemo(() => orderRepasseColumns(columns), [columns]);
   const visibleColumns = useMemo(
     () => orderedColumns.filter((column) => column.visible),
@@ -1308,6 +1323,7 @@ function RepasseGrid({
     () => visibleColumns.map((column) => `${column.width}px`).join(" "),
     [visibleColumns],
   );
+  const gridTemplate = useMemo(() => `44px ${template}`, [template]);
   const gridScrollRef = useRef(null);
   const columnPickerRef = useRef(null);
   const columnRowRefs = useRef(new Map());
@@ -1356,8 +1372,43 @@ function RepasseGrid({
       return sort.direction === "asc" ? result : -result;
     });
   }, [services, sort]);
+  const activeFavorecidoIds = useMemo(
+    () =>
+      new Set(
+        favorecidos
+          .filter((favorecido) => favorecido.status === "ativo")
+          .map((favorecido) => favorecido.id),
+      ),
+    [favorecidos],
+  );
+  const eligibleLotServices = useMemo(
+    () =>
+      services.filter(
+        (service) =>
+          service.favorecidoId &&
+          activeFavorecidoIds.has(service.favorecidoId) &&
+          eligibleServices([service], service.favorecidoId, links).length,
+      ),
+    [services, links, activeFavorecidoIds],
+  );
+  const eligibleLotServiceIds = useMemo(
+    () => new Set(eligibleLotServices.map((service) => service.id)),
+    [eligibleLotServices],
+  );
+  const selectedServices = useMemo(
+    () => eligibleLotServices.filter((service) => selectedIds.has(service.id)),
+    [eligibleLotServices, selectedIds],
+  );
+  const selectedFavorecidoId = selectedServices[0]?.favorecidoId || "";
+  useEffect(() => {
+    const eligibleIds = new Set(eligibleLotServices.map((service) => service.id));
+    setSelectedIds((current) => {
+      const next = new Set([...current].filter((id) => eligibleIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [eligibleLotServices]);
   const pinnedStyles = useMemo(() => {
-    let left = 0;
+    let left = 44;
     const styles = new Map();
     visibleColumns.forEach((column) => {
       if (!column.locked) return;
@@ -1594,6 +1645,14 @@ function RepasseGrid({
     );
   };
 
+  const toggleServiceSelection = (serviceId) =>
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(serviceId)) next.delete(serviceId);
+      else next.add(serviceId);
+      return next;
+    });
+
   return (
     <section
       className={`surface repasse-grid-shell ${density === "compact" ? "is-compact" : ""}`}
@@ -1606,6 +1665,14 @@ function RepasseGrid({
           <small>Configuração salva automaticamente.</small>
         </div>
         <div className="repasse-grid-actions">
+          <button
+            className="primary-button repasse-generate-lot"
+            disabled={!selectedServices.length}
+            onClick={() => onGenerateLot(selectedServices)}
+          >
+            <ClipboardList size={16} />
+            Gerar lote{selectedServices.length ? ` (${selectedServices.length})` : ""}
+          </button>
           <div className="saved-view-wrap" ref={savedViewRef}>
             <button
               className={`secondary-button ${activeView ? "is-active" : ""}`}
@@ -1841,14 +1908,15 @@ function RepasseGrid({
           <div
           className="repasse-grid"
           style={{
-            gridTemplateColumns: template,
-            minWidth: template ? undefined : 0,
+            gridTemplateColumns: gridTemplate,
+            minWidth: gridTemplate ? undefined : 0,
           }}
         >
           <div
             className="repasse-grid-head"
-            style={{ gridTemplateColumns: template }}
+            style={{ gridTemplateColumns: gridTemplate }}
           >
+            <div className="repasse-grid-select-cell is-header" />
             {visibleColumns.map((column) => (
               <div
                 className={`repasse-grid-header ${column.locked ? "is-pinned" : ""} ${column.id === lastPinnedColumnId ? "is-pinned-edge" : ""}`}
@@ -1936,12 +2004,34 @@ function RepasseGrid({
               </div>
             ))}
           </div>
-          {sortedServices.map((service) => (
+          {sortedServices.map((service) => {
+            const isEligibleForLot = eligibleLotServiceIds.has(service.id);
+            const isOtherFavorecido =
+              selectedFavorecidoId &&
+              service.favorecidoId !== selectedFavorecidoId;
+            const isSelected = selectedIds.has(service.id);
+            const selectionDisabled = !isEligibleForLot || isOtherFavorecido;
+            const selectionLabel = !isEligibleForLot
+              ? "Serviço ainda não está elegível para lote"
+              : isOtherFavorecido
+                ? "Um lote só pode conter serviços do mesmo favorecido"
+                : `Selecionar ${service.identificador} para gerar lote`;
+            return (
             <div
-              className={`repasse-grid-row ${service.valorRepasse <= 0 ? "is-pending" : ""}`}
+              className={`repasse-grid-row ${service.valorRepasse <= 0 ? "is-pending" : ""} ${isSelected ? "is-selected" : ""}`}
               key={service.id}
-              style={{ gridTemplateColumns: template }}
+              style={{ gridTemplateColumns: gridTemplate }}
             >
+              <div className="repasse-grid-select-cell">
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  disabled={selectionDisabled}
+                  onChange={() => toggleServiceSelection(service.id)}
+                  aria-label={selectionLabel}
+                  title={selectionLabel}
+                />
+              </div>
               {visibleColumns.map((column) => (
                 <div
                   className={`repasse-grid-cell cell-${column.id} ${column.locked ? "is-pinned" : ""} ${column.id === lastPinnedColumnId ? "is-pinned-edge" : ""}`}
@@ -1952,7 +2042,8 @@ function RepasseGrid({
                 </div>
               ))}
             </div>
-          ))}
+            );
+          })}
           {!services.length && (
             <div className="empty-state">
               <FileText size={28} />
@@ -2445,13 +2536,14 @@ function LotDrawer({
   links,
   range,
   preselected,
+  initialFavorecidoId,
   existingLot,
   saving,
   onClose,
   onSave,
 }) {
   const [favorecidoId, setFavorecidoId] = useState(
-    existingLot?.favorecidoId || favorecidos[0]?.id || "",
+    existingLot?.favorecidoId || initialFavorecidoId || favorecidos[0]?.id || "",
   );
   const [from, setFrom] = useState(range.from);
   const [to, setTo] = useState(range.to);
@@ -2481,7 +2573,9 @@ function LotDrawer({
             (row) =>
               existingLot?.items?.some((item) => item.serviceId === row.id) ||
               (!existingLot &&
-                (preselected.has(row.id) || row.favorecidoId === favorecidoId)),
+                (preselected.size
+                  ? preselected.has(row.id)
+                  : row.favorecidoId === favorecidoId)),
           )
           .map((row) => row.id),
       ),

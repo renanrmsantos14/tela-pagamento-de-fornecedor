@@ -2058,6 +2058,16 @@ select:focus {
   align-items: center;
   gap: 8px;
 }
+.repasse-generate-lot {
+  white-space: nowrap;
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms var(--ease-out);
+}
+.repasse-generate-lot:active:not(:disabled) {
+  transform: scale(0.97);
+}
 .density-button.is-active {
   border-color: #7fa4e4;
   color: #1f559f;
@@ -2449,6 +2459,32 @@ select:focus {
 .repasse-grid-header.is-pinned {
   background: #f6f6f5;
 }
+.repasse-grid-select-cell {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  min-width: 0;
+  padding: 8px;
+  display: grid;
+  place-items: center;
+  border-right: 1px solid #e1e1df;
+  background: inherit;
+}
+.repasse-grid-select-cell.is-header {
+  z-index: 6;
+  background: #f6f6f5;
+}
+.repasse-grid-select-cell input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+.repasse-grid-select-cell input:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
 .repasse-grid-header.is-pinned-edge {
   box-shadow:
     2px 0 0 #e2e2e0,
@@ -2464,6 +2500,14 @@ select:focus {
 }
 .repasse-grid-row.is-pending .repasse-grid-cell.is-pinned {
   background: #fffdf9;
+}
+.repasse-grid-row.is-selected,
+.repasse-grid-row.is-selected .repasse-grid-cell.is-pinned,
+.repasse-grid-row.is-selected .repasse-grid-select-cell {
+  background: #f3f7fe;
+}
+.repasse-grid-row.is-selected {
+  box-shadow: inset 3px 0 #4b7fc8;
 }
 .repasse-grid-cell {
   min-width: 0;
