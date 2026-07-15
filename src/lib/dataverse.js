@@ -27,6 +27,7 @@ export const TABLES = Object.freeze({
 });
 export const CHOICES = Object.freeze({
   completedComposition: 100000001,
+  serviceItemCategory: 100000000,
   activeEmployee: 0,
   activeFavorecido: 100000000,
   inactiveFavorecido: 100000001,
@@ -299,6 +300,10 @@ function seedServices() {
             value * (index % 11 === 0 ? 1.08 : 0.49 + (index % 8) / 100),
           ),
       status,
+      itemCategory:
+        index % 7 === 0
+          ? 100000001
+          : CHOICES.serviceItemCategory,
       statusLabel: status === "concluido" ? "Concluído" : "Pendente",
       reservationStatus: status,
       reservationStatusLabel:
@@ -315,6 +320,7 @@ function buildState() {
     .filter(
       (service) =>
         service.status === "concluido" &&
+        service.itemCategory === CHOICES.serviceItemCategory &&
         service.valorRepasse > 0 &&
         service.favorecidoId,
     )
@@ -1034,6 +1040,7 @@ class DataverseClient {
       return clone(
         this.mock.services.filter(
           (row) =>
+            row.itemCategory === CHOICES.serviceItemCategory &&
             (!filters.from || row.dataServico >= filters.from) &&
             (!filters.to || row.dataServico.slice(0, 10) <= filters.to) &&
             (!filters.motoristaId || row.motoristaId === filters.motoristaId),
@@ -1052,7 +1059,7 @@ class DataverseClient {
       ),
       this.listAll(
         TABLES.reservation,
-        `?$select=${reservationEntity.id},cr40f_id,cr40f_status${reservationFields.length ? `,${reservationFields.join(",")}` : ""}&$top=5000`,
+        `?$select=${reservationEntity.id},cr40f_id,cr40f_status,new_categoriadoitem${reservationFields.length ? `,${reservationFields.join(",")}` : ""}&$filter=new_categoriadoitem eq ${CHOICES.serviceItemCategory}&$top=5000`,
       ),
     ]);
     const reservations = new Map(
@@ -1106,6 +1113,7 @@ class DataverseClient {
         valorRepasse: Number(composition.cr40f_valorrepasseterceiro || 0),
         status: normalizeLabel(statusLabel),
         statusLabel,
+        itemCategory: reservation.new_categoriadoitem,
         reservationStatus: String(reservation.cr40f_status ?? ""),
         reservationStatusLabel:
           reservation["cr40f_status@OData.Community.Display.V1.FormattedValue"] ||

@@ -197,6 +197,7 @@ async function remoteClient() {
             cr40f_reservadeveculosid: "res-remote-001",
             cr40f_id: "RES-REMOTE-001",
             cr40f_status: 100000002,
+            new_categoriadoitem: 100000000,
             "cr40f_status@OData.Community.Display.V1.FormattedValue":
               "Cancelado com ressalvas",
             cr40f_dataehorariodesaida: "2026-07-15T12:00:00Z",
@@ -271,6 +272,20 @@ test("lista de lançamento traz contexto operacional para precificar", async () 
   assert.ok(service.motorista);
   assert.ok(service.tipoVeiculo);
   assert.ok(service.observacaoOperacao);
+});
+
+test("lista retorna somente reservas da categoria Serviço", async () => {
+  const { dataverse, CHOICES } = await client();
+  dataverse.resetMock();
+  const services = await dataverse.listFinanceServices();
+  assert.ok(services.length > 0);
+  assert.ok(services.length < 96);
+  assert.equal(
+    services.every(
+      (service) => service.itemCategory === CHOICES.serviceItemCategory,
+    ),
+    true,
+  );
 });
 
 test("link do serviço abre a reserva no formulário geral", async () => {
@@ -436,6 +451,7 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
     assert.equal(remoteServices.length, 1);
     assert.equal(remoteLinks[0].motoristaId, "drv-remote-001");
     assert.equal(remoteServices[0].identificador, "RES-REMOTE-001");
+    assert.equal(remoteServices[0].itemCategory, 100000000);
     assert.equal(remoteServices[0].status, "concluido");
     assert.equal(remoteServices[0].reservationStatus, "100000002");
     assert.equal(
@@ -454,6 +470,11 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
     assert(
       remote.requests.some((request) =>
         request.url.includes("_cr40f_reserva_value"),
+      ),
+    );
+    assert(
+      remote.requests.some((request) =>
+        request.url.includes("new_categoriadoitem eq 100000000"),
       ),
     );
     const preferred = await remote.dataverse.setPreferredFavorecido(
