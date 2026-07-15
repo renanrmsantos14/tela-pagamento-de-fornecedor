@@ -259,7 +259,7 @@ export default function App() {
           dataverse.listFavorecidos(true),
           dataverse.listDrivers(),
           dataverse.listLinks(),
-          dataverse.listAll("cr40f_pagamentoaterceiro"),
+          dataverse.listLots(),
         ]);
       setServices(serviceRows);
       setPreviousServices(previousServiceRows);
@@ -639,14 +639,31 @@ export default function App() {
           favorecido={drawer.favorecido}
           drivers={drivers}
           links={links}
+          saving={busy("link-drawer")}
           onClose={() => setDrawer(null)}
           onSave={async (id) => {
-            await dataverse.upsertLink(id, drawer.favorecido.id);
-            await refresh();
+            setBusy("link-drawer", true);
+            try {
+              await dataverse.upsertLink(id, drawer.favorecido.id);
+              await refresh();
+              setNotice("Vinculo criado.");
+            } catch (err) {
+              setError(err.message);
+            } finally {
+              setBusy("link-drawer", false);
+            }
           }}
           onDeactivate={async (id) => {
-            await dataverse.setLinkStatus(id, "inativo");
-            await refresh();
+            setBusy("link-drawer", true);
+            try {
+              await dataverse.setLinkStatus(id, "inativo");
+              await refresh();
+              setNotice("Vinculo inativado.");
+            } catch (err) {
+              setError(err.message);
+            } finally {
+              setBusy("link-drawer", false);
+            }
           }}
         />
       )}
@@ -2007,6 +2024,7 @@ function LinksDrawer({
   favorecido,
   drivers,
   links,
+  saving,
   onClose,
   onSave,
   onDeactivate,
@@ -2040,7 +2058,7 @@ function LinksDrawer({
         </label>
         <button
           className="primary-button"
-          disabled={!driverId}
+          disabled={!driverId || saving}
           onClick={async () => {
             await onSave(driverId);
             setDriverId("");
@@ -2061,6 +2079,7 @@ function LinksDrawer({
               <Badge tone="green">Ativo</Badge>
               <button
                 className="text-button"
+                disabled={saving}
                 onClick={() => onDeactivate(link.id)}
               >
                 Inativar
