@@ -182,6 +182,29 @@
     RequiredLevel: { Value: "ApplicationRequired" },
   });
 
+  const tolerateExistingTypes = (column, acceptedExistingTypes) => ({
+    ...column,
+    acceptedExistingTypes,
+  });
+
+  const auditTextColumn = (schemaName, displayName, maxLength = 400) =>
+    tolerateExistingTypes(stringColumn(schemaName, displayName, maxLength), [
+      TYPE_NAMES.String,
+      TYPE_NAMES.Picklist,
+    ]);
+
+  const auditMemoColumn = (schemaName, displayName, maxLength = 1048576) =>
+    tolerateExistingTypes(memoColumn(schemaName, displayName, maxLength), [
+      TYPE_NAMES.Memo,
+      TYPE_NAMES.String,
+    ]);
+
+  const auditIntegerColumn = (schemaName, displayName) =>
+    tolerateExistingTypes(integerColumn(schemaName, displayName), [
+      TYPE_NAMES.Integer,
+      TYPE_NAMES.String,
+    ]);
+
   const tableColumns = {
     cr40f_terceirofavorecido: [
       stringColumn("cr40f_NomeRazaoSocial", "Nome/Razão Social", 200),
@@ -255,16 +278,16 @@
     ],
     cr40f_eventopagamentoaterceiro: [
       dateTimeColumn("cr40f_DataEvento", "Data do Evento"),
-      stringColumn("cr40f_Operacao", "Operação", 100),
-      stringColumn("cr40f_Resultado", "Resultado", 100),
-      stringColumn("cr40f_EstadoAnterior", "Estado Anterior", 100),
-      stringColumn("cr40f_EstadoNovo", "Estado Novo", 100),
-      memoColumn("cr40f_Motivo", "Motivo", 4000),
-      memoColumn("cr40f_Mensagem", "Mensagem", 4000),
-      memoColumn("cr40f_DetalheTecnico", "Detalhe Técnico"),
-      integerColumn("cr40f_Versao", "Versão"),
-      stringColumn("cr40f_Url", "URL", 2000),
-      stringColumn("cr40f_EmailId", "ID do E-mail", 200),
+      auditTextColumn("cr40f_Operacao", "Operação", 100),
+      auditTextColumn("cr40f_Resultado", "Resultado", 100),
+      auditTextColumn("cr40f_EstadoAnterior", "Estado Anterior", 100),
+      auditTextColumn("cr40f_EstadoNovo", "Estado Novo", 100),
+      auditMemoColumn("cr40f_Motivo", "Motivo", 4000),
+      auditMemoColumn("cr40f_Mensagem", "Mensagem", 4000),
+      auditMemoColumn("cr40f_DetalheTecnico", "Detalhe Técnico"),
+      auditIntegerColumn("cr40f_Versao", "Versão"),
+      auditTextColumn("cr40f_Url", "URL", 2000),
+      auditTextColumn("cr40f_EmailId", "ID do E-mail", 200),
     ],
   };
 
@@ -488,11 +511,22 @@
     const logicalName = column.SchemaName.toLowerCase();
     const existing = await getAttribute(entity, logicalName);
     if (existing) {
-      assertType(existing, column.AttributeType, entity, logicalName);
-      log("coluna existente", `${entity}.${logicalName}`);
+      const acceptedTypes = column.acceptedExistingTypes || [column.AttributeType];
+      if (!acceptedTypes.includes(existing.AttributeType)) {
+        throw new Error(
+          `${entity}.${logicalName} já existe como ${existing.AttributeType}; esperado ${acceptedTypes.join(" ou ")}.`,
+        );
+      }
+      log(
+        existing.AttributeType === column.AttributeType
+          ? "coluna existente"
+          : "coluna existente com tipo compatível",
+        `${entity}.${logicalName} (${existing.AttributeType})`,
+      );
       return existing;
     }
-    await request("POST", `${metadataPath(entity)}/Attributes`, column);
+    const { acceptedExistingTypes: _acceptedExistingTypes, ...definition } = column;
+    await request("POST", `${metadataPath(entity)}/Attributes`, definition);
     const created = await waitFor(
       () => getAttribute(entity, logicalName),
       `a coluna ${entity}.${logicalName}`,
