@@ -74,8 +74,6 @@
     "cr40f_reservadeveculos",
   ];
 
-  const provisionedTableNames = new Set(tables.map(({ logicalName }) => logicalName));
-
   const label = (text) => ({
     "@odata.type": "Microsoft.Dynamics.CRM.Label",
     LocalizedLabels: [
@@ -355,9 +353,11 @@
     {
       source: "cr40f_itempagamentoaterceiro",
       attributeSchemaName: "cr40f_Motorista",
+      fallbackAttributeSchemaName: "cr40f_MotoristaReferencia",
       displayName: "Motorista",
       target: "cr40f_funcionarios",
       relationshipSchemaName: "cr40f_ItemPagamento_Motorista",
+      fallbackRelationshipSchemaName: "cr40f_ItemPagamento_MotoristaReferencia",
     },
     {
       source: "cr40f_eventopagamentoaterceiro",
@@ -480,17 +480,6 @@
     }
   };
 
-  const removeAttributeFromProvisionedTable = async (entity, logicalName, reason) => {
-    if (!provisionedTableNames.has(entity)) return false;
-    log("coluna incompat\\u00edvel removida", `${entity}.${logicalName} (${reason})`);
-    await request("DELETE", metadataAttributePath(entity, logicalName));
-    await waitFor(
-      async () => !(await getAttribute(entity, logicalName)),
-      `remocao de ${entity}.${logicalName}`,
-    );
-    return true;
-  };
-
   const ensureTable = async (definition) => {
     let table = await getTable(definition.logicalName);
     if (table) {
@@ -522,16 +511,7 @@
 
   const ensureColumn = async (entity, column) => {
     const logicalName = column.SchemaName.toLowerCase();
-    let existing = await getAttribute(entity, logicalName);
-    const acceptedTypesForReplacement = column.acceptedExistingTypes || [column.AttributeType];
-    if (existing && !acceptedTypesForReplacement.includes(existing.AttributeType)) {
-      const removed = await removeAttributeFromProvisionedTable(
-        entity,
-        logicalName,
-        `${existing.AttributeType}; esperado ${acceptedTypesForReplacement.join(" ou ")}`,
-      );
-      if (removed) existing = null;
-    }
+    const existing = await getAttribute(entity, logicalName);
     if (existing) {
       const acceptedTypes = column.acceptedExistingTypes || [column.AttributeType];
       if (!acceptedTypes.includes(existing.AttributeType)) {
@@ -641,37 +621,41 @@
     }
   };
 
+  const fallbackLookup = (definition, reason) => {
+    if (
+      definition.isFallback ||
+      !definition.fallbackAttributeSchemaName ||
+      !definition.fallbackRelationshipSchemaName
+    ) {
+      throw new Error(
+        `${definition.source}.${definition.attributeSchemaName.toLowerCase()} conflita com metadata existente: ${reason}.`,
+      );
+    }
+    log(
+      "lookup alternativo por conflito",
+      `${definition.source}.${definition.attributeSchemaName.toLowerCase()} -> ${definition.fallbackAttributeSchemaName.toLowerCase()}`,
+    );
+    return {
+      ...definition,
+      attributeSchemaName: definition.fallbackAttributeSchemaName,
+      relationshipSchemaName: definition.fallbackRelationshipSchemaName,
+      displayName: `${definition.displayName} referencia`,
+      isFallback: true,
+    };
+  };
+
   const ensureLookup = async (definition) => {
     const logicalName = definition.attributeSchemaName.toLowerCase();
     let existing = await getAttribute(definition.source, logicalName);
-    if (existing && existing.AttributeType !== TYPE_NAMES.Lookup) {
-      const removed = await removeAttributeFromProvisionedTable(
-        definition.source,
-        logicalName,
-        `${existing.AttributeType}; esperado ${TYPE_NAMES.Lookup}`,
-      );
-      if (removed) existing = null;
-    }
+    if (existing && existing.AttributeType !== TYPE_NAMES.Lookup)
+      return ensureLookup(fallbackLookup(definition, `${existing.AttributeType}; esperado ${TYPE_NAMES.Lookup}`));
     if (existing) {
       assertType(existing, TYPE_NAMES.Lookup, definition.source, logicalName);
       const lookup = await getLookupAttribute(definition.source, logicalName);
-      if (!lookup?.Targets?.includes(definition.target) && provisionedTableNames.has(definition.source)) {
-        await removeAttributeFromProvisionedTable(
-          definition.source,
-          logicalName,
-          `Lookup aponta para tabela diferente de ${definition.target}`,
-        );
-        existing = null;
-      }
-      if (!lookup?.Targets?.includes(definition.target) && existing) {
-        throw new Error(
-          `${definition.source}.${logicalName} existe, mas não aponta para ${definition.target}.`,
-        );
-      }
-      if (existing) {
-        log("lookup existente", `${definition.source}.${logicalName} -> ${definition.target}`);
-        return existing;
-      }
+      if (!lookup?.Targets?.includes(definition.target))
+        return ensureLookup(fallbackLookup(definition, `Lookup aponta para ${lookup?.Targets?.join(", ") || "nenhuma tabela"}`));
+      log("lookup existente", `${definition.source}.${logicalName} -> ${definition.target}`);
+      return existing;
     }
 
     const targetTable = await getTable(definition.target);
