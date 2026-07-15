@@ -121,6 +121,8 @@ export default function SearchableSelect({
   const focusSearchOnOpenRef = useRef(true);
   const focusOptionOnOpenRef = useRef(false);
   const initialHighlightRef = useRef(null);
+  const initializedOpenRef = useRef(false);
+  const panelScrollTopRef = useRef(0);
   const [open, setOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
   const [query, setQuery] = useState("");
@@ -291,9 +293,12 @@ export default function SearchableSelect({
 
   useEffect(() => {
     if (!open) {
+      initializedOpenRef.current = false;
       setQuery("");
       return undefined;
     }
+    if (initializedOpenRef.current) return undefined;
+    initializedOpenRef.current = true;
     const selectedIndex = visibleOptions.findIndex((option) =>
       selectedValues.includes(option.value),
     );
@@ -326,6 +331,8 @@ export default function SearchableSelect({
     focusSearchOnOpenRef.current = focusSearch;
     focusOptionOnOpenRef.current = focusOption;
     initialHighlightRef.current = initialHighlight;
+    initializedOpenRef.current = false;
+    panelScrollTopRef.current = 0;
     setHasOpened(true);
     setQuery("");
     setOpen(true);
@@ -339,11 +346,16 @@ export default function SearchableSelect({
   const selectOption = (option) => {
     if (disabled || option.disabled) return;
     if (multiple) {
+      panelScrollTopRef.current = panelRef.current?.scrollTop || 0;
       onChange(
         selectedValues.includes(option.value)
           ? selectedValues.filter((value) => value !== option.value)
           : [...selectedValues, option.value],
       );
+      window.requestAnimationFrame(() => {
+        if (panelRef.current)
+          panelRef.current.scrollTop = panelScrollTopRef.current;
+      });
       return;
     }
     onChange(option.value);
@@ -360,12 +372,18 @@ export default function SearchableSelect({
     enabledSelectableOptions.every((option) =>
       selectedValues.includes(option.value),
     );
-  const toggleAllOptions = () =>
+  const toggleAllOptions = () => {
+    panelScrollTopRef.current = panelRef.current?.scrollTop || 0;
     onChange(
       allOptionsSelected
         ? []
         : enabledSelectableOptions.map((option) => option.value),
     );
+    window.requestAnimationFrame(() => {
+      if (panelRef.current)
+        panelRef.current.scrollTop = panelScrollTopRef.current;
+    });
+  };
 
   const moveHighlight = (direction) => {
     if (!visibleOptions.length) return;
@@ -560,6 +578,9 @@ export default function SearchableSelect({
             role="listbox"
             aria-multiselectable={multiple || undefined}
             aria-hidden={!open}
+            onScroll={(event) => {
+              panelScrollTopRef.current = event.currentTarget.scrollTop;
+            }}
           >
             <div className="custom-select-search-row">
               <input
