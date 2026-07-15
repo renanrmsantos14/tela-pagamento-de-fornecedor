@@ -344,6 +344,32 @@ export default function App() {
       );
       return saved;
     } catch (err) {
+      const isConcurrencyConflict =
+        err.status === 412 ||
+        /rowversion|version of the existing record/i.test(err.message || "");
+      if (isConcurrencyConflict) {
+        let currentService;
+        try {
+          currentService = (await dataverse.listFinanceServices(range)).find(
+            (row) => row.id === service.id,
+          );
+        } catch {
+          currentService = null;
+        }
+        if (currentService)
+          setServices((rows) =>
+            rows.map((row) =>
+              row.id === service.id ? { ...row, ...currentService } : row,
+            ),
+          );
+        const conflictError = new Error(
+          currentService
+            ? "Registro alterado por outro processo. Valor atual recarregado; revise antes de salvar novamente."
+            : "Registro alterado ou removido por outro processo. Atualize a tela.",
+        );
+        conflictError.status = 412;
+        throw conflictError;
+      }
       throw err;
     } finally {
       setBusy(`repasse-${service.id}`, false);
@@ -1945,7 +1971,11 @@ function RepasseInput({ service, saving, onSave }) {
       await onSave(service, draft);
       setFeedback({ type: "saved" });
     } catch (err) {
-      setFeedback({ type: "error", message: err.message });
+      setFeedback({
+        type: "error",
+        message: err.message,
+        canRetry: err.status !== 412,
+      });
     }
   };
   const status = saving ? { type: "saving" } : feedback;
@@ -1992,12 +2022,19 @@ function RepasseInput({ service, saving, onSave }) {
           message={status.message}
           label="Repasse não salvo"
           onRetry={save}
+          canRetry={status.canRetry}
         />
       )}
     </div>
   );
 }
-function AutoSaveErrorIcon({ message, label, onRetry }) {
+function AutoSaveErrorIcon({ message, label, onRetry, canRetry = true }) {
+  if (!canRetry)
+    return (
+      <span className="repasse-save-icon is-error" title={message} aria-label={label}>
+        <AlertTriangle size={13} aria-hidden="true" />
+      </span>
+    );
   return (
     <button
       type="button"

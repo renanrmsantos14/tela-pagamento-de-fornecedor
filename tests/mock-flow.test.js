@@ -273,6 +273,19 @@ test("lista de lançamento traz contexto operacional para precificar", async () 
   assert.ok(service.observacaoOperacao);
 });
 
+test("bloqueia repasse com versão desatualizada", async () => {
+  const { dataverse } = await client();
+  dataverse.resetMock();
+  const service = (await dataverse.listFinanceServices()).find(
+    (row) => row.status === "concluido",
+  );
+  await dataverse.saveServiceRepasse(service.id, 800, service.etag);
+  await assert.rejects(
+    () => dataverse.saveServiceRepasse(service.id, 900, service.etag),
+    /alterado por outro usuário/i,
+  );
+});
+
 test("fluxo local: repasse, vínculo, rascunho, pagamento, documento e auditoria", async () => {
   const { dataverse } = await client();
   dataverse.resetMock();
