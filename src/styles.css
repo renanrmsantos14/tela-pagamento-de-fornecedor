@@ -2461,6 +2461,8 @@ select:focus {
   background: #3771df;
 }
 .repasse-grid-row {
+  content-visibility: auto;
+  contain-intrinsic-size: 58px;
   min-height: 58px;
   border-bottom: 1px solid #edf1f5;
   background: #fff;
@@ -2690,6 +2692,7 @@ select:focus {
   width: 100%;
 }
 .repasse-grid-shell.is-compact .repasse-grid-row {
+  contain-intrinsic-size: 46px;
   min-height: 46px;
 }
 .repasse-grid-shell.is-compact .repasse-grid-cell {

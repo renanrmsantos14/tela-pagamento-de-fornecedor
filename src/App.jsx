@@ -1109,6 +1109,10 @@ function PaymentsView({
   onSaveRepasse,
   onLink,
 }) {
+  const completedServices = useMemo(
+    () => services.filter((row) => row.status === "concluido"),
+    [services],
+  );
   return (
     <section className="page-section">
       <div className="page-title">
@@ -1178,7 +1182,7 @@ function PaymentsView({
         </div>
       </section>
       <RepasseGrid
-        services={services.filter((row) => row.status === "concluido")}
+        services={completedServices}
         favorecidos={allFavorecidos}
         busy={busy}
         autosaveErrors={autosaveErrors}
@@ -1209,13 +1213,20 @@ function RepasseGrid({
   const [dropTarget, setDropTarget] = useState(null);
   const [resize, setResize] = useState(null);
   const [sort, setSort] = useState({ id: "dataServico", direction: "desc" });
-  const orderedColumns = orderRepasseColumns(columns);
-  const visibleColumns = orderedColumns.filter((column) => column.visible);
-  const pinnedColumns = visibleColumns.filter((column) => column.locked);
+  const orderedColumns = useMemo(() => orderRepasseColumns(columns), [columns]);
+  const visibleColumns = useMemo(
+    () => orderedColumns.filter((column) => column.visible),
+    [orderedColumns],
+  );
+  const pinnedColumns = useMemo(
+    () => visibleColumns.filter((column) => column.locked),
+    [visibleColumns],
+  );
   const lastPinnedColumnId = pinnedColumns[pinnedColumns.length - 1]?.id;
-  const template = visibleColumns
-    .map((column) => `${column.width}px`)
-    .join(" ");
+  const template = useMemo(
+    () => visibleColumns.map((column) => `${column.width}px`).join(" "),
+    [visibleColumns],
+  );
   const gridViewportRef = useRef(null);
   const gridScrollRef = useRef(null);
   const horizontalScrollRef = useRef(null);
@@ -1224,17 +1235,21 @@ function RepasseGrid({
   const previousColumnPositionsRef = useRef(new Map());
   const savedViewRef = useRef(null);
   const horizontalScrollFrameRef = useRef(0);
+  const horizontalScrollbarFrameRef = useRef(0);
   const pendingHorizontalScrollRef = useRef(0);
+  const pendingScrollbarScrollRef = useRef(0);
   const [horizontalScroll, setHorizontalScroll] = useState({
     contentWidth: 0,
     viewportWidth: 0,
   });
-  const pendingCount = services.filter(
-    (service) => service.valorRepasse <= 0,
-  ).length;
-  const pickerColumns = orderedColumns.filter((column) =>
-    column.label.toLowerCase().includes(columnSearch.toLowerCase()),
+  const pendingCount = useMemo(
+    () => services.filter((service) => service.valorRepasse <= 0).length,
+    [services],
   );
+  const pickerColumns = useMemo(() => {
+    const query = columnSearch.toLowerCase();
+    return orderedColumns.filter((column) => column.label.toLowerCase().includes(query));
+  }, [columnSearch, orderedColumns]);
   const activeView = views.find((view) => view.id === activeViewId);
   const currentView = () => ({
     columns: columns.map(({ id, width, visible, locked }) => ({
@@ -1270,16 +1285,18 @@ function RepasseGrid({
       return sort.direction === "asc" ? result : -result;
     });
   }, [services, sort]);
-  const pinnedLeft = (columnId) =>
-    visibleColumns
-      .slice(
-        0,
-        visibleColumns.findIndex((column) => column.id === columnId),
-      )
-      .filter((column) => column.locked)
-      .reduce((total, column) => total + column.width, 0);
+  const pinnedStyles = useMemo(() => {
+    let left = 0;
+    const styles = new Map();
+    visibleColumns.forEach((column) => {
+      if (!column.locked) return;
+      styles.set(column.id, { left: `${left}px` });
+      left += column.width;
+    });
+    return styles;
+  }, [visibleColumns]);
   const pinnedStyle = (column) =>
-    column.locked ? { left: `${pinnedLeft(column.id)}px` } : undefined;
+    column.locked ? pinnedStyles.get(column.id) : undefined;
   const syncTableHorizontalScroll = (scrollLeft) => {
     pendingHorizontalScrollRef.current = scrollLeft;
     if (horizontalScrollFrameRef.current) return;
@@ -1296,6 +1313,8 @@ function RepasseGrid({
     return () => {
       if (horizontalScrollFrameRef.current)
         window.cancelAnimationFrame(horizontalScrollFrameRef.current);
+      if (horizontalScrollbarFrameRef.current)
+        window.cancelAnimationFrame(horizontalScrollbarFrameRef.current);
     };
   }, []);
 
@@ -1331,19 +1350,29 @@ function RepasseGrid({
   useEffect(() => {
     const scrollElement = gridScrollRef.current;
     if (!scrollElement) return undefined;
-    const measure = () =>
-      setHorizontalScroll({
-        contentWidth: scrollElement.scrollWidth,
-        viewportWidth: scrollElement.clientWidth,
-      });
+    const measure = () => {
+      const contentWidth = scrollElement.scrollWidth;
+      const viewportWidth = scrollElement.clientWidth;
+      setHorizontalScroll((current) =>
+        current.contentWidth === contentWidth && current.viewportWidth === viewportWidth
+          ? current
+          : { contentWidth, viewportWidth },
+      );
+    };
     let lastScrollLeft = scrollElement.scrollLeft;
     const syncHorizontalScrollbar = () => {
       const scrollLeft = scrollElement.scrollLeft;
       if (scrollLeft === lastScrollLeft) return;
       lastScrollLeft = scrollLeft;
-      const scrollbar = horizontalScrollRef.current;
-      if (scrollbar && scrollbar.scrollLeft !== scrollLeft)
-        scrollbar.scrollLeft = scrollLeft;
+      pendingScrollbarScrollRef.current = scrollLeft;
+      if (horizontalScrollbarFrameRef.current) return;
+      horizontalScrollbarFrameRef.current = window.requestAnimationFrame(() => {
+        const scrollbar = horizontalScrollRef.current;
+        const nextScrollLeft = pendingScrollbarScrollRef.current;
+        if (scrollbar && scrollbar.scrollLeft !== nextScrollLeft)
+          scrollbar.scrollLeft = nextScrollLeft;
+        horizontalScrollbarFrameRef.current = 0;
+      });
     };
     const observer =
       typeof ResizeObserver === "undefined"
@@ -1359,6 +1388,8 @@ function RepasseGrid({
     });
     return () => {
       observer?.disconnect();
+      if (horizontalScrollbarFrameRef.current)
+        window.cancelAnimationFrame(horizontalScrollbarFrameRef.current);
       window.removeEventListener("resize", measure);
       scrollElement.removeEventListener("scroll", syncHorizontalScrollbar);
     };
