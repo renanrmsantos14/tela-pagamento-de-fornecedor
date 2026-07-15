@@ -2308,6 +2308,13 @@ select:focus {
   box-shadow: 0 3px 10px rgba(22, 48, 80, 0.08);
   scrollbar-color: #7187a2 #e8edf3;
 }
+.repasse-grid-horizontal-scroll.is-viewport-fixed {
+  position: fixed;
+  right: auto;
+  bottom: 0;
+  left: var(--repasse-scrollbar-left);
+  width: var(--repasse-scrollbar-width);
+}
 .repasse-grid-horizontal-scroll > div {
   height: 1px;
   pointer-events: none;
@@ -2658,6 +2665,9 @@ select:focus {
   .repasse-grid-scroll {
     max-height: min(64vh, 560px);
     border-radius: 0 0 12px 12px;
+  }
+  .repasse-grid-horizontal-scroll.is-viewport-fixed {
+    bottom: calc(78px + env(safe-area-inset-bottom));
   }
   .repasse-grid-head {
     position: static;

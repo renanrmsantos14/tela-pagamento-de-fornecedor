@@ -1141,6 +1141,7 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
   const template = visibleColumns
     .map((column) => `${column.width}px`)
     .join(" ");
+  const gridViewportRef = useRef(null);
   const gridScrollRef = useRef(null);
   const horizontalScrollRef = useRef(null);
   const horizontalScrollFrameRef = useRef(0);
@@ -1254,6 +1255,67 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
       scrollElement.removeEventListener("scroll", syncHorizontalScrollbar);
     };
   }, [template]);
+
+  useEffect(() => {
+    const gridViewport = gridViewportRef.current;
+    const scrollbar = horizontalScrollRef.current;
+    if (!gridViewport || !scrollbar) return undefined;
+
+    let frame = 0;
+    let fixed = false;
+    let left = "";
+    let width = "";
+    const syncPosition = () => {
+      frame = 0;
+      const rect = gridViewport.getBoundingClientRect();
+      const scrollbarHeight = scrollbar.offsetHeight || 16;
+      const shouldFix =
+        rect.top <= window.innerHeight - scrollbarHeight &&
+        rect.bottom > window.innerHeight;
+
+      if (shouldFix !== fixed) {
+        fixed = shouldFix;
+        scrollbar.classList.toggle("is-viewport-fixed", fixed);
+      }
+      if (!fixed) return;
+
+      const nextLeft = `${Math.round(rect.left + 1)}px`;
+      const nextWidth = `${Math.max(0, Math.round(rect.width - 2))}px`;
+      if (nextLeft !== left) {
+        left = nextLeft;
+        scrollbar.style.setProperty("--repasse-scrollbar-left", left);
+      }
+      if (nextWidth !== width) {
+        width = nextWidth;
+        scrollbar.style.setProperty("--repasse-scrollbar-width", width);
+      }
+    };
+    const schedulePositionSync = () => {
+      if (!frame) frame = window.requestAnimationFrame(syncPosition);
+    };
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(schedulePositionSync);
+
+    observer?.observe(gridViewport);
+    document.addEventListener("scroll", schedulePositionSync, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("resize", schedulePositionSync);
+    schedulePositionSync();
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      document.removeEventListener("scroll", schedulePositionSync, true);
+      window.removeEventListener("resize", schedulePositionSync);
+      scrollbar.classList.remove("is-viewport-fixed");
+      scrollbar.style.removeProperty("--repasse-scrollbar-left");
+      scrollbar.style.removeProperty("--repasse-scrollbar-width");
+    };
+  }, [horizontalScroll.contentWidth, horizontalScroll.viewportWidth]);
 
   useEffect(() => {
     localStorage.setItem(REPASSE_COLUMNS_STORAGE_KEY, JSON.stringify(columns));
@@ -1591,7 +1653,7 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
           </div>
         </div>
       </div>
-      <div className="repasse-grid-viewport">
+      <div className="repasse-grid-viewport" ref={gridViewportRef}>
         <div className="repasse-grid-scroll" ref={gridScrollRef}>
           <div
           className="repasse-grid"
