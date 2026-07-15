@@ -160,15 +160,20 @@ export default function SearchableSelect({
     () => searchTokens(normalizedQuery),
     [normalizedQuery],
   );
+  const selectableOptions = useMemo(
+    () => normalizedOptions.filter((option) => option.value !== ""),
+    [normalizedOptions],
+  );
+  const enabledSelectableOptions = useMemo(
+    () => selectableOptions.filter((option) => !option.disabled),
+    [selectableOptions],
+  );
   const visibleOptions = useMemo(() => {
-    const selectableOptions = normalizedOptions.filter(
-      (option) => option.value !== "",
-    );
     if (!normalizedQuery) return selectableOptions;
     return selectableOptions.filter((option) =>
       normalizedSearchMatches(option.searchText, normalizedQuery, queryTokens),
     );
-  }, [normalizedOptions, normalizedQuery, queryTokens]);
+  }, [normalizedQuery, queryTokens, selectableOptions]);
   const hasEmptyOption = normalizedOptions.some(
     (option) => option.value === "",
   );
@@ -349,6 +354,18 @@ export default function SearchableSelect({
       suppressFocusRef.current = false;
     }, 0);
   };
+  const allOptionsSelected =
+    multiple &&
+    enabledSelectableOptions.length > 0 &&
+    enabledSelectableOptions.every((option) =>
+      selectedValues.includes(option.value),
+    );
+  const toggleAllOptions = () =>
+    onChange(
+      allOptionsSelected
+        ? []
+        : enabledSelectableOptions.map((option) => option.value),
+    );
 
   const moveHighlight = (direction) => {
     if (!visibleOptions.length) return;
@@ -561,6 +578,17 @@ export default function SearchableSelect({
               }}
               onKeyDown={handleSearchKeyDown}
             />
+            {multiple && enabledSelectableOptions.length > 0 && (
+              <div className="custom-select-multiple-actions">
+                <button
+                  type="button"
+                  className="custom-select-multiple-action"
+                  onClick={toggleAllOptions}
+                >
+                  {allOptionsSelected ? "Limpar seleção" : "Selecionar todos"}
+                </button>
+              </div>
+            )}
             <div className="custom-select-options">
               {visibleOptions.map((option, index) => (
                 <button

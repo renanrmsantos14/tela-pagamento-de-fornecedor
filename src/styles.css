@@ -4114,6 +4114,29 @@ textarea:focus-visible {
   border-color: var(--accent);
   box-shadow: var(--shadow-focus);
 }
+.custom-select-multiple-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 8px 7px;
+  border-bottom: 1px solid var(--line);
+}
+.custom-select-multiple-action {
+  min-height: 28px;
+  padding: 4px 7px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--accent);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+}
+.custom-select-multiple-action:hover,
+.custom-select-multiple-action:focus-visible {
+  outline: none;
+  background: var(--surface-muted);
+}
+.custom-select-multiple-action:active { transform: scale(0.98); }
 .custom-select-panel.is-empty .custom-select-options { display: none; }
 .custom-select-no-results {
   display: block;
