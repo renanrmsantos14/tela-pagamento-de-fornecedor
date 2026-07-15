@@ -69,6 +69,10 @@ const fieldValue = (row, logicalName) =>
       row[logicalName] ||
       ""
     : "";
+const selectableAttributeName = (attribute) =>
+  attribute?.AttributeType === "Lookup"
+    ? `_${attribute.LogicalName}_value`
+    : attribute?.LogicalName || "";
 
 const drivers = [
   "Carlos Henrique",
@@ -601,7 +605,7 @@ class DataverseClient {
     if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
     const response = await this.request(
       "GET",
-      `/EntityDefinitions(LogicalName='${escapeOData(TABLES.reservation)}')/Attributes?$select=LogicalName,DisplayName`,
+      `/EntityDefinitions(LogicalName='${escapeOData(TABLES.reservation)}')/Attributes?$select=LogicalName,DisplayName,AttributeType`,
     ).catch(() => ({ value: [] }));
     const attributes = response.value || [];
     const resolved = Object.fromEntries(
@@ -615,7 +619,7 @@ class DataverseClient {
             (candidate) => label === normalizeLabel(candidate),
           );
         });
-        return [key, attribute?.LogicalName || ""];
+        return [key, selectableAttributeName(attribute)];
       }),
     );
     this.cache.set(cacheKey, resolved);
