@@ -561,34 +561,40 @@ export default function SearchableSelect({
             aria-multiselectable={multiple || undefined}
             aria-hidden={!open}
           >
-            <input
-              ref={searchRef}
-              className="custom-select-search"
-              type="text"
-              value={query}
-              placeholder="Pesquisar"
-              autoComplete="off"
-              spellCheck="false"
-              aria-label="Pesquisar opção"
-              tabIndex={-1}
-              onClick={(event) => event.stopPropagation()}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setHighlightedIndex(0);
-              }}
-              onKeyDown={handleSearchKeyDown}
-            />
-            {multiple && enabledSelectableOptions.length > 0 && (
-              <div className="custom-select-multiple-actions">
+            <div className="custom-select-search-row">
+              <input
+                ref={searchRef}
+                className="custom-select-search"
+                type="text"
+                value={query}
+                placeholder="Pesquisar"
+                autoComplete="off"
+                spellCheck="false"
+                aria-label="Pesquisar opção"
+                tabIndex={-1}
+                onClick={(event) => event.stopPropagation()}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setHighlightedIndex(0);
+                }}
+                onKeyDown={handleSearchKeyDown}
+              />
+              {multiple && enabledSelectableOptions.length > 0 && (
                 <button
                   type="button"
                   className="custom-select-multiple-action"
                   onClick={toggleAllOptions}
+                  aria-label={
+                    allOptionsSelected ? "Limpar seleção" : "Selecionar todos"
+                  }
+                  title={
+                    allOptionsSelected ? "Limpar seleção" : "Selecionar todos"
+                  }
                 >
-                  {allOptionsSelected ? "Limpar seleção" : "Selecionar todos"}
+                  {allOptionsSelected ? "Limpar" : "Todos"}
                 </button>
-              </div>
-            )}
+              )}
+            </div>
             <div className="custom-select-options">
               {visibleOptions.map((option, index) => (
                 <button
