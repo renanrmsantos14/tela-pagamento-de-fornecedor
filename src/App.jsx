@@ -876,19 +876,32 @@ function OverviewView({
       </div>
 
       <section className="dashboard-filters surface" aria-label="Filtros do dashboard">
-        <label>De<input type="date" value={range.from} onChange={(event) => setRange((current) => ({ ...current, from: event.target.value }))} /></label>
-        <label>Até<input type="date" value={range.to} onChange={(event) => setRange((current) => ({ ...current, to: event.target.value }))} /></label>
-        <label>Motorista
-          <select value={driverId} onChange={(event) => setDriverId(event.target.value)}>
-            <option value="">Todos os motoristas</option>
-            {drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.nome}</option>)}
-          </select>
+        <label className="field"><span>De</span><input type="date" value={range.from} onChange={(event) => setRange((current) => ({ ...current, from: event.target.value }))} /></label>
+        <label className="field"><span>Até</span><input type="date" value={range.to} onChange={(event) => setRange((current) => ({ ...current, to: event.target.value }))} /></label>
+        <label className="field"><span>Motorista</span>
+          <SearchableSelect
+            value={driverId}
+            onChange={setDriverId}
+            aria-label="Filtrar por motorista"
+            options={[
+              { value: "", label: "Todos os motoristas" },
+              ...drivers.map((driver) => ({ value: driver.id, label: driver.nome })),
+            ]}
+          />
         </label>
-        <label>Terceiro favorecido
-          <select value={favorecidoFilter} onChange={(event) => setFavorecidoFilter(event.target.value)}>
-            <option value="">Todos os favorecidos</option>
-            {favorecidos.map((favorecido) => <option key={favorecido.id} value={favorecido.id}>{favorecido.nome}</option>)}
-          </select>
+        <label className="field"><span>Terceiro favorecido</span>
+          <SearchableSelect
+            value={favorecidoFilter}
+            onChange={setFavorecidoFilter}
+            aria-label="Filtrar por terceiro favorecido"
+            options={[
+              { value: "", label: "Todos os favorecidos" },
+              ...favorecidos.map((favorecido) => ({
+                value: favorecido.id,
+                label: favorecido.nome,
+              })),
+            ]}
+          />
         </label>
       </section>
 
@@ -1028,7 +1041,7 @@ function PaymentsView({
           />
         </div>
         <div className="finance-filter-grid">
-          <label>
+          <label className="field">
             <span>De</span>
             <input
               type="date"
@@ -1041,7 +1054,7 @@ function PaymentsView({
               }
             />
           </label>
-          <label>
+          <label className="field">
             <span>Até</span>
             <input
               type="date"
@@ -1051,33 +1064,29 @@ function PaymentsView({
               }
             />
           </label>
-          <label>
+          <label className="field">
             <span>Motorista</span>
-            <select
+            <SearchableSelect
               value={driverId}
-              onChange={(event) => setDriverId(event.target.value)}
-            >
-              <option value="">Todos</option>
-              {drivers.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.nome}
-                </option>
-              ))}
-            </select>
+              onChange={setDriverId}
+              aria-label="Filtrar lançamentos por motorista"
+              options={[
+                { value: "", label: "Todos" },
+                ...drivers.map((row) => ({ value: row.id, label: row.nome })),
+              ]}
+            />
           </label>
-          <label>
+          <label className="field">
             <span>Favorecido</span>
-            <select
+            <SearchableSelect
               value={favorecidoFilter}
-              onChange={(event) => setFavorecidoFilter(event.target.value)}
-            >
-              <option value="">Todos</option>
-              {favorecidos.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.nome}
-                </option>
-              ))}
-            </select>
+              onChange={setFavorecidoFilter}
+              aria-label="Filtrar lançamentos por favorecido"
+              options={[
+                { value: "", label: "Todos" },
+                ...favorecidos.map((row) => ({ value: row.id, label: row.nome })),
+              ]}
+            />
           </label>
         </div>
       </section>
@@ -1898,7 +1907,7 @@ function FavorecidoDrawer({ favorecido, onClose, onSave, saving }) {
           if (!Object.keys(validation).length) onSave(form);
         }}
       >
-        <label>
+        <label className="field">
           <span>Nome ou razão social *</span>
           <input
             value={form.nome}
@@ -1908,17 +1917,20 @@ function FavorecidoDrawer({ favorecido, onClose, onSave, saving }) {
           {errors.nome && <small className="field-error">{errors.nome}</small>}
         </label>
         <div className="form-grid">
-          <label>
+          <label className="field">
             <span>Tipo</span>
-            <select
+            <SearchableSelect
               value={form.tipoPessoa}
-              onChange={(event) => set("tipoPessoa", event.target.value)}
-            >
-              <option>PF</option>
-              <option>PJ</option>
-            </select>
+              onChange={(value) => set("tipoPessoa", value)}
+              clearable={false}
+              aria-label="Tipo de pessoa"
+              options={[
+                { value: "PF", label: "PF" },
+                { value: "PJ", label: "PJ" },
+              ]}
+            />
           </label>
-          <label>
+          <label className="field">
             <span>CPF ou CNPJ *</span>
             <input
               value={form.documento}
@@ -1930,19 +1942,22 @@ function FavorecidoDrawer({ favorecido, onClose, onSave, saving }) {
           </label>
         </div>
         <div className="form-grid">
-          <label>
+          <label className="field">
             <span>Tipo da chave PIX</span>
-            <select
+            <SearchableSelect
               value={form.tipoChavePix}
-              onChange={(event) => set("tipoChavePix", event.target.value)}
-            >
-              <option>CPF/CNPJ</option>
-              <option>E-mail</option>
-              <option>Telefone</option>
-              <option>Aleatória</option>
-            </select>
+              onChange={(value) => set("tipoChavePix", value)}
+              clearable={false}
+              aria-label="Tipo da chave PIX"
+              options={[
+                { value: "CPF/CNPJ", label: "CPF/CNPJ" },
+                { value: "E-mail", label: "E-mail" },
+                { value: "Telefone", label: "Telefone" },
+                { value: "Aleatória", label: "Aleatória" },
+              ]}
+            />
           </label>
-          <label>
+          <label className="field">
             <span>Chave PIX *</span>
             <input
               value={form.chavePix}
@@ -1953,7 +1968,7 @@ function FavorecidoDrawer({ favorecido, onClose, onSave, saving }) {
             )}
           </label>
         </div>
-        <label>
+        <label className="field">
           <span>E-mail *</span>
           <input
             type="email"
@@ -1964,7 +1979,7 @@ function FavorecidoDrawer({ favorecido, onClose, onSave, saving }) {
             <small className="field-error">{errors.email}</small>
           )}
         </label>
-        <label>
+        <label className="field">
           <span>Telefone</span>
           <input
             value={form.telefone}
@@ -2007,23 +2022,21 @@ function LinksDrawer({
       onClose={onClose}
     >
       <div className="form-stack">
-        <label>
+        <label className="field">
           <span>Adicionar motorista</span>
-          <select
+          <SearchableSelect
             value={driverId}
-            onChange={(event) => setDriverId(event.target.value)}
-          >
-            <option value="">Selecione</option>
-            {drivers
-              .filter(
-                (row) => !active.some((link) => link.motoristaId === row.id),
-              )
-              .map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.nome}
-                </option>
-              ))}
-          </select>
+            onChange={setDriverId}
+            aria-label="Adicionar motorista"
+            options={[
+              { value: "", label: "Selecione" },
+              ...drivers
+                .filter(
+                  (row) => !active.some((link) => link.motoristaId === row.id),
+                )
+                .map((row) => ({ value: row.id, label: row.nome })),
+            ]}
+          />
         </label>
         <button
           className="primary-button"
@@ -2121,21 +2134,21 @@ function LotDrawer({
       onClose={onClose}
     >
       <div className="form-stack">
-        <label>
+        <label className="field">
           <span>Terceiro Favorecido</span>
-          <select
+          <SearchableSelect
             value={favorecidoId}
-            onChange={(event) => setFavorecidoId(event.target.value)}
-          >
-            {favorecidos.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.nome}
-              </option>
-            ))}
-          </select>
+            onChange={setFavorecidoId}
+            clearable={false}
+            aria-label="Terceiro favorecido do lote"
+            options={favorecidos.map((row) => ({
+              value: row.id,
+              label: row.nome,
+            }))}
+          />
         </label>
         <div className="form-grid">
-          <label>
+          <label className="field">
             <span>De</span>
             <input
               type="date"
@@ -2143,7 +2156,7 @@ function LotDrawer({
               onChange={(event) => setFrom(event.target.value)}
             />
           </label>
-          <label>
+          <label className="field">
             <span>Até</span>
             <input
               type="date"
@@ -2289,7 +2302,7 @@ function LotDetailDrawer({
             )}
             {canPay(lot) && (
               <>
-                <label className="proof-input">
+                <label className="proof-input field">
                   <span>Comprovante opcional</span>
                   <input
                     value={proofUrl}
@@ -2394,7 +2407,7 @@ function ReasonDrawer({ action, saving, onClose, onSave }) {
       onClose={onClose}
     >
       <div className="form-stack">
-        <label>
+        <label className="field">
           <span>Motivo *</span>
           <textarea
             value={reason}

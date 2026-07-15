@@ -71,10 +71,12 @@ function viewportMetrics() {
 }
 
 function focusAdjacentControl(trigger, direction) {
-  const form = trigger?.closest("form");
-  if (!form) return;
+  const scope = trigger?.closest(
+    "form, .dashboard-filters, .filter-surface, .form-stack",
+  );
+  if (!scope) return;
   const controls = [
-    ...form.querySelectorAll(
+    ...scope.querySelectorAll(
       "input:not([type='hidden']), textarea, [data-searchable-select-trigger], button:not([type='submit'])",
     ),
   ].filter(
@@ -94,6 +96,7 @@ function focusAdjacentControl(trigger, direction) {
 }
 
 let selectSequence = 0;
+const CUSTOM_SELECT_OPEN_EVENT = "betinhos:custom-select-open";
 
 export default function SearchableSelect({
   value,
@@ -115,6 +118,7 @@ export default function SearchableSelect({
   const optionRefs = useRef([]);
   const suppressFocusRef = useRef(false);
   const focusSearchOnOpenRef = useRef(true);
+  const focusOptionOnOpenRef = useRef(false);
   const initialHighlightRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
@@ -220,6 +224,21 @@ export default function SearchableSelect({
   }, [disabled, open]);
 
   useEffect(() => {
+    const closeWhenAnotherSelectOpens = (event) => {
+      if (event.detail !== panelId) {
+        setOpen(false);
+        optionRefs.current = [];
+      }
+    };
+    window.addEventListener(CUSTOM_SELECT_OPEN_EVENT, closeWhenAnotherSelectOpens);
+    return () =>
+      window.removeEventListener(
+        CUSTOM_SELECT_OPEN_EVENT,
+        closeWhenAnotherSelectOpens,
+      );
+  }, [panelId]);
+
+  useEffect(() => {
     if (!open) return undefined;
     const closeIfOutside = (event) => {
       if (
@@ -263,21 +282,34 @@ export default function SearchableSelect({
     const selectedIndex = visibleOptions.findIndex(
       (option) => option.value === String(value ?? ""),
     );
-    setHighlightedIndex(
-      initialHighlightRef.current ?? Math.max(0, selectedIndex),
-    );
+    const nextHighlightedIndex =
+      initialHighlightRef.current ?? Math.max(0, selectedIndex);
+    setHighlightedIndex(nextHighlightedIndex);
     initialHighlightRef.current = null;
     const frame = window.requestAnimationFrame(() => {
-      if (focusSearchOnOpenRef.current && shouldAutofocusSearch())
+      if (focusOptionOnOpenRef.current) {
+        focusOptionOnOpenRef.current = false;
+        optionRefs.current[
+          Math.max(0, nextHighlightedIndex)
+        ]?.focus();
+      } else if (focusSearchOnOpenRef.current && shouldAutofocusSearch())
         searchRef.current?.focus();
       else triggerRef.current?.focus();
     });
     return () => window.cancelAnimationFrame(frame);
   }, [open, updatePosition]);
 
-  const openSelect = (focusSearch = true, initialHighlight = null) => {
+  const openSelect = (
+    focusSearch = true,
+    initialHighlight = null,
+    focusOption = false,
+  ) => {
     if (disabled) return;
+    window.dispatchEvent(
+      new CustomEvent(CUSTOM_SELECT_OPEN_EVENT, { detail: panelId }),
+    );
     focusSearchOnOpenRef.current = focusSearch;
+    focusOptionOnOpenRef.current = focusOption;
     initialHighlightRef.current = initialHighlight;
     setHasOpened(true);
     setQuery("");
@@ -324,6 +356,7 @@ export default function SearchableSelect({
           event.key === "ArrowUp"
             ? Math.max(0, visibleOptions.length - 1)
             : null,
+          event.key === "ArrowDown" || event.key === "ArrowUp",
         );
         return;
       }
@@ -364,6 +397,7 @@ export default function SearchableSelect({
   const panelClass = [
     "custom-select-panel",
     variant && `custom-select-panel--${variant}`,
+    visibleOptions.length === 0 && "is-empty",
     open && "is-open",
   ]
     .filter(Boolean)
@@ -402,12 +436,21 @@ export default function SearchableSelect({
         disabled={disabled}
         onPointerDown={() => {
           suppressFocusRef.current = true;
+          window.setTimeout(() => {
+            suppressFocusRef.current = false;
+          }, 0);
         }}
         onPointerCancel={() => {
           suppressFocusRef.current = false;
         }}
         onFocus={() => {
-          if (!suppressFocusRef.current && !open && !disabled) openSelect(true);
+          if (
+            !suppressFocusRef.current &&
+            !open &&
+            !disabled &&
+            shouldAutofocusSearch()
+          )
+            openSelect(true);
         }}
         onClick={() => {
           if (open) closeSelect();

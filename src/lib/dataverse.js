@@ -14,7 +14,7 @@ const FLOW_CONTRACT = "new_FlowURLFlowSalvarArquivosOnedrive";
 export const TABLES = Object.freeze({
   employee: "cr40f_funcionarios",
   composition: "cr40f_composicaodeprecos",
-  reservation: "cr40f_reservadeveiculos",
+  reservation: "cr40f_reservadeveculos",
   favorecido: "cr40f_terceirofavorecido",
   link: "cr40f_vinculomotoristafavorecido",
   payment: "cr40f_pagamentoaterceiro",
@@ -640,12 +640,12 @@ class DataverseClient {
       ),
       this.listAll(
         TABLES.reservation,
-        `?$select=cr40f_reservadeveiculosid,cr40f_id,cr40f_dataehorriodesada,cr40f_trajeto,cr40f_destino,_cr40f_motorista_value,_cr40f_cliente_value${extraFields.length ? `,${extraFields.join(",")}` : ""}&$top=5000`,
+        `?$select=cr40f_reservadeveculosid,cr40f_id,cr40f_dataehorriodesada,cr40f_trajeto,cr40f_destino,_cr40f_motorista_value,_cr40f_cliente_value${extraFields.length ? `,${extraFields.join(",")}` : ""}&$top=5000`,
       ),
     ]);
     const reservations = new Map(
       reservationRows.map((row) => [
-        cleanGuid(row.cr40f_reservadeveiculosid),
+        cleanGuid(row.cr40f_reservadeveculosid),
         row,
       ]),
     );

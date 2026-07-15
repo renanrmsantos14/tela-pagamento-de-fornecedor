@@ -44,6 +44,142 @@ if ($WebResourceName -notmatch '^cr40f_Tela') {
   throw "WebResourceName deve usar o prefixo Dataverse 'cr40f_' e conter Tela: $WebResourceName"
 }
 
+function Get-PropertyValue([object] $Object, [string] $Name) {
+  if ($null -eq $Object) {
+    return $null
+  }
+
+  $property = $Object.PSObject.Properties[$Name]
+  if ($null -eq $property) {
+    return $null
+  }
+
+  return $property.Value
+}
+
+function Find-WebResource([string] $ApiBaseUrl, [hashtable] $Headers, [string] $Name) {
+  $escapedName = Escape-ODataString $Name
+  $lookupUrl = "$ApiBaseUrl/webresourceset?`$select=webresourceid,name,displayname,webresourcetype&`$filter=name eq '$escapedName'"
+  $lookup = Invoke-RestMethod -Method Get -Uri $lookupUrl -Headers $Headers
+  $items = @((Get-PropertyValue $lookup "value") | Where-Object { $null -ne $_ })
+
+  if ($items.Count -gt 1) {
+    throw "Mais de um WebResource encontrado para name='$Name'. Deploy abortado."
+  }
+
+  if ($items.Count -eq 0) {
+    return $null
+  }
+
+  return $items[0]
+}
+
+function Find-Solution([string] $ApiBaseUrl, [hashtable] $Headers, [string] $UniqueName) {
+  $escapedName = Escape-ODataString $UniqueName
+  $lookupUrl = "$ApiBaseUrl/solutions?`$select=solutionid,uniquename&`$filter=uniquename eq '$escapedName'"
+  $lookup = Invoke-RestMethod -Method Get -Uri $lookupUrl -Headers $Headers
+  $items = @((Get-PropertyValue $lookup "value") | Where-Object { $null -ne $_ })
+
+  if ($items.Count -ne 1) {
+    throw "Solucao nao encontrada ou ambigua: $UniqueName"
+  }
+
+  return $items[0]
+}
+
+function Add-ResponseId([object] $Response) {
+  $entityUrl = $Response.Headers["OData-EntityId"]
+  if ([string]::IsNullOrWhiteSpace($entityUrl)) {
+    return $null
+  }
+
+  $match = [regex]::Match($entityUrl, '\(([0-9a-fA-F-]{36})\)$')
+  if (-not $match.Success) {
+    return $null
+  }
+
+  return $match.Groups[1].Value
+}
+
+function Create-WebResource([string] $ApiBaseUrl, [hashtable] $Headers, [hashtable] $Body, [string] $Name) {
+  $createHeaders = @{}
+  foreach ($key in $Headers.Keys) {
+    $createHeaders[$key] = $Headers[$key]
+  }
+  $createHeaders["Prefer"] = "return=representation"
+
+  $response = Invoke-WebRequest `
+    -Method Post `
+    -Uri "$ApiBaseUrl/webresourceset" `
+    -Headers $createHeaders `
+    -ContentType "application/json; charset=utf-8" `
+    -Body ($Body | ConvertTo-Json -Depth 4)
+
+  $created = $null
+  if (-not [string]::IsNullOrWhiteSpace($response.Content)) {
+    try {
+      $created = $response.Content | ConvertFrom-Json
+    }
+    catch {
+      throw "WebResource criado, mas a resposta nao contem JSON valido."
+    }
+  }
+
+  $webResourceId = Get-PropertyValue $created "webresourceid"
+  if (-not [string]::IsNullOrWhiteSpace($webResourceId)) {
+    return $webResourceId
+  }
+
+  $webResourceId = Add-ResponseId $response
+  if (-not [string]::IsNullOrWhiteSpace($webResourceId)) {
+    return $webResourceId
+  }
+
+  for ($attempt = 1; $attempt -le 5; $attempt++) {
+    $created = Find-WebResource $ApiBaseUrl $Headers $Name
+    $webResourceId = Get-PropertyValue $created "webresourceid"
+    if (-not [string]::IsNullOrWhiteSpace($webResourceId)) {
+      return $webResourceId
+    }
+    Start-Sleep -Seconds 1
+  }
+
+  throw "WebResource foi criado, mas o id nao foi retornado nem localizado: $Name"
+}
+
+function Test-SolutionComponent([string] $ApiBaseUrl, [hashtable] $Headers, [string] $SolutionId, [string] $WebResourceId) {
+  $lookupUrl = "$ApiBaseUrl/solutioncomponents?`$select=solutioncomponentid&`$filter=_solutionid_value eq $SolutionId and objectid eq $WebResourceId and componenttype eq 61"
+  $lookup = Invoke-RestMethod -Method Get -Uri $lookupUrl -Headers $Headers
+  return @((Get-PropertyValue $lookup "value") | Where-Object { $null -ne $_ }).Count -gt 0
+}
+
+function Ensure-WebResourceInSolution([string] $ApiBaseUrl, [hashtable] $Headers, [string] $SolutionUniqueName, [string] $SolutionId, [string] $WebResourceId) {
+  if (Test-SolutionComponent $ApiBaseUrl $Headers $SolutionId $WebResourceId) {
+    Write-Step "solution component already exists"
+    return
+  }
+
+  Write-Step "add webresource to solution $SolutionUniqueName"
+  try {
+    Invoke-JsonPost "$ApiBaseUrl/AddSolutionComponent" $Headers @{
+      ComponentId               = $WebResourceId
+      ComponentType             = 61
+      SolutionUniqueName        = $SolutionUniqueName
+      AddRequiredComponents     = $false
+      DoNotIncludeSubcomponents = $true
+    } | Out-Null
+  }
+  catch {
+    if (-not (Test-SolutionComponent $ApiBaseUrl $Headers $SolutionId $WebResourceId)) {
+      throw
+    }
+  }
+
+  if (-not (Test-SolutionComponent $ApiBaseUrl $Headers $SolutionId $WebResourceId)) {
+    throw "WebResource $WebResourceId nao foi adicionado a solucao $SolutionUniqueName"
+  }
+}
+
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $root
 
@@ -111,19 +247,17 @@ $headers = @{
   "MSCRM.SolutionUniqueName"   = $SolutionUniqueName
 }
 
-$escapedName = Escape-ODataString $WebResourceName
-$lookupUrl = "$apiBaseUrl/webresourceset?`$select=webresourceid,name,displayname,webresourcetype&`$filter=name eq '$escapedName'"
-Write-Step "lookup $WebResourceName"
-$lookup = Invoke-RestMethod -Method Get -Uri $lookupUrl -Headers $headers
-$lookupItems = @($lookup.value | Where-Object { $null -ne $_ })
-
-if ($lookupItems.Count -gt 1) {
-  throw "Mais de um WebResource encontrado para name='$WebResourceName'. Deploy abortado."
+$solution = Find-Solution $apiBaseUrl $headers $SolutionUniqueName
+$solutionId = Get-PropertyValue $solution "solutionid"
+if ([string]::IsNullOrWhiteSpace($solutionId)) {
+  throw "A solucao $SolutionUniqueName nao retornou solutionid"
 }
 
+Write-Step "lookup $WebResourceName"
+$webResource = Find-WebResource $apiBaseUrl $headers $WebResourceName
+
 $webResourceId = $null
-$wasCreated = $false
-if ($lookupItems.Count -eq 0) {
+if ($null -eq $webResource) {
   $createBody = @{
     name            = $WebResourceName
     displayname     = $DisplayName
@@ -132,16 +266,10 @@ if ($lookupItems.Count -eq 0) {
   }
 
   Write-Step "create $WebResourceName in solution $SolutionUniqueName"
-  $created = Invoke-JsonPost "$apiBaseUrl/webresourceset" $headers $createBody
-  $wasCreated = $true
-  $webResourceId = $created.webresourceid
-  if ([string]::IsNullOrWhiteSpace($webResourceId)) {
-    $lookup = Invoke-RestMethod -Method Get -Uri $lookupUrl -Headers $headers
-    $webResourceId = @($lookup.value)[0].webresourceid
-  }
+  $webResourceId = Create-WebResource $apiBaseUrl $headers $createBody $WebResourceName
 }
 else {
-  $webResourceId = $lookupItems[0].webresourceid
+  $webResourceId = Get-PropertyValue $webResource "webresourceid"
 }
 
 if ([string]::IsNullOrWhiteSpace($webResourceId)) {
@@ -157,16 +285,7 @@ Invoke-RestMethod `
   -ContentType "application/json; charset=utf-8" `
   -Body ($patchBody | ConvertTo-Json -Depth 4) | Out-Null
 
-if ($wasCreated) {
-  Write-Step "add $WebResourceName to solution $SolutionUniqueName"
-  Invoke-JsonPost "$apiBaseUrl/AddSolutionComponent" $headers @{
-    ComponentId               = $webResourceId
-    ComponentType             = 61
-    SolutionUniqueName        = $SolutionUniqueName
-    AddRequiredComponents     = $false
-    DoNotIncludeSubcomponents = $true
-  } | Out-Null
-}
+Ensure-WebResourceInSolution $apiBaseUrl $headers $SolutionUniqueName $solutionId $webResourceId
 
 if (-not $NoPublish) {
   $publishXml = "<importexportxml><webresources><webresource>$webResourceId</webresource></webresources></importexportxml>"
