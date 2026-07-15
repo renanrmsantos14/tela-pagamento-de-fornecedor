@@ -316,6 +316,12 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
     const remoteServices = await remote.dataverse.listFinanceServices();
     assert.equal(remoteLinks[0].motoristaId, "drv-remote-001");
     assert.equal(remoteServices[0].motoristaId, "drv-remote-001");
+    const preferred = await remote.dataverse.setPreferredFavorecido(
+      "cmp-remote-001",
+      "fav-remote-001",
+      "drv-remote-001",
+    );
+    assert.equal(preferred.favorecidoId, "fav-remote-001");
     const created = await remote.dataverse.createDraftLot({
       year: 2026,
       favorecido: {

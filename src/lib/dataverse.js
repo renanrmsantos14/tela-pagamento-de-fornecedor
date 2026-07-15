@@ -930,7 +930,7 @@ class DataverseClient {
       etag,
     );
   }
-  async setPreferredFavorecido(serviceId, favorecidoId) {
+  async setPreferredFavorecido(serviceId, favorecidoId, motoristaId = "") {
     if (this.mockMode) {
       const service = this.mock.services.find((row) => row.id === serviceId);
       if (!service) throw new Error("Serviço não encontrado.");
@@ -939,7 +939,8 @@ class DataverseClient {
       this.persistMock();
       return clone(service);
     }
-    return this.update(TABLES.composition, serviceId, {
+    if (motoristaId) await this.upsertLink(motoristaId, favorecidoId);
+    await this.update(TABLES.composition, serviceId, {
       ...(await this.bindLookup(
         TABLES.composition,
         "cr40f_terceirofavorecido",
@@ -947,6 +948,7 @@ class DataverseClient {
         favorecidoId,
       )),
     });
+    return { favorecidoId };
   }
   addEvent(paymentId, operation, message, extra = {}) {
     const event = {

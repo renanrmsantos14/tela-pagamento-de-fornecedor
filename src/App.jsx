@@ -330,6 +330,7 @@ export default function App() {
       const saved = await dataverse.setPreferredFavorecido(
         service.id,
         favorecidoId,
+        service.motoristaId,
       );
       setServices((rows) =>
         rows.map((row) => (row.id === service.id ? { ...row, ...saved } : row)),
