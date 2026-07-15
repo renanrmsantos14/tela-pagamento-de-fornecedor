@@ -122,13 +122,15 @@ const statusText = (lot) =>
           ? "Pago · falha documental"
           : "Pago · documento pendente"
       : "Rascunho";
-const formatServiceDate = (value, fallback = "") =>
-  value
-    ? new Date(value).toLocaleString("pt-BR", {
-        dateStyle: "short",
-        timeStyle: "short",
-      })
-    : fallback;
+const formatServiceDate = (value, fallback = "") => {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return fallback;
+  const pad = (number) => String(number).padStart(2, "0");
+  return [
+    `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`,
+    `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+  ].join(" ");
+};
 const REPASSE_DEFAULT_STATUS_LABELS = [
   "concluido",
   "cancelado com ressalvas",
