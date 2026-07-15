@@ -168,6 +168,7 @@
     SourceTypeMask: 0,
     OptionSet: {
       "@odata.type": "Microsoft.Dynamics.CRM.OptionSetMetadata",
+      IsGlobal: false,
       Options: options.map((option) => ({
         Value: option.value,
         Label: label(option.label),
@@ -424,14 +425,17 @@
       `${metadataPath(logicalName)}?$select=LogicalName,EntitySetName,PrimaryIdAttribute,PrimaryNameAttribute,MetadataId`,
     );
 
-  const getAttribute = (entity, logicalName) =>
-    getOrNull(
-      `${metadataAttributePath(entity, logicalName)}?$select=LogicalName,SchemaName,AttributeType,AttributeTypeName,MetadataId`,
+  const getAttribute = async (entity, logicalName) => {
+    const data = await request(
+      "GET",
+      `${metadataPath(entity)}/Attributes?$select=LogicalName,SchemaName,AttributeType,AttributeTypeName,MetadataId&$filter=LogicalName eq '${escapeOData(logicalName)}'`,
     );
+    return data.value?.[0] || null;
+  };
 
-  const getAttributeWithType = (entity, logicalName, typeName) =>
+  const getPicklistAttribute = (entity, logicalName) =>
     getOrNull(
-      `${metadataAttributePath(entity, logicalName)}/Microsoft.Dynamics.CRM.${typeName}AttributeMetadata?$select=LogicalName,SchemaName,AttributeType,AttributeTypeName,MetadataId,OptionSet`,
+      `${metadataAttributePath(entity, logicalName)}/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName,SchemaName&$expand=OptionSet,GlobalOptionSet`,
     );
 
   const getLookupAttribute = (entity, logicalName) =>
@@ -498,10 +502,16 @@
   };
 
   const ensureChoiceOptions = async (entity, column, options) => {
-    const attribute = await getAttributeWithType(entity, column, "Picklist");
+    const attribute = await getPicklistAttribute(entity, column);
     if (!attribute) throw new Error(`Não foi possível ler a Choice ${entity}.${column}.`);
+    const optionSet = attribute.OptionSet || attribute.GlobalOptionSet;
+    if (!Array.isArray(optionSet?.Options)) {
+      throw new Error(
+        `Metadata de opções não retornada para ${entity}.${column}; não é seguro inserir valores sem conferência.`,
+      );
+    }
     const existingOptions = new Map(
-      (attribute.OptionSet?.Options || []).map((option) => [option.Value, option]),
+      optionSet.Options.map((option) => [option.Value, option]),
     );
     for (const option of options) {
       if (existingOptions.has(option.value)) {
