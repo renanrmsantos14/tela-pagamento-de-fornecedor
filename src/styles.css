@@ -2431,12 +2431,16 @@ select:focus {
 }
 .repasse-grid-header.is-pinned {
   background: #f6f6f5;
+}
+.repasse-grid-header.is-pinned-edge {
   box-shadow:
     2px 0 0 #e2e2e0,
     8px 0 14px rgba(20, 20, 20, 0.025);
 }
 .repasse-grid-cell.is-pinned {
   background: inherit;
+}
+.repasse-grid-cell.is-pinned-edge {
   box-shadow:
     2px 0 0 #e7e7e5,
     8px 0 14px rgba(20, 20, 20, 0.02);

@@ -1136,6 +1136,8 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
     (left, right) => Number(right.locked) - Number(left.locked),
   );
   const visibleColumns = orderedColumns.filter((column) => column.visible);
+  const pinnedColumns = visibleColumns.filter((column) => column.locked);
+  const lastPinnedColumnId = pinnedColumns[pinnedColumns.length - 1]?.id;
   const template = visibleColumns
     .map((column) => `${column.width}px`)
     .join(" ");
@@ -1205,10 +1207,14 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
         contentWidth: scrollElement.scrollWidth,
         viewportWidth: scrollElement.clientWidth,
       });
+    let lastScrollLeft = scrollElement.scrollLeft;
     const syncHorizontalScrollbar = () => {
+      const scrollLeft = scrollElement.scrollLeft;
+      if (scrollLeft === lastScrollLeft) return;
+      lastScrollLeft = scrollLeft;
       const scrollbar = horizontalScrollRef.current;
-      if (scrollbar && scrollbar.scrollLeft !== scrollElement.scrollLeft)
-        scrollbar.scrollLeft = scrollElement.scrollLeft;
+      if (scrollbar && scrollbar.scrollLeft !== scrollLeft)
+        scrollbar.scrollLeft = scrollLeft;
     };
     const observer =
       typeof ResizeObserver === "undefined"
@@ -1219,7 +1225,9 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
       observer?.observe(scrollElement.firstElementChild);
     measure();
     window.addEventListener("resize", measure);
-    scrollElement.addEventListener("scroll", syncHorizontalScrollbar);
+    scrollElement.addEventListener("scroll", syncHorizontalScrollbar, {
+      passive: true,
+    });
     return () => {
       observer?.disconnect();
       window.removeEventListener("resize", measure);
@@ -1578,7 +1586,7 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
           >
             {visibleColumns.map((column) => (
               <div
-                className={`repasse-grid-header ${column.locked ? "is-pinned" : ""}`}
+                className={`repasse-grid-header ${column.locked ? "is-pinned" : ""} ${column.id === lastPinnedColumnId ? "is-pinned-edge" : ""}`}
                 key={column.id}
                 style={pinnedStyle(column)}
                 draggable
@@ -1671,7 +1679,7 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
             >
               {visibleColumns.map((column) => (
                 <div
-                  className={`repasse-grid-cell cell-${column.id} ${column.locked ? "is-pinned" : ""}`}
+                  className={`repasse-grid-cell cell-${column.id} ${column.locked ? "is-pinned" : ""} ${column.id === lastPinnedColumnId ? "is-pinned-edge" : ""}`}
                   key={column.id}
                   style={pinnedStyle(column)}
                 >
