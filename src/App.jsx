@@ -249,8 +249,8 @@ export default function App() {
   const [tab, setTab] = useState("overview");
   const [range, setRange] = useState(monthRange);
   const [search, setSearch] = useState("");
-  const [driverId, setDriverId] = useState("");
-  const [favorecidoFilter, setFavorecidoFilter] = useState("");
+  const [driverIds, setDriverIds] = useState([]);
+  const [favorecidoIds, setFavorecidoIds] = useState([]);
   const [saving, setSaving] = useState({});
   const [autosaveErrors, setAutosaveErrors] = useState({});
   const [drawer, setDrawer] = useState(null);
@@ -305,14 +305,14 @@ export default function App() {
     () =>
       services.filter(
         (service) =>
-          (!driverId || service.motoristaId === driverId) &&
-          (!favorecidoFilter || service.favorecidoId === favorecidoFilter) &&
+          (!driverIds.length || driverIds.includes(service.motoristaId)) &&
+          (!favorecidoIds.length || favorecidoIds.includes(service.favorecidoId)) &&
           (!search ||
             `${service.identificador} ${service.motorista} ${service.trajeto}`
               .toLowerCase()
               .includes(search.toLowerCase())),
       ),
-    [services, driverId, favorecidoFilter, search],
+    [services, driverIds, favorecidoIds, search],
   );
   const openLot = async (lot) => {
     try {
@@ -598,10 +598,10 @@ export default function App() {
               drivers={drivers}
               range={range}
               setRange={setRange}
-              driverId={driverId}
-              setDriverId={setDriverId}
-              favorecidoFilter={favorecidoFilter}
-              setFavorecidoFilter={setFavorecidoFilter}
+              driverIds={driverIds}
+              setDriverIds={setDriverIds}
+              favorecidoIds={favorecidoIds}
+              setFavorecidoIds={setFavorecidoIds}
               onNavigate={setTab}
               onNewLot={() => setDrawer({ type: "lot" })}
               onNewFavorecido={() => setDrawer({ type: "favorecido" })}
@@ -618,10 +618,10 @@ export default function App() {
               setRange={setRange}
               search={search}
               setSearch={setSearch}
-              driverId={driverId}
-              setDriverId={setDriverId}
-              favorecidoFilter={favorecidoFilter}
-              setFavorecidoFilter={setFavorecidoFilter}
+              driverIds={driverIds}
+              setDriverIds={setDriverIds}
+              favorecidoIds={favorecidoIds}
+              setFavorecidoIds={setFavorecidoIds}
               busy={busy}
               autosaveErrors={autosaveErrors}
               onSaveRepasse={saveRepasse}
@@ -861,17 +861,17 @@ function OverviewView({
   drivers,
   range,
   setRange,
-  driverId,
-  setDriverId,
-  favorecidoFilter,
-  setFavorecidoFilter,
+  driverIds,
+  setDriverIds,
+  favorecidoIds,
+  setFavorecidoIds,
   onNavigate,
   onNewLot,
   onNewFavorecido,
 }) {
   const matchesDashboardFilter = (service) =>
-    (!driverId || service.motoristaId === driverId) &&
-    (!favorecidoFilter || service.favorecidoId === favorecidoFilter);
+    (!driverIds.length || driverIds.includes(service.motoristaId)) &&
+    (!favorecidoIds.length || favorecidoIds.includes(service.favorecidoId));
   const completedServices = services.filter(
     (service) => service.status === "concluido" && matchesDashboardFilter(service),
   );
@@ -976,28 +976,24 @@ function OverviewView({
         <label className="field"><span>De</span><input type="date" value={range.from} onChange={(event) => setRange((current) => ({ ...current, from: event.target.value }))} /></label>
         <label className="field"><span>Até</span><input type="date" value={range.to} onChange={(event) => setRange((current) => ({ ...current, to: event.target.value }))} /></label>
         <label className="field"><span>Motorista</span>
-          <SearchableSelect
-            value={driverId}
-            onChange={setDriverId}
+          <SearchableMultiSelect
+            value={driverIds}
+            onChange={setDriverIds}
             aria-label="Filtrar por motorista"
-            options={[
-              { value: "", label: "Todos os motoristas" },
-              ...drivers.map((driver) => ({ value: driver.id, label: driver.nome })),
-            ]}
+            options={drivers.map((driver) => ({ value: driver.id, label: driver.nome }))}
+            placeholder="Todos os motoristas"
           />
         </label>
         <label className="field"><span>Terceiro favorecido</span>
-          <SearchableSelect
-            value={favorecidoFilter}
-            onChange={setFavorecidoFilter}
+          <SearchableMultiSelect
+            value={favorecidoIds}
+            onChange={setFavorecidoIds}
             aria-label="Filtrar por terceiro favorecido"
-            options={[
-              { value: "", label: "Todos os favorecidos" },
-              ...favorecidos.map((favorecido) => ({
-                value: favorecido.id,
-                label: favorecido.nome,
-              })),
-            ]}
+            options={favorecidos.map((favorecido) => ({
+              value: favorecido.id,
+              label: favorecido.nome,
+            }))}
+            placeholder="Todos os favorecidos"
           />
         </label>
       </section>
@@ -1111,10 +1107,10 @@ function PaymentsView({
   setRange,
   search,
   setSearch,
-  driverId,
-  setDriverId,
-  favorecidoFilter,
-  setFavorecidoFilter,
+  driverIds,
+  setDriverIds,
+  favorecidoIds,
+  setFavorecidoIds,
   busy,
   autosaveErrors,
   onSaveRepasse,
@@ -1192,26 +1188,22 @@ function PaymentsView({
           </label>
           <label className="field">
             <span>Motorista</span>
-            <SearchableSelect
-              value={driverId}
-              onChange={setDriverId}
+            <SearchableMultiSelect
+              value={driverIds}
+              onChange={setDriverIds}
               aria-label="Filtrar lançamentos por motorista"
-              options={[
-                { value: "", label: "Todos" },
-                ...drivers.map((row) => ({ value: row.id, label: row.nome })),
-              ]}
+              options={drivers.map((row) => ({ value: row.id, label: row.nome }))}
+              placeholder="Todos os motoristas"
             />
           </label>
           <label className="field">
             <span>Favorecido</span>
-            <SearchableSelect
-              value={favorecidoFilter}
-              onChange={setFavorecidoFilter}
+            <SearchableMultiSelect
+              value={favorecidoIds}
+              onChange={setFavorecidoIds}
               aria-label="Filtrar lançamentos por favorecido"
-              options={[
-                { value: "", label: "Todos" },
-                ...favorecidos.map((row) => ({ value: row.id, label: row.nome })),
-              ]}
+              options={favorecidos.map((row) => ({ value: row.id, label: row.nome }))}
+              placeholder="Todos os favorecidos"
             />
           </label>
           <label className="field">
