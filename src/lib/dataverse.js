@@ -828,6 +828,22 @@ class DataverseClient {
     this.cache.set(cacheKey, resolved);
     return resolved;
   }
+  async compositionReservationLookupValueField() {
+    const cacheKey = "compositionReservationLookupValueField";
+    if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+    const response = await this.request(
+      "GET",
+      `/EntityDefinitions(LogicalName='${escapeOData(TABLES.composition)}')/Attributes/Microsoft.Dynamics.CRM.LookupAttributeMetadata?$select=LogicalName,Targets`,
+    ).catch(() => ({ value: [] }));
+    const lookup = (response.value || []).find((attribute) =>
+      attribute.Targets?.includes(TABLES.reservation),
+    );
+    const field = lookup
+      ? `_${lookup.LogicalName}_value`
+      : "_cr40f_servicorelacionadogeral_value";
+    this.cache.set(cacheKey, field);
+    return field;
+  }
   async listFinanceServices(filters = {}) {
     if (this.mockMode)
       return clone(
@@ -838,12 +854,15 @@ class DataverseClient {
             (!filters.motoristaId || row.motoristaId === filters.motoristaId),
         ),
       );
-    const operationalFields = await this.reservationOperationalFields();
+    const [operationalFields, reservationLookupValueField] = await Promise.all([
+      this.reservationOperationalFields(),
+      this.compositionReservationLookupValueField(),
+    ]);
     const extraFields = Object.values(operationalFields).filter(Boolean);
     const [compositionRows, reservationRows] = await Promise.all([
       this.listAll(
         TABLES.composition,
-        "?$select=cr40f_composicaodeprecosid,cr40f_id,_cr40f_servicorelacionadogeral_value,new_valortotal,new_status,cr40f_valorrepasseterceiro,_cr40f_terceirofavorecido_value,_cr40f_pagamentoaterceiro_value&$filter=new_status eq 100000001&$top=5000",
+        `?$select=cr40f_composicaodeprecosid,cr40f_id,${reservationLookupValueField},new_valortotal,new_status,cr40f_valorrepasseterceiro,_cr40f_terceirofavorecido_value,_cr40f_pagamentoaterceiro_value&$filter=new_status eq 100000001&$top=5000`,
       ),
       this.listAll(
         TABLES.reservation,
@@ -859,13 +878,13 @@ class DataverseClient {
     return compositionRows.map((composition) => {
       const reservation =
         reservations.get(
-          cleanGuid(composition._cr40f_servicorelacionadogeral_value),
+          cleanGuid(composition[reservationLookupValueField]),
         ) || {};
       return {
         id: cleanGuid(composition.cr40f_composicaodeprecosid),
         compositionId: cleanGuid(composition.cr40f_composicaodeprecosid),
         reservationId: cleanGuid(
-          composition._cr40f_servicorelacionadogeral_value,
+          composition[reservationLookupValueField],
         ),
         identificador: composition.cr40f_id || reservation.cr40f_id || "Sem ID",
         dataServico: reservation.cr40f_dataehorriodesada || "",

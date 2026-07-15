@@ -6,9 +6,7 @@ import {
   ArrowUpDown,
   Banknote,
   CheckCircle2,
-  ChevronDown,
   ChevronRight,
-  ChevronUp,
   CircleDollarSign,
   ClipboardList,
   Columns3,
@@ -247,6 +245,7 @@ export default function App() {
   const [driverId, setDriverId] = useState("");
   const [favorecidoFilter, setFavorecidoFilter] = useState("");
   const [saving, setSaving] = useState({});
+  const [autosaveErrors, setAutosaveErrors] = useState({});
   const [drawer, setDrawer] = useState(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -255,6 +254,13 @@ export default function App() {
   const busy = (key) => Boolean(saving[key]);
   const setBusy = (key, value) =>
     setSaving((current) => ({ ...current, [key]: value }));
+  const setAutosaveError = (key, error) =>
+    setAutosaveErrors((current) => {
+      const next = { ...current };
+      if (error) next[key] = error;
+      else delete next[key];
+      return next;
+    });
   async function refresh() {
     setBusy("refresh", true);
     try {
@@ -331,6 +337,7 @@ export default function App() {
     }
   }
   async function linkService(service, favorecidoId) {
+    const saveKey = `link-${service.id}`;
     const previousFavorecidoId = service.favorecidoId;
     const isSelectedLink = (link) =>
       link.motoristaId === service.motoristaId &&
@@ -344,7 +351,8 @@ export default function App() {
       favorecidoId,
       status: "ativo",
     };
-    setBusy(`link-${service.id}`, true);
+    setAutosaveError(saveKey, null);
+    setBusy(saveKey, true);
     setServices((rows) =>
       rows.map((row) =>
         row.id === service.id ? { ...row, favorecidoId } : row,
@@ -397,9 +405,10 @@ export default function App() {
             )
           : rows.filter((link) => link.id !== optimisticLink.id),
       );
+      setAutosaveError(saveKey, { message: err.message, favorecidoId });
       setError(err.message);
     } finally {
-      setBusy(`link-${service.id}`, false);
+      setBusy(saveKey, false);
     }
   }
   async function createLot(input) {
@@ -603,6 +612,7 @@ export default function App() {
               favorecidoFilter={favorecidoFilter}
               setFavorecidoFilter={setFavorecidoFilter}
               busy={busy}
+              autosaveErrors={autosaveErrors}
               onSaveRepasse={saveRepasse}
               onLink={linkService}
             />
@@ -1095,6 +1105,7 @@ function PaymentsView({
   favorecidoFilter,
   setFavorecidoFilter,
   busy,
+  autosaveErrors,
   onSaveRepasse,
   onLink,
 }) {
@@ -1170,13 +1181,21 @@ function PaymentsView({
         services={services.filter((row) => row.status === "concluido")}
         favorecidos={allFavorecidos}
         busy={busy}
+        autosaveErrors={autosaveErrors}
         onSave={onSaveRepasse}
         onLink={onLink}
       />
     </section>
   );
 }
-function RepasseGrid({ services, favorecidos, busy, onSave, onLink }) {
+function RepasseGrid({
+  services,
+  favorecidos,
+  busy,
+  autosaveErrors,
+  onSave,
+  onLink,
+}) {
   const [columns, setColumns] = useState(loadRepasseColumns);
   const [density, setDensity] = useState(loadRepasseDensity);
   const [views, setViews] = useState(loadRepasseViews);
@@ -1187,6 +1206,7 @@ function RepasseGrid({ services, favorecidos, busy, onSave, onLink }) {
   const [viewName, setViewName] = useState("");
   const [viewMessage, setViewMessage] = useState("");
   const [draggedColumn, setDraggedColumn] = useState("");
+  const [dropTarget, setDropTarget] = useState(null);
   const [resize, setResize] = useState(null);
   const [sort, setSort] = useState({ id: "dataServico", direction: "desc" });
   const orderedColumns = orderRepasseColumns(columns);
@@ -1199,6 +1219,8 @@ function RepasseGrid({ services, favorecidos, busy, onSave, onLink }) {
   const gridViewportRef = useRef(null);
   const gridScrollRef = useRef(null);
   const horizontalScrollRef = useRef(null);
+  const columnPickerRef = useRef(null);
+  const savedViewRef = useRef(null);
   const horizontalScrollFrameRef = useRef(0);
   const pendingHorizontalScrollRef = useRef(0);
   const [horizontalScroll, setHorizontalScroll] = useState({
@@ -1274,6 +1296,16 @@ function RepasseGrid({ services, favorecidos, busy, onSave, onLink }) {
         window.cancelAnimationFrame(horizontalScrollFrameRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!showPicker && !showViews) return undefined;
+    const closeMenus = (event) => {
+      if (!columnPickerRef.current?.contains(event.target)) setShowPicker(false);
+      if (!savedViewRef.current?.contains(event.target)) setShowViews(false);
+    };
+    document.addEventListener("pointerdown", closeMenus);
+    return () => document.removeEventListener("pointerdown", closeMenus);
+  }, [showPicker, showViews]);
 
   useEffect(() => {
     const scrollElement = gridScrollRef.current;
@@ -1403,7 +1435,7 @@ function RepasseGrid({ services, favorecidos, busy, onSave, onLink }) {
     };
   }, [resize]);
 
-  const reorderColumns = (sourceId, targetId) => {
+  const reorderColumns = (sourceId, targetId, placement = "before") => {
     if (!sourceId || sourceId === targetId) return;
     setColumns((current) => {
       const next = orderRepasseColumns(current);
@@ -1411,13 +1443,16 @@ function RepasseGrid({ services, favorecidos, busy, onSave, onLink }) {
       const target = next.findIndex((column) => column.id === targetId);
       if (source < 0 || target < 0 || next[source].locked !== next[target].locked)
         return current;
-      next.splice(target, 0, next.splice(source, 1)[0]);
+      const [column] = next.splice(source, 1);
+      const targetIndex = next.findIndex((item) => item.id === targetId);
+      next.splice(targetIndex + (placement === "after" ? 1 : 0), 0, column);
       return next;
     });
   };
-  const moveColumn = (targetId) => {
-    reorderColumns(draggedColumn, targetId);
+  const moveColumn = (targetId, placement) => {
+    reorderColumns(draggedColumn, targetId, placement);
     setDraggedColumn("");
+    setDropTarget(null);
   };
   const toggleColumn = (id) =>
     setColumns((current) =>
@@ -1514,6 +1549,7 @@ function RepasseGrid({ services, favorecidos, busy, onSave, onLink }) {
           service={service}
           favorecidos={favorecidos}
           saving={busy(`link-${service.id}`)}
+          error={autosaveErrors[`link-${service.id}`]}
           onLink={onLink}
         />
       );
@@ -1544,7 +1580,7 @@ function RepasseGrid({ services, favorecidos, busy, onSave, onLink }) {
           <small>Configuração salva automaticamente.</small>
         </div>
         <div className="repasse-grid-actions">
-          <div className="saved-view-wrap">
+          <div className="saved-view-wrap" ref={savedViewRef}>
             <button
               className={`secondary-button ${activeView ? "is-active" : ""}`}
               onClick={() => {
@@ -1643,7 +1679,7 @@ function RepasseGrid({ services, favorecidos, busy, onSave, onLink }) {
             <Rows3 size={16} />
             {density === "compact" ? "Compacta" : "Compactar"}
           </button>
-          <div className="column-picker-wrap">
+          <div className="column-picker-wrap" ref={columnPickerRef}>
             <button
               className="secondary-button"
               onClick={() => {
@@ -1674,59 +1710,81 @@ function RepasseGrid({ services, favorecidos, busy, onSave, onLink }) {
                   placeholder="Localizar coluna"
                   aria-label="Localizar coluna"
                 />
-                {pickerColumns.map((column) => {
-                  const index = orderedColumns.findIndex(
-                    (item) => item.id === column.id,
-                  );
-                  const previous = orderedColumns[index - 1];
-                  const next = orderedColumns[index + 1];
-                  const canMoveUp = previous?.locked === column.locked;
-                  const canMoveDown = next?.locked === column.locked;
-                  return (
-                    <div className="column-picker-row" key={column.id}>
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={column.visible}
-                          onChange={() => toggleColumn(column.id)}
-                        />
-                        <span>{column.label}</span>
-                      </label>
-                      <div className="column-picker-actions">
-                        <button
-                          type="button"
-                          className="column-order"
-                          aria-label={`Mover ${column.label} para cima`}
-                          title="Mover para cima"
-                          disabled={!canMoveUp}
-                          onClick={() => moveColumnWithKeyboard(column.id, -1)}
-                        >
-                          <ChevronUp size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          className="column-order"
-                          aria-label={`Mover ${column.label} para baixo`}
-                          title="Mover para baixo"
-                          disabled={!canMoveDown}
-                          onClick={() => moveColumnWithKeyboard(column.id, 1)}
-                        >
-                          <ChevronDown size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          className={`column-pin ${column.locked ? "is-active" : ""}`}
-                          aria-label={`${column.locked ? "Desafixar" : "Fixar"} ${column.label}`}
-                          aria-pressed={column.locked}
-                          title={column.locked ? "Desafixar coluna" : "Fixar à esquerda"}
-                          onClick={() => toggleColumnPin(column.id)}
-                        >
-                          <Pin size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                {pickerColumns.map((column) => (
+                  <div
+                    className={`column-picker-row ${draggedColumn === column.id ? "is-dragging" : ""} ${dropTarget?.id === column.id ? `is-drop-${dropTarget.placement}` : ""}`}
+                    key={column.id}
+                    onDragOver={(event) => {
+                      if (!draggedColumn || draggedColumn === column.id) return;
+                      const source = orderedColumns.find(
+                        (item) => item.id === draggedColumn,
+                      );
+                      if (!source || source.locked !== column.locked) return;
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      const nextTarget = {
+                        id: column.id,
+                        placement:
+                          event.clientY < rect.top + rect.height / 2
+                            ? "before"
+                            : "after",
+                      };
+                      setDropTarget((current) =>
+                        current?.id === nextTarget.id &&
+                        current.placement === nextTarget.placement
+                          ? current
+                          : nextTarget,
+                      );
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      moveColumn(
+                        column.id,
+                        dropTarget?.id === column.id
+                          ? dropTarget.placement
+                          : "before",
+                      );
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="column-drag-handle"
+                      draggable
+                      aria-label={`Reordenar ${column.label}`}
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", column.id);
+                        setDropTarget(null);
+                        setDraggedColumn(column.id);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedColumn("");
+                        setDropTarget(null);
+                      }}
+                    >
+                      <GripVertical size={15} aria-hidden="true" />
+                    </button>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={column.visible}
+                        onChange={() => toggleColumn(column.id)}
+                      />
+                      <span>{column.label}</span>
+                    </label>
+                    <button
+                      type="button"
+                      className={`column-pin ${column.locked ? "is-active" : ""}`}
+                      aria-label={`${column.locked ? "Desafixar" : "Fixar"} ${column.label}`}
+                      aria-pressed={column.locked}
+                      title={column.locked ? "Desafixar coluna" : "Fixar à esquerda"}
+                      onClick={() => toggleColumnPin(column.id)}
+                    >
+                      <Pin size={14} />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -1883,7 +1941,7 @@ function RepasseInput({ service, saving, onSave }) {
     [service.valorRepasse],
   );
   useEffect(() => {
-    if (!feedback || feedback.type === "saving") return undefined;
+    if (!feedback || feedback.type !== "saved") return undefined;
     const timeout = window.setTimeout(() => setFeedback(null), 1850);
     return () => window.clearTimeout(timeout);
   }, [feedback]);
@@ -1946,21 +2004,37 @@ function RepasseInput({ service, saving, onSave }) {
         </span>
       )}
       {status?.type === "error" && (
-        <button
-          type="button"
-          className="repasse-save-icon is-error"
-          title={`${status.message} Clique para tentar novamente.`}
-          aria-label="Repasse não salvo. Tentar novamente"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={save}
-        >
-          <AlertTriangle size={13} aria-hidden="true" />
-        </button>
+        <AutoSaveErrorIcon
+          message={status.message}
+          label="Repasse não salvo"
+          onRetry={save}
+        />
       )}
     </div>
   );
 }
-function FavorecidoCell({ service, favorecidos, saving, onLink }) {
+function AutoSaveErrorIcon({ message, label, onRetry }) {
+  return (
+    <button
+      type="button"
+      className="repasse-save-icon is-error"
+      title={`${message} Clique para tentar novamente.`}
+      aria-label={`${label}. Tentar novamente`}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={onRetry}
+    >
+      <AlertTriangle size={13} aria-hidden="true" />
+    </button>
+  );
+}
+function FavorecidoCell({ service, favorecidos, saving, error, onLink }) {
+  const errorIcon = error ? (
+    <AutoSaveErrorIcon
+      message={error.message}
+      label="Favorecido não salvo"
+      onRetry={() => onLink(service, error.favorecidoId)}
+    />
+  ) : null;
   if (service.favorecidoId) {
     const favorecido = favorecidos.find(
       (row) => row.id === service.favorecidoId,
@@ -1971,26 +2045,30 @@ function FavorecidoCell({ service, favorecidos, saving, onLink }) {
         <span title={favorecido?.nome || "Favorecido"}>
           {favorecido?.nome || "Favorecido"}
         </span>
+        {errorIcon}
       </div>
     );
   }
   return (
-    <SearchableSelect
-      value=""
-      disabled={saving}
-      placeholder="Vincular favorecido"
-      aria-label={`Vincular favorecido de ${service.identificador}`}
-      className="repasse-favorecido-select"
-      options={[
-        { value: "", label: "Vincular favorecido" },
-        ...favorecidos.map((row) => ({
-          value: row.id,
-          label: row.nome,
-          search: `${row.documento || ""} ${row.email || ""}`,
-        })),
-      ]}
-      onChange={(value) => value && onLink(service, value)}
-    />
+    <div className="favorecido-cell">
+      <SearchableSelect
+        value=""
+        disabled={saving}
+        placeholder="Vincular favorecido"
+        aria-label={`Vincular favorecido de ${service.identificador}`}
+        className="repasse-favorecido-select"
+        options={[
+          { value: "", label: "Vincular favorecido" },
+          ...favorecidos.map((row) => ({
+            value: row.id,
+            label: row.nome,
+            search: `${row.documento || ""} ${row.email || ""}`,
+          })),
+        ]}
+        onChange={(value) => value && onLink(service, value)}
+      />
+      {errorIcon}
+    </div>
   );
 }
 

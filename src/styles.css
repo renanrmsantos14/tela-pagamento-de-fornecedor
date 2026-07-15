@@ -2206,7 +2206,7 @@ select:focus {
   top: calc(100% + 7px);
   right: 0;
   z-index: 30;
-  width: 260px;
+  width: min(280px, calc(100vw - 20px));
   padding: 10px;
   display: grid;
   gap: 3px;
@@ -2233,13 +2233,43 @@ select:focus {
   font-size: var(--text-sm);
 }
 .column-picker-row {
+  position: relative;
   min-height: 32px;
   padding: 0 5px;
-  display: flex;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 26px;
   align-items: center;
   gap: 4px;
   border-radius: 6px;
-  transition: background-color 140ms ease;
+  transition:
+    background-color 140ms ease,
+    opacity 140ms ease;
+}
+.column-picker-row.is-drop-before,
+.column-picker-row.is-drop-after {
+  background: #edf4ff;
+}
+.column-picker-row.is-drop-before::before,
+.column-picker-row.is-drop-after::after {
+  position: absolute;
+  right: 4px;
+  left: 4px;
+  z-index: 1;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--blue);
+  box-shadow: 0 0 0 2px rgba(33, 89, 210, 0.12);
+  pointer-events: none;
+  content: "";
+}
+.column-picker-row.is-drop-before::before {
+  top: -1px;
+}
+.column-picker-row.is-drop-after::after {
+  bottom: -1px;
+}
+.column-picker-row.is-dragging {
+  opacity: 0.45;
 }
 .column-picker-row label {
   min-height: 32px;
@@ -2264,12 +2294,7 @@ select:focus {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.column-picker-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.column-order,
+.column-drag-handle,
 .column-pin {
   width: 26px;
   min-width: 26px;
@@ -2286,15 +2311,18 @@ select:focus {
     background-color 140ms ease,
     transform 140ms var(--ease-out);
 }
-.column-order:disabled {
-  cursor: not-allowed;
-  opacity: 0.35;
+.column-drag-handle {
+  color: #a0adbd;
+  cursor: grab;
+}
+.column-drag-handle:active {
+  cursor: grabbing;
 }
 .column-pin.is-active {
   color: var(--blue);
   background: #edf3ff;
 }
-.column-order:not(:disabled):active,
+.column-drag-handle:active,
 .column-pin:active {
   transform: scale(0.94);
 }
@@ -2618,7 +2646,10 @@ select:focus {
 .repasse-save-icon.is-error {
   color: var(--danger);
   cursor: pointer;
+  background: rgba(255, 249, 249, 0.9);
+  backdrop-filter: blur(3px);
   pointer-events: auto;
+  animation: none;
 }
 .repasse-save-icon:focus-visible {
   outline: 2px solid currentColor;
@@ -2654,6 +2685,13 @@ select:focus {
 }
 .repasse-favorecido-select .custom-select-value {
   font-size: var(--text-xs);
+}
+.favorecido-cell,
+.favorecido-linked {
+  position: relative;
+}
+.favorecido-cell {
+  width: 100%;
 }
 .repasse-grid-shell.is-compact .repasse-grid-row {
   min-height: 46px;

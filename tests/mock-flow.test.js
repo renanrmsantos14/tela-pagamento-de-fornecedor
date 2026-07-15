@@ -80,6 +80,18 @@ async function remoteClient() {
       const attribute = decodeURIComponent(url).match(
         /Attributes\(LogicalName='([^']+)'\)/,
       );
+      if (
+        logicalName === "cr40f_composicaodeprecos" &&
+        url.includes("LookupAttributeMetadata")
+      )
+        return response({
+          value: [
+            {
+              LogicalName: "cr40f_reserva",
+              Targets: ["cr40f_reservadeveculos"],
+            },
+          ],
+        });
       if (attribute)
         return schemaNames[attribute[1]]
           ? response({
@@ -111,7 +123,7 @@ async function remoteClient() {
           {
             cr40f_composicaodeprecosid: "cmp-remote-001",
             cr40f_id: "CMP-REMOTE-001",
-            _cr40f_servicorelacionadogeral_value: "res-remote-001",
+            _cr40f_reserva_value: "res-remote-001",
             new_valortotal: 1000,
             new_status: 100000001,
             cr40f_valorrepasseterceiro: 600,
@@ -130,7 +142,11 @@ async function remoteClient() {
             cr40f_trajeto: "GRU - Centro",
             cr40f_destino: "Centro",
             _cr40f_motorista_value: "drv-remote-001",
+            "_cr40f_motorista_value@OData.Community.Display.V1.FormattedValue":
+              "Motorista remoto",
             _cr40f_cliente_value: "cli-remote-001",
+            "_cr40f_cliente_value@OData.Community.Display.V1.FormattedValue":
+              "Cliente remoto",
           },
         ],
       });
@@ -316,6 +332,15 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
     const remoteServices = await remote.dataverse.listFinanceServices();
     assert.equal(remoteLinks[0].motoristaId, "drv-remote-001");
     assert.equal(remoteServices[0].motoristaId, "drv-remote-001");
+    assert.equal(remoteServices[0].reservationId, "res-remote-001");
+    assert.equal(remoteServices[0].motorista, "Motorista remoto");
+    assert.equal(remoteServices[0].cliente, "Cliente remoto");
+    assert.equal(remoteServices[0].trajeto, "GRU - Centro");
+    assert(
+      remote.requests.some((request) =>
+        request.url.includes("_cr40f_reserva_value"),
+      ),
+    );
     const preferred = await remote.dataverse.setPreferredFavorecido(
       "cmp-remote-001",
       "fav-remote-001",
