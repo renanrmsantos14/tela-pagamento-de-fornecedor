@@ -14,6 +14,7 @@ import {
   FileText,
   Link2,
   LayoutDashboard,
+  Pencil,
   Pin,
   GripVertical,
   Plus,
@@ -2165,6 +2166,8 @@ function AutoSaveErrorIcon({ message, label, onRetry, canRetry = true }) {
   );
 }
 function FavorecidoCell({ service, favorecidos, saving, error, onLink }) {
+  const [editing, setEditing] = useState(false);
+  useEffect(() => setEditing(false), [service.favorecidoId]);
   const errorIcon = error ? (
     <AutoSaveErrorIcon
       message={error.message}
@@ -2172,16 +2175,28 @@ function FavorecidoCell({ service, favorecidos, saving, error, onLink }) {
       onRetry={() => onLink(service, error.favorecidoId)}
     />
   ) : null;
-  if (service.favorecidoId) {
+  if (service.favorecidoId && !editing) {
     const favorecido = favorecidos.find(
       (row) => row.id === service.favorecidoId,
     );
     return (
       <div className="favorecido-linked">
         <Badge tone="green">Vinculado</Badge>
-        <span title={favorecido?.nome || "Favorecido"}>
-          {favorecido?.nome || "Favorecido"}
-        </span>
+        <div className="favorecido-linked-name">
+          <span title={favorecido?.nome || "Favorecido"}>
+            {favorecido?.nome || "Favorecido"}
+          </span>
+          <button
+            type="button"
+            className="favorecido-edit"
+            disabled={saving}
+            onClick={() => setEditing(true)}
+            aria-label={`Trocar favorecido de ${service.identificador}`}
+            title="Trocar favorecido"
+          >
+            <Pencil size={13} aria-hidden="true" />
+          </button>
+        </div>
         {errorIcon}
       </div>
     );
@@ -2189,10 +2204,11 @@ function FavorecidoCell({ service, favorecidos, saving, error, onLink }) {
   return (
     <div className="favorecido-cell">
       <SearchableSelect
-        value=""
+        value={service.favorecidoId || ""}
         disabled={saving}
+        clearable={false}
         placeholder="Vincular favorecido"
-        aria-label={`Vincular favorecido de ${service.identificador}`}
+        aria-label={`Trocar favorecido de ${service.identificador}`}
         className="repasse-favorecido-select"
         options={[
           { value: "", label: "Vincular favorecido" },
@@ -2202,7 +2218,14 @@ function FavorecidoCell({ service, favorecidos, saving, error, onLink }) {
             search: `${row.documento || ""} ${row.email || ""}`,
           })),
         ]}
-        onChange={(value) => value && onLink(service, value)}
+        onChange={async (value) => {
+          if (!value || value === service.favorecidoId) {
+            setEditing(false);
+            return;
+          }
+          await onLink(service, value);
+          setEditing(false);
+        }}
       />
       {errorIcon}
     </div>

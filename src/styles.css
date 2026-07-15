@@ -3442,7 +3442,15 @@ textarea:focus-visible {
   justify-content: center;
   line-height: 1;
 }
-.favorecido-linked > span {
+.favorecido-linked-name {
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.favorecido-linked-name > span {
   max-width: 100%;
   overflow: hidden;
   color: #53657b;
@@ -3451,6 +3459,38 @@ textarea:focus-visible {
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.favorecido-edit {
+  width: 23px;
+  min-width: 23px;
+  height: 23px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  color: #6280a8;
+  background: transparent;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    transform 140ms var(--ease-out);
+}
+.favorecido-edit:focus-visible {
+  outline: 2px solid #7fa4e4;
+  outline-offset: 1px;
+}
+.favorecido-edit:active:not(:disabled) {
+  transform: scale(0.92);
+}
+@media (hover: hover) and (pointer: fine) {
+  .favorecido-edit:hover:not(:disabled) {
+    color: #1f559f;
+    background: #edf4ff;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .favorecido-edit { transition: none; }
 }
 .status-badge.tone-green {
   color: #147a4b;
