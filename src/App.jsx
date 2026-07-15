@@ -1488,13 +1488,19 @@ function RepasseGrid({
       ),
     );
   const toggleColumnPin = (id) =>
-    setColumns((current) =>
-      orderRepasseColumns(
+    setColumns((current) => {
+      previousColumnPositionsRef.current = new Map(
+        [...columnRowRefs.current].map(([columnId, element]) => [
+          columnId,
+          element.getBoundingClientRect().top,
+        ]),
+      );
+      return orderRepasseColumns(
         current.map((column) =>
           column.id === id ? { ...column, locked: !column.locked } : column,
         ),
-      ),
-    );
+      );
+    });
   const resetColumns = () =>
     setColumns(REPASSE_COLUMNS.map((column) => ({ ...column, visible: true })));
   const adjustColumnWidth = (id, delta) =>
