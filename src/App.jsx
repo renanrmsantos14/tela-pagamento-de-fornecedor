@@ -129,13 +129,16 @@ const formatServiceDate = (value, fallback = "") =>
         timeStyle: "short",
       })
     : fallback;
-const REPASSE_DEFAULT_STATUS_FILTER = [
+const REPASSE_DEFAULT_STATUS_LABELS = [
   "concluido",
   "cancelado com ressalvas",
 ];
-const repasseStatusLabel = (service) =>
-  service.statusLabel ||
-  (service.status === "concluido" ? "Concluído" : service.status || "Sem status");
+const normalizeFilterLabel = (value) =>
+  String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 const maskPix = (value) =>
   value?.length > 8 ? `${value.slice(0, 3)}••••${value.slice(-3)}` : value;
 const REPASSE_COLUMNS = [
@@ -246,6 +249,7 @@ export default function App() {
   const [drivers, setDrivers] = useState([]);
   const [links, setLinks] = useState([]);
   const [lots, setLots] = useState([]);
+  const [reservationStatusOptions, setReservationStatusOptions] = useState([]);
   const [tab, setTab] = useState("overview");
   const [range, setRange] = useState(monthRange);
   const [search, setSearch] = useState("");
@@ -271,7 +275,7 @@ export default function App() {
   async function refresh() {
     setBusy("refresh", true);
     try {
-      const [serviceRows, previousServiceRows, favorecidoRows, driverRows, linkRows, lotRows] =
+      const [serviceRows, previousServiceRows, favorecidoRows, driverRows, linkRows, lotRows, statusRows] =
         await Promise.all([
           dataverse.listFinanceServices(range),
           dataverse.listFinanceServices(previousRange(range)),
@@ -279,6 +283,7 @@ export default function App() {
           dataverse.listDrivers(),
           dataverse.listLinks(),
           dataverse.listLots(),
+          dataverse.listReservationStatuses(),
         ]);
       setServices(serviceRows);
       setPreviousServices(previousServiceRows);
@@ -286,6 +291,7 @@ export default function App() {
       setDrivers(driverRows);
       setLinks(linkRows);
       setLots(lotRows);
+      setReservationStatusOptions(statusRows);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -622,6 +628,7 @@ export default function App() {
               setDriverIds={setDriverIds}
               favorecidoIds={favorecidoIds}
               setFavorecidoIds={setFavorecidoIds}
+              reservationStatusOptions={reservationStatusOptions}
               busy={busy}
               autosaveErrors={autosaveErrors}
               onSaveRepasse={saveRepasse}
@@ -1111,36 +1118,31 @@ function PaymentsView({
   setDriverIds,
   favorecidoIds,
   setFavorecidoIds,
+  reservationStatusOptions,
   busy,
   autosaveErrors,
   onSaveRepasse,
   onLink,
 }) {
-  const [statusFilter, setStatusFilter] = useState(
-    REPASSE_DEFAULT_STATUS_FILTER,
-  );
-  const statusOptions = useMemo(() => {
-    const options = new Map(
-      REPASSE_DEFAULT_STATUS_FILTER.map((value) => [
-        value,
-        {
-          value,
-          label:
-            value === "concluido" ? "Concluído" : "Cancelado com ressalvas",
-        },
-      ]),
+  const [statusFilter, setStatusFilter] = useState([]);
+  const statusDefaultApplied = useRef(false);
+  useEffect(() => {
+    if (statusDefaultApplied.current || !reservationStatusOptions.length) return;
+    statusDefaultApplied.current = true;
+    setStatusFilter(
+      reservationStatusOptions
+        .filter((option) =>
+          REPASSE_DEFAULT_STATUS_LABELS.includes(
+            normalizeFilterLabel(option.label),
+          ),
+        )
+        .map((option) => option.value),
     );
-    services.forEach((service) => {
-      const value = service.status || "sem status";
-      if (!options.has(value))
-        options.set(value, { value, label: repasseStatusLabel(service) });
-    });
-    return [...options.values()];
-  }, [services]);
+  }, [reservationStatusOptions]);
   const filteredServices = useMemo(
     () =>
       services.filter((row) =>
-        statusFilter.includes(row.status || "sem status"),
+        !statusFilter.length || statusFilter.includes(row.reservationStatus),
       ),
     [services, statusFilter],
   );
@@ -1212,8 +1214,8 @@ function PaymentsView({
               value={statusFilter}
               onChange={setStatusFilter}
               aria-label="Filtrar lançamentos por status"
-              options={statusOptions}
-              placeholder="Selecione os status"
+              options={reservationStatusOptions}
+              placeholder="Todos os status"
             />
           </label>
         </div>

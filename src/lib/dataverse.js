@@ -300,6 +300,9 @@ function seedServices() {
           ),
       status,
       statusLabel: status === "concluido" ? "Concluído" : "Pendente",
+      reservationStatus: status,
+      reservationStatusLabel:
+        status === "concluido" ? "Concluído" : "Pendente",
       pagamentoId: "",
       etag: 1,
     };
@@ -965,6 +968,37 @@ class DataverseClient {
     this.cache.set(cacheKey, resolved);
     return resolved;
   }
+  async listReservationStatuses() {
+    if (this.mockMode) {
+      const options = new Map();
+      this.mock.services.forEach((service) => {
+        const value = service.reservationStatus || service.status;
+        if (value)
+          options.set(value, {
+            value,
+            label: service.reservationStatusLabel || service.statusLabel || value,
+          });
+      });
+      return [...options.values()];
+    }
+    const cacheKey = "reservationStatusOptions";
+    if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+    const response = await this.request(
+      "GET",
+      `/EntityDefinitions(LogicalName='${escapeOData(TABLES.reservation)}')/Attributes(LogicalName='cr40f_status')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName&$expand=OptionSet($select=Options)`,
+    ).catch(() => ({}));
+    const options = (response.OptionSet?.Options || [])
+      .filter((option) => option.Value !== null && option.Value !== undefined)
+      .map((option) => ({
+        value: String(option.Value),
+        label:
+          option.Label?.UserLocalizedLabel?.Label ||
+          option.Label?.LocalizedLabels?.[0]?.Label ||
+          String(option.Value),
+      }));
+    this.cache.set(cacheKey, options);
+    return options;
+  }
   async compositionReservationLookupValueField() {
     const cacheKey = "compositionReservationLookupValueField";
     if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
@@ -1004,7 +1038,7 @@ class DataverseClient {
       ),
       this.listAll(
         TABLES.reservation,
-        `?$select=${reservationEntity.id},cr40f_id${reservationFields.length ? `,${reservationFields.join(",")}` : ""}&$top=5000`,
+        `?$select=${reservationEntity.id},cr40f_id,cr40f_status${reservationFields.length ? `,${reservationFields.join(",")}` : ""}&$top=5000`,
       ),
     ]);
     const reservations = new Map(
@@ -1058,6 +1092,10 @@ class DataverseClient {
         valorRepasse: Number(composition.cr40f_valorrepasseterceiro || 0),
         status: normalizeLabel(statusLabel),
         statusLabel,
+        reservationStatus: String(reservation.cr40f_status ?? ""),
+        reservationStatusLabel:
+          reservation["cr40f_status@OData.Community.Display.V1.FormattedValue"] ||
+          String(reservation.cr40f_status ?? ""),
         etag: composition["@odata.etag"] || "*",
       }];
     });

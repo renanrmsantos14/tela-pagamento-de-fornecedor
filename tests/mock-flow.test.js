@@ -120,6 +120,30 @@ async function remoteClient() {
             },
           ],
         });
+      if (
+        logicalName === "cr40f_reservadeveculos" &&
+        url.includes("PicklistAttributeMetadata")
+      )
+        return response({
+          OptionSet: {
+            Options: [
+              {
+                Value: 100000000,
+                Label: { UserLocalizedLabel: { Label: "Programado" } },
+              },
+              {
+                Value: 100000001,
+                Label: { UserLocalizedLabel: { Label: "Concluído" } },
+              },
+              {
+                Value: 100000002,
+                Label: {
+                  UserLocalizedLabel: { Label: "Cancelado com ressalvas" },
+                },
+              },
+            ],
+          },
+        });
       if (attribute)
         return schemaNames[attribute[1]]
           ? response({
@@ -172,6 +196,9 @@ async function remoteClient() {
           {
             cr40f_reservadeveculosid: "res-remote-001",
             cr40f_id: "RES-REMOTE-001",
+            cr40f_status: 100000002,
+            "cr40f_status@OData.Community.Display.V1.FormattedValue":
+              "Cancelado com ressalvas",
             cr40f_dataehorariodesaida: "2026-07-15T12:00:00Z",
             cr40f_trajeto: "GRU - Centro",
             cr40f_destino: "Centro",
@@ -377,10 +404,20 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
     );
     const remoteLinks = await remote.dataverse.listLinks();
     const remoteServices = await remote.dataverse.listFinanceServices();
+    const reservationStatuses = await remote.dataverse.listReservationStatuses();
     assert.equal(remoteServices.length, 1);
     assert.equal(remoteLinks[0].motoristaId, "drv-remote-001");
     assert.equal(remoteServices[0].identificador, "RES-REMOTE-001");
     assert.equal(remoteServices[0].status, "concluido");
+    assert.equal(remoteServices[0].reservationStatus, "100000002");
+    assert.equal(
+      remoteServices[0].reservationStatusLabel,
+      "Cancelado com ressalvas",
+    );
+    assert.deepEqual(
+      reservationStatuses.map((option) => option.label),
+      ["Programado", "Concluído", "Cancelado com ressalvas"],
+    );
     assert.equal(remoteServices[0].motoristaId, "drv-remote-001");
     assert.equal(remoteServices[0].reservationId, "res-remote-001");
     assert.equal(remoteServices[0].motorista, "Motorista remoto");
