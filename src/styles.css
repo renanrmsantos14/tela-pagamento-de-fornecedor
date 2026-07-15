@@ -2487,6 +2487,36 @@ select:focus {
   color: var(--navy);
   font-weight: 800;
 }
+.service-identifier-link {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  text-overflow: ellipsis;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+.service-identifier-link:hover,
+.service-identifier-link:focus-visible {
+  outline: none;
+  text-decoration-color: currentColor;
+}
+.selection-row .service-identifier-link {
+  color: #263548;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.compact-list .service-identifier-link {
+  color: #334155;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
 .repasse-grid-cell.cell-valorRepasse {
   padding-inline: 10px;
 }

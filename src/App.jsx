@@ -242,6 +242,22 @@ function Drawer({ title, subtitle, children, onClose, wide = false }) {
 function Badge({ tone = "neutral", children }) {
   return <span className={`status-badge tone-${tone}`}>{children}</span>;
 }
+function ServiceIdentifierLink({ identifier, reservationId }) {
+  const href = dataverse.reservationWebresourceUrl(reservationId);
+  if (!href) return <span>{identifier}</span>;
+  return (
+    <a
+      className="service-identifier-link"
+      href={href}
+      target="_top"
+      title={`Abrir serviço ${identifier}`}
+      aria-label={`Abrir serviço ${identifier}`}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {identifier}
+    </a>
+  );
+}
 export default function App() {
   const [services, setServices] = useState([]);
   const [previousServices, setPreviousServices] = useState([]);
@@ -1538,6 +1554,13 @@ function RepasseGrid({
     setViewMessage(`View “${activeView.name}” excluída.`);
   };
   const cell = (service, column) => {
+    if (column.id === "identificador")
+      return (
+        <ServiceIdentifierLink
+          identifier={service.identificador}
+          reservationId={service.reservationId}
+        />
+      );
     if (column.id === "valorRepasse")
       return (
         <RepasseInput
@@ -2541,7 +2564,10 @@ function LotDrawer({
                 }
               />
               <div>
-                <strong>{service.identificador}</strong>
+                <ServiceIdentifierLink
+                  identifier={service.identificador}
+                  reservationId={service.reservationId}
+                />
                 <span>
                   {service.motorista} · {service.trajeto}
                 </span>
@@ -2621,7 +2647,10 @@ function LotDetailDrawer({
           <div className="compact-list">
             {lot.items.map((item) => (
               <div key={item.id}>
-                <strong>{item.identificador}</strong>
+                <ServiceIdentifierLink
+                  identifier={item.identificador}
+                  reservationId={item.reservationId}
+                />
                 <span>
                   {item.motorista} · {money(item.valorRepasse)}
                 </span>

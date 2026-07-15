@@ -390,6 +390,20 @@ class DataverseClient {
         ? new URL(this.clientUrl).hostname
         : "Não conectado";
   }
+  reservationWebresourceUrl(reservationId) {
+    const id = cleanGuid(reservationId);
+    if (!id) return "";
+    const data = encodeURIComponent(
+      JSON.stringify({
+        mode: "edit",
+        entityName: TABLES.reservation,
+        id,
+        recordId: id,
+        entityId: id,
+      }),
+    );
+    return `${this.clientUrl || ""}/main.aspx?pagetype=webresource&webresourceName=new_formulario_geral.html&data=${data}`;
+  }
   loadMock() {
     try {
       const saved =

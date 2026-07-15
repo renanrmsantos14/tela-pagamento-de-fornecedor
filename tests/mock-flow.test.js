@@ -273,6 +273,21 @@ test("lista de lançamento traz contexto operacional para precificar", async () 
   assert.ok(service.observacaoOperacao);
 });
 
+test("link do serviço abre a reserva no formulário geral", async () => {
+  const { dataverse } = await client();
+  const url = new URL(
+    dataverse.reservationWebresourceUrl("da5c0f99-c570-f111-ab0e-70a8a5a9630e"),
+    "https://app.local",
+  );
+  const data = JSON.parse(url.searchParams.get("data"));
+  assert.equal(url.searchParams.get("pagetype"), "webresource");
+  assert.equal(url.searchParams.get("webresourceName"), "new_formulario_geral.html");
+  assert.equal(data.entityName, "cr40f_reservadeveculos");
+  assert.equal(data.id, "da5c0f99-c570-f111-ab0e-70a8a5a9630e");
+  assert.equal(data.recordId, data.id);
+  assert.equal(data.entityId, data.id);
+});
+
 test("bloqueia repasse com versão desatualizada", async () => {
   const { dataverse } = await client();
   dataverse.resetMock();
