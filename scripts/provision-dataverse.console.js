@@ -431,7 +431,12 @@
 
   const getAttributeWithType = (entity, logicalName, typeName) =>
     getOrNull(
-      `${metadataAttributePath(entity, logicalName)}/Microsoft.Dynamics.CRM.${typeName}AttributeMetadata?$select=LogicalName,SchemaName,AttributeType,AttributeTypeName,MetadataId,Targets,OptionSet`,
+      `${metadataAttributePath(entity, logicalName)}/Microsoft.Dynamics.CRM.${typeName}AttributeMetadata?$select=LogicalName,SchemaName,AttributeType,AttributeTypeName,MetadataId,OptionSet`,
+    );
+
+  const getLookupAttribute = (entity, logicalName) =>
+    getOrNull(
+      `${metadataAttributePath(entity, logicalName)}/Microsoft.Dynamics.CRM.LookupAttributeMetadata?$select=LogicalName,SchemaName,AttributeType,AttributeTypeName,MetadataId,Targets`,
     );
 
   const log = (message, detail = "") =>
@@ -534,11 +539,7 @@
     const existing = await getAttribute(definition.source, logicalName);
     if (existing) {
       assertType(existing, TYPE_NAMES.Lookup, definition.source, logicalName);
-      const lookup = await getAttributeWithType(
-        definition.source,
-        logicalName,
-        "Lookup",
-      );
+      const lookup = await getLookupAttribute(definition.source, logicalName);
       if (!lookup?.Targets?.includes(definition.target)) {
         throw new Error(
           `${definition.source}.${logicalName} existe, mas não aponta para ${definition.target}.`,
