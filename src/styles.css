@@ -2280,7 +2280,9 @@ select:focus {
 }
 .repasse-grid-scroll {
   max-width: 100%;
+  max-height: min(72vh, 720px);
   overflow: auto;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-color: #a9b8cc transparent;
 }
@@ -2606,6 +2608,7 @@ select:focus {
     flex-basis: 100%;
   }
   .repasse-grid-scroll {
+    max-height: min(64vh, 560px);
     border-radius: 0 0 12px 12px;
   }
   .repasse-grid-head {
