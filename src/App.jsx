@@ -1563,21 +1563,6 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
           </div>
         </div>
       </div>
-      {horizontalScroll.contentWidth > horizontalScroll.viewportWidth && (
-        <div
-          className="repasse-grid-horizontal-scroll"
-          ref={horizontalScrollRef}
-          role="region"
-          aria-label="Rolagem horizontal da tabela"
-          onScroll={(event) => {
-            const table = gridScrollRef.current;
-            if (table && table.scrollLeft !== event.currentTarget.scrollLeft)
-              table.scrollLeft = event.currentTarget.scrollLeft;
-          }}
-        >
-          <div style={{ width: `${horizontalScroll.contentWidth}px` }} />
-        </div>
-      )}
       <div className="repasse-grid-scroll" ref={gridScrollRef}>
         <div
           className="repasse-grid"
@@ -1699,6 +1684,21 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
               <FileText size={28} />
               <strong>Nenhum serviço no período</strong>
               <span>Amplie o intervalo ou ajuste os filtros.</span>
+            </div>
+          )}
+          {horizontalScroll.contentWidth > horizontalScroll.viewportWidth && (
+            <div
+              className="repasse-grid-horizontal-scroll"
+              ref={horizontalScrollRef}
+              role="region"
+              aria-label="Rolagem horizontal da tabela"
+              onScroll={(event) => {
+                const table = gridScrollRef.current;
+                if (table && table.scrollLeft !== event.currentTarget.scrollLeft)
+                  table.scrollLeft = event.currentTarget.scrollLeft;
+              }}
+            >
+              <div style={{ width: `${horizontalScroll.contentWidth}px` }} />
             </div>
           )}
         </div>
@@ -2355,9 +2355,9 @@ function LotDetailDrawer({
                   {item.motorista} · {money(item.valorRepasse)}
                 </span>
               </div>
-            ))}
-          </div>
+          ))}
         </div>
+      </div>
         <div className="detail-card">
           <h3>Ações</h3>
           <div className="detail-actions">
