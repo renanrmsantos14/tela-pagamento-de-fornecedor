@@ -325,7 +325,31 @@ export default function App() {
     }
   }
   async function linkService(service, favorecidoId) {
+    const previousFavorecidoId = service.favorecidoId;
+    const previousLink = links.find(
+      (link) =>
+        link.motoristaId === service.motoristaId &&
+        link.favorecidoId === favorecidoId,
+    );
+    const optimisticLink = previousLink || {
+      id: `pending-link-${service.id}-${favorecidoId}`,
+      motoristaId: service.motoristaId,
+      favorecidoId,
+      status: "ativo",
+    };
     setBusy(`link-${service.id}`, true);
+    setServices((rows) =>
+      rows.map((row) =>
+        row.id === service.id ? { ...row, favorecidoId } : row,
+      ),
+    );
+    setLinks((rows) =>
+      previousLink
+        ? rows.map((link) =>
+            link.id === previousLink.id ? { ...link, status: "ativo" } : link,
+          )
+        : [...rows, optimisticLink],
+    );
     try {
       const saved = await dataverse.setPreferredFavorecido(
         service.id,
@@ -333,12 +357,28 @@ export default function App() {
         service.motoristaId,
       );
       setServices((rows) =>
-        rows.map((row) => (row.id === service.id ? { ...row, ...saved } : row)),
+        rows.map((row) =>
+          row.id === service.id ? { ...row, ...saved, favorecidoId } : row,
+        ),
       );
       setLinks(await dataverse.listLinks());
       setPreselected((current) => new Set(current).add(service.id));
       setNotice("Vínculo criado e serviço pré-selecionado.");
     } catch (err) {
+      setServices((rows) =>
+        rows.map((row) =>
+          row.id === service.id
+            ? { ...row, favorecidoId: previousFavorecidoId }
+            : row,
+        ),
+      );
+      setLinks((rows) =>
+        previousLink
+          ? rows.map((link) =>
+              link.id === previousLink.id ? previousLink : link,
+            )
+          : rows.filter((link) => link.id !== optimisticLink.id),
+      );
       setError(err.message);
     } finally {
       setBusy(`link-${service.id}`, false);
