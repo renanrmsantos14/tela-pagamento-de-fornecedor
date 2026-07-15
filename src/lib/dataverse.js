@@ -11,6 +11,10 @@ import {
 const API_VERSION = "v9.2";
 const STORE_KEY = "betinhos_pagamentos_terceiros_mock_v4";
 const FLOW_CONTRACT = "new_FlowURLFlowSalvarArquivosOnedrive";
+const MAX_PAYMENT_PROOF_SIZE = 5 * 1024 * 1024;
+const ERROR_LOG_ENTITY_SET = "new_appmotoristaslogs";
+const ERROR_LOG_QUEUE_KEY = "betinhos-pagamentos-error-log-queue-v1";
+const MAX_ERROR_LOG_QUEUE = 50;
 export const TABLES = Object.freeze({
   employee: "cr40f_funcionarios",
   composition: "cr40f_composicaodeprecos",
@@ -64,6 +68,21 @@ const runtimeConfig = () => {
       config.financeCopyEmail || root.__FINANCE_COPY_EMAIL || "",
   };
 };
+const fileToDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Falha ao preparar comprovante para envio."));
+    reader.readAsDataURL(file);
+  });
+const sanitizePathSegment = (value, fallback = "arquivo") => {
+  const sanitized = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return sanitized || fallback;
+};
 const localHost = () =>
   typeof window !== "undefined" &&
   ["localhost", "127.0.0.1"].includes(window.location.hostname);
@@ -83,6 +102,14 @@ const normalizeLabel = (value) =>
     .toLowerCase()
     .trim();
 const reservationDetailLabels = Object.freeze({
+  dataServico: [
+    "data e hor\u00e1rio de sa\u00edda",
+    "data/hora de sa\u00edda",
+    "data e hora de sa\u00edda",
+  ],
+  trajeto: ["trajeto", "rota"],
+  cliente: ["cliente"],
+  motorista: ["motorista"],
   dataFinalizacao: [
     "horário de finalização",
     "data/hora de finalização",
@@ -103,6 +130,31 @@ const selectableAttributeName = (attribute) =>
   attribute?.AttributeType === "Lookup"
     ? `_${attribute.LogicalName}_value`
     : attribute?.LogicalName || "";
+const errorMessage = (error) =>
+  String(error?.message || error || "Erro desconhecido").slice(0, 20000);
+const errorStack = (error) => String(error?.stack || "").slice(0, 100000);
+const errorLogRecord = (error, context = {}) => {
+  const message = errorMessage(error);
+  return {
+    new_name: `error | Tela Pagamento de Fornecedores | ${message}`.slice(0, 160),
+    new_occurredat: now(),
+    new_severity: "error",
+    new_source: "tela-pagamento-fornecedores",
+    new_action: String(context.action || "").slice(0, 180),
+    new_phase: String(context.phase || "").slice(0, 120),
+    new_component: "DataverseClient",
+    new_message: message,
+    new_stack: errorStack(error),
+    new_errorname: String(error?.name || "Error").slice(0, 220),
+    new_errorcode: String(error?.status || error?.code || "").slice(0, 120),
+    new_appname: "Tela Pagamento de Fornecedores",
+    new_url: String(typeof window === "undefined" ? "" : window.location.href).slice(0, 4000),
+    new_useragent: String(typeof navigator === "undefined" ? "" : navigator.userAgent).slice(0, 4000),
+    new_language: String(typeof navigator === "undefined" ? "" : navigator.language).slice(0, 80),
+    new_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+    new_payloadjson: JSON.stringify(context.payload || {}).slice(0, 20000),
+  };
+};
 
 const drivers = [
   "Carlos Henrique",
@@ -198,6 +250,7 @@ function seedServices() {
     const value = 780 + ((index * 137) % 1900);
     const missing = index > 0 && index % 17 === 0;
     const noLink = index % 13 === 0;
+    const status = index % 19 === 0 ? "pendente" : "concluido";
     return {
       id: `srv-${String(index + 1).padStart(4, "0")}`,
       compositionId: `cmp-${String(index + 1).padStart(4, "0")}`,
@@ -245,7 +298,8 @@ function seedServices() {
         : Math.round(
             value * (index % 11 === 0 ? 1.08 : 0.49 + (index % 8) / 100),
           ),
-      status: index % 19 === 0 ? "pendente" : "concluido",
+      status,
+      statusLabel: status === "concluido" ? "Concluído" : "Pendente",
       pagamentoId: "",
       etag: 1,
     };
@@ -320,6 +374,8 @@ class DataverseClient {
     this.mockMode = !this.clientUrl && localPreviewHost();
     this.cache = new Map();
     this.mock = this.loadMock();
+    this.installGlobalErrorLogging();
+    void this.flushErrorLogQueue();
   }
   get available() {
     return Boolean(this.clientUrl || this.mockMode);
@@ -360,27 +416,107 @@ class DataverseClient {
       throw new Error(`Falha simulada em ${key}. Tente novamente.`);
     }
   }
+  readErrorLogQueue() {
+    try {
+      const raw = localStorage.getItem(ERROR_LOG_QUEUE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+  writeErrorLogQueue(records) {
+    try {
+      localStorage.setItem(
+        ERROR_LOG_QUEUE_KEY,
+        JSON.stringify(records.slice(-MAX_ERROR_LOG_QUEUE)),
+      );
+    } catch {
+      // Falha de log nunca pode interromper a operação principal.
+    }
+  }
+  async flushErrorLogQueue() {
+    if (!this.clientUrl) return;
+    const queue = this.readErrorLogQueue();
+    if (!queue.length) return;
+    const failed = [];
+    for (const record of queue) {
+      try {
+        const response = await fetch(`${this.apiRoot}/${ERROR_LOG_ENTITY_SET}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          body: JSON.stringify(record),
+        });
+        if (!response.ok) failed.push(record);
+      } catch {
+        failed.push(record);
+      }
+    }
+    this.writeErrorLogQueue(failed);
+  }
+  async logError(error, context = {}) {
+    const record = errorLogRecord(error, context);
+    if (!this.clientUrl) {
+      this.writeErrorLogQueue([...this.readErrorLogQueue(), record]);
+      return;
+    }
+    try {
+      const response = await fetch(`${this.apiRoot}/${ERROR_LOG_ENTITY_SET}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify(record),
+      });
+      if (!response.ok)
+        this.writeErrorLogQueue([...this.readErrorLogQueue(), record]);
+    } catch {
+      this.writeErrorLogQueue([...this.readErrorLogQueue(), record]);
+    }
+  }
+  installGlobalErrorLogging() {
+    if (
+      typeof window === "undefined" ||
+      typeof window.addEventListener !== "function" ||
+      window.__PAYMENT_ERROR_LOGGER_INSTALLED
+    )
+      return;
+    window.__PAYMENT_ERROR_LOGGER_INSTALLED = true;
+    window.addEventListener("error", (event) => {
+      void this.logError(event.error || event.message, {
+        action: "window.error",
+        phase: `${event.filename || ""}:${event.lineno || 0}`,
+      });
+    });
+    window.addEventListener("unhandledrejection", (event) => {
+      void this.logError(event.reason, { action: "window.unhandledrejection" });
+    });
+    window.addEventListener("online", () => void this.flushErrorLogQueue());
+  }
   async request(method, path, body, headers = {}) {
     if (!this.clientUrl)
       throw new Error(
         "Xrm não encontrado. Abra o web resource dentro do model-driven app.",
       );
-    const response = await fetch(
-      path.startsWith("http") ? path : `${this.apiRoot}${path}`,
-      {
-        method,
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json; charset=utf-8",
-          "OData-Version": "4.0",
-          "OData-MaxVersion": "4.0",
-          Prefer:
-            'return=representation,odata.include-annotations="OData.Community.Display.V1.FormattedValue"',
-          ...headers,
+    let response;
+    try {
+      response = await fetch(
+        path.startsWith("http") ? path : `${this.apiRoot}${path}`,
+        {
+          method,
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json; charset=utf-8",
+            "OData-Version": "4.0",
+            "OData-MaxVersion": "4.0",
+            Prefer:
+              'return=representation,odata.include-annotations="OData.Community.Display.V1.FormattedValue"',
+            ...headers,
+          },
+          body: body ? JSON.stringify(body) : undefined,
         },
-        body: body ? JSON.stringify(body) : undefined,
-      },
-    );
+      );
+    } catch (error) {
+      void this.logError(error, { action: method, phase: path });
+      throw error;
+    }
     if (response.status === 204) return null;
     const text = await response.text();
     let data = null;
@@ -397,6 +533,7 @@ class DataverseClient {
           `${response.status} ${response.statusText}`,
       );
       error.status = response.status;
+      void this.logError(error, { action: method, phase: path });
       throw error;
     }
     return data;
@@ -854,57 +991,57 @@ class DataverseClient {
             (!filters.motoristaId || row.motoristaId === filters.motoristaId),
         ),
       );
-    const [operationalFields, reservationLookupValueField] = await Promise.all([
+    const [operationalFields, reservationLookupValueField, reservationEntity] = await Promise.all([
       this.reservationOperationalFields(),
       this.compositionReservationLookupValueField(),
+      this.entity(TABLES.reservation),
     ]);
-    const extraFields = Object.values(operationalFields).filter(Boolean);
+    const reservationFields = [...new Set(Object.values(operationalFields).filter(Boolean))];
     const [compositionRows, reservationRows] = await Promise.all([
       this.listAll(
         TABLES.composition,
-        `?$select=cr40f_composicaodeprecosid,cr40f_id,${reservationLookupValueField},new_valortotal,new_status,cr40f_valorrepasseterceiro,_cr40f_terceirofavorecido_value,_cr40f_pagamentoaterceiro_value&$filter=new_status eq 100000001&$top=5000`,
+        `?$select=cr40f_composicaodeprecosid,cr40f_id,${reservationLookupValueField},new_valortotal,new_status,cr40f_valorrepasseterceiro,_cr40f_terceirofavorecido_value,_cr40f_pagamentoaterceiro_value&$top=5000`,
       ),
       this.listAll(
         TABLES.reservation,
-        `?$select=cr40f_reservadeveculosid,cr40f_id,cr40f_dataehorriodesada,cr40f_trajeto,cr40f_destino,_cr40f_motorista_value,_cr40f_cliente_value${extraFields.length ? `,${extraFields.join(",")}` : ""}&$top=5000`,
+        `?$select=${reservationEntity.id},cr40f_id${reservationFields.length ? `,${reservationFields.join(",")}` : ""}&$top=5000`,
       ),
     ]);
     const reservations = new Map(
       reservationRows.map((row) => [
-        cleanGuid(row.cr40f_reservadeveculosid),
+        cleanGuid(row[reservationEntity.id]),
         row,
       ]),
     );
-    return compositionRows.map((composition) => {
-      const reservation =
-        reservations.get(
-          cleanGuid(composition[reservationLookupValueField]),
-        ) || {};
-      return {
+    return compositionRows.flatMap((composition) => {
+      const reservationId = cleanGuid(composition[reservationLookupValueField]);
+      const reservation = reservations.get(reservationId);
+      if (!reservation) return [];
+      const formattedStatus =
+        composition["new_status@OData.Community.Display.V1.FormattedValue"];
+      const statusLabel =
+        formattedStatus ||
+        (composition.new_status === CHOICES.completedComposition
+          ? "Concluído"
+          : "Sem status");
+      return [{
         id: cleanGuid(composition.cr40f_composicaodeprecosid),
         compositionId: cleanGuid(composition.cr40f_composicaodeprecosid),
-        reservationId: cleanGuid(
-          composition[reservationLookupValueField],
-        ),
-        identificador: composition.cr40f_id || reservation.cr40f_id || "Sem ID",
-        dataServico: reservation.cr40f_dataehorriodesada || "",
+        reservationId,
+        identificador: reservation.cr40f_id || composition.cr40f_id || "Sem ID",
+        dataServico: fieldValue(reservation, operationalFields.dataServico),
         dataFinalizacao: fieldValue(
           reservation,
           operationalFields.dataFinalizacao,
         ),
-        cliente:
-          reservation[
-            "_cr40f_cliente_value@OData.Community.Display.V1.FormattedValue"
-          ] || "Não informado",
-        trajeto:
-          reservation.cr40f_trajeto ||
-          reservation.cr40f_destino ||
-          "Não informado",
-        motorista:
-          reservation[
-            "_cr40f_motorista_value@OData.Community.Display.V1.FormattedValue"
-          ] || "Não informado",
-        motoristaId: cleanGuid(reservation._cr40f_motorista_value),
+        cliente: fieldValue(reservation, operationalFields.cliente),
+        trajeto: fieldValue(reservation, operationalFields.trajeto),
+        motorista: fieldValue(reservation, operationalFields.motorista),
+        motoristaId: cleanGuid(
+          operationalFields.motorista
+            ? reservation[operationalFields.motorista]
+            : "",
+        ),
         tipoVeiculo: fieldValue(reservation, operationalFields.tipoVeiculo),
         veiculo: fieldValue(reservation, operationalFields.veiculo),
         observacaoOperacao: fieldValue(
@@ -919,9 +1056,10 @@ class DataverseClient {
         pagamentoId: cleanGuid(composition._cr40f_pagamentoaterceiro_value),
         valorCobrado: Number(composition.new_valortotal || 0),
         valorRepasse: Number(composition.cr40f_valorrepasseterceiro || 0),
-        status: "concluido",
+        status: normalizeLabel(statusLabel),
+        statusLabel,
         etag: composition["@odata.etag"] || "*",
-      };
+      }];
     });
   }
   async listServices() {
@@ -942,12 +1080,17 @@ class DataverseClient {
       this.persistMock();
       return clone(service);
     }
-    return this.update(
+    await this.update(
       TABLES.composition,
       serviceId,
       { cr40f_valorrepasseterceiro: Number(value) },
       etag,
     );
+    return {
+      id: cleanGuid(serviceId),
+      valorRepasse: Number(value),
+      etag: "*",
+    };
   }
   async setPreferredFavorecido(serviceId, favorecidoId, motoristaId = "") {
     if (this.mockMode) {
@@ -1412,6 +1555,51 @@ class DataverseClient {
     });
     this.persistMock();
     return clone(lot);
+  }
+  async uploadPaymentProof(lot, file) {
+    if (!file) return null;
+    if (file.size > MAX_PAYMENT_PROOF_SIZE)
+      throw new Error("O comprovante deve ter no máximo 5 MB.");
+    const fileName = sanitizePathSegment(file.name, "comprovante");
+    const path = `Pagamentos a Terceiros/${lot.year}/${sanitizePathSegment(lot.favorecido?.nome, "Favorecido")}/${sanitizePathSegment(lot.identifier)}/Comprovantes`;
+    if (this.mockMode)
+      return {
+        url: `https://onedrive.local/${encodeURIComponent(fileName)}`,
+        name: fileName,
+      };
+    const dataUri = await fileToDataUrl(file);
+    const payload = {
+      caminhoCompleto: path,
+      nomeArquivo: fileName,
+      conteudoBase64: dataUri.split(",")[1] || "",
+      mimeType: file.type || "application/octet-stream",
+      metadados: {
+        loteId: lot.id,
+        identificadorLote: lot.identifier,
+        tipo: "COMPROVANTE_PAGAMENTO",
+        contrato: FLOW_CONTRACT,
+      },
+    };
+    if (!payload.conteudoBase64) throw new Error("Comprovante vazio para envio.");
+    const endpoint = runtimeConfig().oneDriveFlowUrl;
+    if (!endpoint) throw new Error("URL do Flow de OneDrive não configurada.");
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const text = await response.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    if (!response.ok)
+      throw new Error(data?.message || data?.error || `Flow OneDrive retornou ${response.status}.`);
+    const url = data?.url || data?.link;
+    if (!url) throw new Error("Flow OneDrive nao retornou URL do comprovante.");
+    return { url, name: fileName };
   }
   async revertPaid(lotId, reason) {
     if (!String(reason || "").trim())

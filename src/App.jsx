@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { dataverse } from "./lib/dataverse";
 import { buildPaymentPdf } from "./lib/document";
-import SearchableSelect from "./SearchableSelect";
+import SearchableSelect, { SearchableMultiSelect } from "./SearchableSelect";
 import {
   DOCUMENT_STATUS,
   LOT_STATUS,
@@ -129,6 +129,13 @@ const formatServiceDate = (value, fallback = "") =>
         timeStyle: "short",
       })
     : fallback;
+const REPASSE_DEFAULT_STATUS_FILTER = [
+  "concluido",
+  "cancelado com ressalvas",
+];
+const repasseStatusLabel = (service) =>
+  service.statusLabel ||
+  (service.status === "concluido" ? "Concluído" : service.status || "Sem status");
 const maskPix = (value) =>
   value?.length > 8 ? `${value.slice(0, 3)}••••${value.slice(-3)}` : value;
 const REPASSE_COLUMNS = [
@@ -177,23 +184,6 @@ const orderRepasseColumns = (columns) => [
   ...columns.filter((column) => column.locked),
   ...columns.filter((column) => !column.locked),
 ];
-const resolveColumnDrop = (columns, sourceId, targetId, placement) => {
-  if (!sourceId || sourceId === targetId) return null;
-  const source = columns.find((column) => column.id === sourceId);
-  const target = columns.find((column) => column.id === targetId);
-  if (!source || !target) return null;
-  if (source.locked === target.locked) return { targetId, placement };
-
-  const firstUnlocked = columns.find((column) => !column.locked);
-  const lastLocked = [...columns].reverse().find((column) => column.locked);
-  if (source.locked && target.id === firstUnlocked?.id && placement === "before") {
-    return { targetId, placement: "before" };
-  }
-  if (!source.locked && target.id === lastLocked?.id && placement === "after") {
-    return { targetId, placement: "after" };
-  }
-  return null;
-};
 const viewColumns = (savedColumns) => {
   const defaults = new Map(REPASSE_COLUMNS.map((column) => [column.id, column]));
   const saved = Array.isArray(savedColumns) ? savedColumns : [];
@@ -486,9 +476,13 @@ export default function App() {
       setBusy(`document-${lot.id}`, false);
     }
   }
-  async function markPaid(lot, proofUrl) {
+  async function markPaid(lot, proofInput = {}) {
     setBusy(`pay-${lot.id}`, true);
     try {
+      const proof = proofInput.file
+        ? await dataverse.uploadPaymentProof(lot, proofInput.file)
+        : null;
+      const proofUrl = proof?.url || proofInput.url || "";
       const paid = await dataverse.markPaid(lot.id, proofUrl);
       setLotDetail(await dataverse.getLotDetail(paid.id));
       setNotice("Pagamento registrado. Gerando documento.");
@@ -1126,9 +1120,33 @@ function PaymentsView({
   onSaveRepasse,
   onLink,
 }) {
-  const completedServices = useMemo(
-    () => services.filter((row) => row.status === "concluido"),
-    [services],
+  const [statusFilter, setStatusFilter] = useState(
+    REPASSE_DEFAULT_STATUS_FILTER,
+  );
+  const statusOptions = useMemo(() => {
+    const options = new Map(
+      REPASSE_DEFAULT_STATUS_FILTER.map((value) => [
+        value,
+        {
+          value,
+          label:
+            value === "concluido" ? "Concluído" : "Cancelado com ressalvas",
+        },
+      ]),
+    );
+    services.forEach((service) => {
+      const value = service.status || "sem status";
+      if (!options.has(value))
+        options.set(value, { value, label: repasseStatusLabel(service) });
+    });
+    return [...options.values()];
+  }, [services]);
+  const filteredServices = useMemo(
+    () =>
+      services.filter((row) =>
+        statusFilter.includes(row.status || "sem status"),
+      ),
+    [services, statusFilter],
   );
   return (
     <section className="page-section">
@@ -1196,10 +1214,20 @@ function PaymentsView({
               ]}
             />
           </label>
+          <label className="field">
+            <span>Status</span>
+            <SearchableMultiSelect
+              value={statusFilter}
+              onChange={setStatusFilter}
+              aria-label="Filtrar lançamentos por status"
+              options={statusOptions}
+              placeholder="Selecione os status"
+            />
+          </label>
         </div>
       </section>
       <RepasseGrid
-        services={completedServices}
+        services={filteredServices}
         favorecidos={allFavorecidos}
         busy={busy}
         autosaveErrors={autosaveErrors}
@@ -1244,21 +1272,11 @@ function RepasseGrid({
     () => visibleColumns.map((column) => `${column.width}px`).join(" "),
     [visibleColumns],
   );
-  const gridViewportRef = useRef(null);
   const gridScrollRef = useRef(null);
-  const horizontalScrollRef = useRef(null);
   const columnPickerRef = useRef(null);
   const columnRowRefs = useRef(new Map());
   const previousColumnPositionsRef = useRef(new Map());
   const savedViewRef = useRef(null);
-  const horizontalScrollFrameRef = useRef(0);
-  const horizontalScrollbarFrameRef = useRef(0);
-  const pendingHorizontalScrollRef = useRef(0);
-  const pendingScrollbarScrollRef = useRef(0);
-  const [horizontalScroll, setHorizontalScroll] = useState({
-    contentWidth: 0,
-    viewportWidth: 0,
-  });
   const pendingCount = useMemo(
     () => services.filter((service) => service.valorRepasse <= 0).length,
     [services],
@@ -1314,27 +1332,6 @@ function RepasseGrid({
   }, [visibleColumns]);
   const pinnedStyle = (column) =>
     column.locked ? pinnedStyles.get(column.id) : undefined;
-  const syncTableHorizontalScroll = (scrollLeft) => {
-    pendingHorizontalScrollRef.current = scrollLeft;
-    if (horizontalScrollFrameRef.current) return;
-    horizontalScrollFrameRef.current = window.requestAnimationFrame(() => {
-      const table = gridScrollRef.current;
-      const nextScrollLeft = pendingHorizontalScrollRef.current;
-      if (table && table.scrollLeft !== nextScrollLeft)
-        table.scrollLeft = nextScrollLeft;
-      horizontalScrollFrameRef.current = 0;
-    });
-  };
-
-  useEffect(() => {
-    return () => {
-      if (horizontalScrollFrameRef.current)
-        window.cancelAnimationFrame(horizontalScrollFrameRef.current);
-      if (horizontalScrollbarFrameRef.current)
-        window.cancelAnimationFrame(horizontalScrollbarFrameRef.current);
-    };
-  }, []);
-
   useEffect(() => {
     if (!showPicker && !showViews) return undefined;
     const closeMenus = (event) => {
@@ -1363,115 +1360,6 @@ function RepasseGrid({
       );
     });
   }, [columns]);
-
-  useEffect(() => {
-    const scrollElement = gridScrollRef.current;
-    if (!scrollElement) return undefined;
-    const measure = () => {
-      const contentWidth = scrollElement.scrollWidth;
-      const viewportWidth = scrollElement.clientWidth;
-      setHorizontalScroll((current) =>
-        current.contentWidth === contentWidth && current.viewportWidth === viewportWidth
-          ? current
-          : { contentWidth, viewportWidth },
-      );
-    };
-    let lastScrollLeft = scrollElement.scrollLeft;
-    const syncHorizontalScrollbar = () => {
-      const scrollLeft = scrollElement.scrollLeft;
-      if (scrollLeft === lastScrollLeft) return;
-      lastScrollLeft = scrollLeft;
-      pendingScrollbarScrollRef.current = scrollLeft;
-      if (horizontalScrollbarFrameRef.current) return;
-      horizontalScrollbarFrameRef.current = window.requestAnimationFrame(() => {
-        const scrollbar = horizontalScrollRef.current;
-        const nextScrollLeft = pendingScrollbarScrollRef.current;
-        if (scrollbar && scrollbar.scrollLeft !== nextScrollLeft)
-          scrollbar.scrollLeft = nextScrollLeft;
-        horizontalScrollbarFrameRef.current = 0;
-      });
-    };
-    const observer =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(measure);
-    observer?.observe(scrollElement);
-    if (scrollElement.firstElementChild)
-      observer?.observe(scrollElement.firstElementChild);
-    measure();
-    window.addEventListener("resize", measure);
-    scrollElement.addEventListener("scroll", syncHorizontalScrollbar, {
-      passive: true,
-    });
-    return () => {
-      observer?.disconnect();
-      if (horizontalScrollbarFrameRef.current)
-        window.cancelAnimationFrame(horizontalScrollbarFrameRef.current);
-      window.removeEventListener("resize", measure);
-      scrollElement.removeEventListener("scroll", syncHorizontalScrollbar);
-    };
-  }, [template]);
-
-  useEffect(() => {
-    const gridViewport = gridViewportRef.current;
-    const scrollbar = horizontalScrollRef.current;
-    if (!gridViewport || !scrollbar) return undefined;
-
-    let frame = 0;
-    let fixed = false;
-    let left = "";
-    let width = "";
-    const syncPosition = () => {
-      frame = 0;
-      const rect = gridViewport.getBoundingClientRect();
-      const scrollbarHeight = scrollbar.offsetHeight || 16;
-      const shouldFix =
-        rect.top <= window.innerHeight - scrollbarHeight &&
-        rect.bottom > window.innerHeight;
-
-      if (shouldFix !== fixed) {
-        fixed = shouldFix;
-        scrollbar.classList.toggle("is-viewport-fixed", fixed);
-      }
-      if (!fixed) return;
-
-      const nextLeft = `${Math.round(rect.left + 1)}px`;
-      const nextWidth = `${Math.max(0, Math.round(rect.width - 2))}px`;
-      if (nextLeft !== left) {
-        left = nextLeft;
-        scrollbar.style.setProperty("--repasse-scrollbar-left", left);
-      }
-      if (nextWidth !== width) {
-        width = nextWidth;
-        scrollbar.style.setProperty("--repasse-scrollbar-width", width);
-      }
-    };
-    const schedulePositionSync = () => {
-      if (!frame) frame = window.requestAnimationFrame(syncPosition);
-    };
-    const observer =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(schedulePositionSync);
-
-    observer?.observe(gridViewport);
-    document.addEventListener("scroll", schedulePositionSync, {
-      capture: true,
-      passive: true,
-    });
-    window.addEventListener("resize", schedulePositionSync);
-    schedulePositionSync();
-
-    return () => {
-      if (frame) window.cancelAnimationFrame(frame);
-      observer?.disconnect();
-      document.removeEventListener("scroll", schedulePositionSync, true);
-      window.removeEventListener("resize", schedulePositionSync);
-      scrollbar.classList.remove("is-viewport-fixed");
-      scrollbar.style.removeProperty("--repasse-scrollbar-left");
-      scrollbar.style.removeProperty("--repasse-scrollbar-width");
-    };
-  }, [horizontalScroll.contentWidth, horizontalScroll.viewportWidth]);
 
   useEffect(() => {
     localStorage.setItem(REPASSE_COLUMNS_STORAGE_KEY, JSON.stringify(columns));
@@ -1505,11 +1393,12 @@ function RepasseGrid({
   }, [resize]);
 
   const reorderColumns = (sourceId, targetId, placement = "before") => {
+    if (!sourceId || sourceId === targetId) return;
     setColumns((current) => {
       const next = orderRepasseColumns(current);
-      const drop = resolveColumnDrop(next, sourceId, targetId, placement);
-      if (!drop) return current;
       const source = next.findIndex((column) => column.id === sourceId);
+      const target = next.findIndex((column) => column.id === targetId);
+      if (source < 0 || target < 0) return current;
       previousColumnPositionsRef.current = new Map(
         [...columnRowRefs.current].map(([id, element]) => [
           id,
@@ -1517,13 +1406,26 @@ function RepasseGrid({
         ]),
       );
       const [column] = next.splice(source, 1);
-      const targetIndex = next.findIndex((item) => item.id === drop.targetId);
-      next.splice(targetIndex + (drop.placement === "after" ? 1 : 0), 0, column);
+      const targetIndex = next.findIndex((item) => item.id === targetId);
+      const targetColumn = next[targetIndex];
+      next.splice(targetIndex + (placement === "after" ? 1 : 0), 0, {
+        ...column,
+        locked: targetColumn.locked,
+      });
       return next;
     });
   };
   const moveColumn = (targetId, placement) => {
     reorderColumns(draggedColumn, targetId, placement);
+    setDraggedColumn("");
+    setDropTarget(null);
+  };
+  const moveColumnToEnd = () => {
+    const source = orderedColumns.find((column) => column.id === draggedColumn);
+    const target = [...orderedColumns]
+      .reverse()
+      .find((column) => column.locked === source?.locked);
+    if (target) reorderColumns(draggedColumn, target.id, "after");
     setDraggedColumn("");
     setDropTarget(null);
   };
@@ -1801,10 +1703,6 @@ function RepasseGrid({
                     }}
                     onDragOver={(event) => {
                       if (!draggedColumn || draggedColumn === column.id) return;
-                      const source = orderedColumns.find(
-                        (item) => item.id === draggedColumn,
-                      );
-                      if (!source || source.locked !== column.locked) return;
                       event.preventDefault();
                       event.dataTransfer.dropEffect = "move";
                       const rect = event.currentTarget.getBoundingClientRect();
@@ -1815,21 +1713,11 @@ function RepasseGrid({
                             ? "before"
                             : "after",
                       };
-                      const resolvedTarget = resolveColumnDrop(
-                        orderedColumns,
-                        draggedColumn,
-                        nextTarget.id,
-                        nextTarget.placement,
-                      );
-                      if (!resolvedTarget) return;
                       setDropTarget((current) =>
-                        current?.id === resolvedTarget.targetId &&
-                        current.placement === resolvedTarget.placement
+                        current?.id === nextTarget.id &&
+                        current.placement === nextTarget.placement
                           ? current
-                          : {
-                              id: resolvedTarget.targetId,
-                              placement: resolvedTarget.placement,
-                            },
+                          : nextTarget,
                       );
                     }}
                     onDrop={(event) => {
@@ -1880,12 +1768,32 @@ function RepasseGrid({
                     </button>
                   </div>
                 ))}
+                <div
+                  className="column-picker-drop-end"
+                  aria-hidden="true"
+                  onDragOver={(event) => {
+                    const source = orderedColumns.find(
+                      (column) => column.id === draggedColumn,
+                    );
+                    const target = [...orderedColumns]
+                      .reverse()
+                      .find((column) => column.locked === source?.locked);
+                    if (!source || !target || source.id === target.id) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                    setDropTarget({ id: target.id, placement: "after" });
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    moveColumnToEnd();
+                  }}
+                />
               </div>
             )}
           </div>
         </div>
       </div>
-      <div className="repasse-grid-viewport" ref={gridViewportRef}>
+      <div className="repasse-grid-viewport">
         <div className="repasse-grid-scroll" ref={gridScrollRef}>
           <div
           className="repasse-grid"
@@ -2011,19 +1919,6 @@ function RepasseGrid({
           )}
           </div>
         </div>
-        {horizontalScroll.contentWidth > horizontalScroll.viewportWidth && (
-          <div
-            className="repasse-grid-horizontal-scroll"
-            ref={horizontalScrollRef}
-            role="region"
-            aria-label="Rolagem horizontal da tabela"
-            onScroll={(event) =>
-              syncTableHorizontalScroll(event.currentTarget.scrollLeft)
-            }
-          >
-            <div style={{ width: `${horizontalScroll.contentWidth}px` }} />
-          </div>
-        )}
       </div>
     </section>
   );
@@ -2667,6 +2562,7 @@ function LotDetailDrawer({
   onRevert,
 }) {
   const [proofUrl, setProofUrl] = useState("");
+  const [proofFile, setProofFile] = useState(null);
   const isPaid = lot.paymentStatus === PAYMENT_STATUS.PAID;
   return (
     <Drawer
@@ -2724,10 +2620,15 @@ function LotDetailDrawer({
                     onChange={(event) => setProofUrl(event.target.value)}
                     placeholder="URL interna do comprovante"
                   />
+                  <input
+                    type="file"
+                    onChange={(event) => setProofFile(event.target.files?.[0] || null)}
+                  />
+                  <small>{proofFile ? `${proofFile.name} · será salvo no OneDrive e substituirá a URL` : "Qualquer arquivo · máximo 5 MB"}</small>
                 </label>
                 <button
                   disabled={busy(`pay-${lot.id}`)}
-                  onClick={() => onPay(lot, proofUrl)}
+                  onClick={() => onPay(lot, { file: proofFile, url: proofUrl })}
                 >
                   <CheckCircle2 size={18} />
                   <div>

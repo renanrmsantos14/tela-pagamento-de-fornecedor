@@ -92,6 +92,34 @@ async function remoteClient() {
             },
           ],
         });
+      if (
+        logicalName === "cr40f_reservadeveculos" &&
+        url.includes("/Attributes?$select=LogicalName,DisplayName,AttributeType")
+      )
+        return response({
+          value: [
+            {
+              LogicalName: "cr40f_dataehorariodesaida",
+              DisplayName: { UserLocalizedLabel: { Label: "Data e horário de saída" } },
+              AttributeType: "DateTime",
+            },
+            {
+              LogicalName: "cr40f_trajeto",
+              DisplayName: { UserLocalizedLabel: { Label: "Trajeto" } },
+              AttributeType: "String",
+            },
+            {
+              LogicalName: "cr40f_cliente",
+              DisplayName: { UserLocalizedLabel: { Label: "Cliente" } },
+              AttributeType: "Lookup",
+            },
+            {
+              LogicalName: "cr40f_motorista",
+              DisplayName: { UserLocalizedLabel: { Label: "Motorista" } },
+              AttributeType: "Lookup",
+            },
+          ],
+        });
       if (attribute)
         return schemaNames[attribute[1]]
           ? response({
@@ -126,9 +154,15 @@ async function remoteClient() {
             _cr40f_reserva_value: "res-remote-001",
             new_valortotal: 1000,
             new_status: 100000001,
+            "new_status@OData.Community.Display.V1.FormattedValue": "Concluído",
             cr40f_valorrepasseterceiro: 600,
             _cr40f_terceirofavorecido_value: "",
             _cr40f_pagamentoaterceiro_value: "",
+          },
+          {
+            cr40f_composicaodeprecosid: "cmp-without-service",
+            cr40f_id: "CMP-WITHOUT-SERVICE",
+            new_status: 100000001,
           },
         ],
       });
@@ -138,7 +172,7 @@ async function remoteClient() {
           {
             cr40f_reservadeveculosid: "res-remote-001",
             cr40f_id: "RES-REMOTE-001",
-            cr40f_dataehorriodesada: "2026-07-15T12:00:00Z",
+            cr40f_dataehorariodesaida: "2026-07-15T12:00:00Z",
             cr40f_trajeto: "GRU - Centro",
             cr40f_destino: "Centro",
             _cr40f_motorista_value: "drv-remote-001",
@@ -312,6 +346,19 @@ test("falha documental mantém pagamento e reversão exige motivo", async () => 
   assert.equal(reverted.documentStatus, "resend_required");
 });
 
+test("comprovante de pagamento pode ser enviado para o OneDrive no mock", async () => {
+  const { dataverse } = await client();
+  dataverse.resetMock();
+  const lot = (await dataverse.listLots()).find((item) => item.paymentStatus === "paid");
+  const upload = await dataverse.uploadPaymentProof(lot, {
+    name: "comprovante bancario.xlsx",
+    size: 1024,
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  assert.equal(upload.name, "comprovante_bancario.xlsx");
+  assert.match(upload.url, /onedrive\.local/);
+});
+
 test("contrato remoto usa navigation properties da metadata e normaliza lote", async () => {
   const remote = await remoteClient();
   try {
@@ -330,7 +377,10 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
     );
     const remoteLinks = await remote.dataverse.listLinks();
     const remoteServices = await remote.dataverse.listFinanceServices();
+    assert.equal(remoteServices.length, 1);
     assert.equal(remoteLinks[0].motoristaId, "drv-remote-001");
+    assert.equal(remoteServices[0].identificador, "RES-REMOTE-001");
+    assert.equal(remoteServices[0].status, "concluido");
     assert.equal(remoteServices[0].motoristaId, "drv-remote-001");
     assert.equal(remoteServices[0].reservationId, "res-remote-001");
     assert.equal(remoteServices[0].motorista, "Motorista remoto");
