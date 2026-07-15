@@ -106,6 +106,7 @@ export default function SearchableSelect({
   disabled = false,
   required = false,
   clearable = true,
+  multiple = false,
   className = "",
   variant = "",
   name,
@@ -143,9 +144,17 @@ export default function SearchableSelect({
       })),
     [options],
   );
-  const selectedOption =
-    normalizedOptions.find((option) => option.value === String(value ?? "")) ||
-    normalizedOptions[0];
+  const selectedValues = useMemo(
+    () =>
+      multiple
+        ? [...new Set((Array.isArray(value) ? value : []).map(String))]
+        : [String(value ?? "")],
+    [multiple, value],
+  );
+  const selectedOptions = normalizedOptions.filter((option) =>
+    selectedValues.includes(option.value),
+  );
+  const selectedOption = selectedOptions[0] || normalizedOptions[0];
   const normalizedQuery = useMemo(() => normalizeSearchText(query), [query]);
   const queryTokens = useMemo(
     () => searchTokens(normalizedQuery),
@@ -165,10 +174,11 @@ export default function SearchableSelect({
   );
   const canClear =
     clearable &&
-    hasEmptyOption &&
     !required &&
     !disabled &&
-    String(value ?? "") !== "";
+    (multiple
+      ? selectedValues.length > 0
+      : hasEmptyOption && String(value ?? "") !== "");
 
   const updatePosition = useCallback(() => {
     if (!open || !triggerRef.current || !panelRef.current) return;
@@ -279,8 +289,8 @@ export default function SearchableSelect({
       setQuery("");
       return undefined;
     }
-    const selectedIndex = visibleOptions.findIndex(
-      (option) => option.value === String(value ?? ""),
+    const selectedIndex = visibleOptions.findIndex((option) =>
+      selectedValues.includes(option.value),
     );
     const nextHighlightedIndex =
       initialHighlightRef.current ?? Math.max(0, selectedIndex);
@@ -297,7 +307,7 @@ export default function SearchableSelect({
       else triggerRef.current?.focus();
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [open, updatePosition]);
+  }, [open, selectedValues, updatePosition]);
 
   const openSelect = (
     focusSearch = true,
@@ -323,6 +333,14 @@ export default function SearchableSelect({
 
   const selectOption = (option) => {
     if (disabled || option.disabled) return;
+    if (multiple) {
+      onChange(
+        selectedValues.includes(option.value)
+          ? selectedValues.filter((value) => value !== option.value)
+          : [...selectedValues, option.value],
+      );
+      return;
+    }
     onChange(option.value);
     closeSelect();
     suppressFocusRef.current = true;
@@ -386,7 +404,13 @@ export default function SearchableSelect({
     }
   };
 
-  const triggerLabel = selectedOption?.label || placeholder;
+  const triggerLabel = multiple
+    ? selectedOptions.length
+      ? selectedOptions.length === 1
+        ? selectedOptions[0].label
+        : `${selectedOptions[0].label} e mais ${selectedOptions.length - 1}`
+      : placeholder
+    : selectedOption?.label || placeholder;
   const rootClass = [
     "custom-select",
     variant && `custom-select--${variant}`,
@@ -408,12 +432,19 @@ export default function SearchableSelect({
       <select
         className="custom-select-native"
         name={name}
-        value={String(value ?? "")}
+        multiple={multiple}
+        value={multiple ? selectedValues : String(value ?? "")}
         disabled={disabled}
         required={required}
         aria-hidden="true"
         tabIndex={-1}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) =>
+          onChange(
+            multiple
+              ? [...event.target.selectedOptions].map((option) => option.value)
+              : event.target.value,
+          )
+        }
       >
         {normalizedOptions.map((option) => (
           <option
@@ -460,9 +491,22 @@ export default function SearchableSelect({
         onKeyDown={handleTriggerKeyDown}
       >
         <span
-          className={`custom-select-value${String(value ?? "") === "" ? " is-placeholder" : ""}`}
+          className={`custom-select-value${(multiple ? selectedValues.length === 0 : String(value ?? "") === "") ? " is-placeholder" : ""}`}
         >
-          {triggerLabel}
+          {multiple && selectedOptions.length > 0 ? (
+            <span className="custom-select-multiple-value">
+              <span className="custom-select-multiple-primary">
+                {selectedOptions[0].label}
+              </span>
+              {selectedOptions.length > 1 && (
+                <span className="custom-select-multiple-count">
+                  + {selectedOptions.length - 1} selecionado{selectedOptions.length > 2 ? "s" : ""}
+                </span>
+              )}
+            </span>
+          ) : (
+            triggerLabel
+          )}
         </span>
         <span
           className="custom-select-clear"
@@ -473,7 +517,7 @@ export default function SearchableSelect({
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            onChange("");
+            onChange(multiple ? [] : "");
             closeSelect();
             triggerRef.current?.focus();
           }}
@@ -481,7 +525,7 @@ export default function SearchableSelect({
             if (["Enter", " "].includes(event.key)) {
               event.preventDefault();
               event.stopPropagation();
-              onChange("");
+              onChange(multiple ? [] : "");
               closeSelect();
               triggerRef.current?.focus();
             }
@@ -497,6 +541,7 @@ export default function SearchableSelect({
             id={panelId}
             className={panelClass}
             role="listbox"
+            aria-multiselectable={multiple || undefined}
             aria-hidden={!open}
           >
             <input
@@ -524,13 +569,16 @@ export default function SearchableSelect({
                   }}
                   key={option.value}
                   type="button"
-                  className={`custom-select-option${index === highlightedIndex ? " is-active" : ""}`}
+                  className={`custom-select-option${multiple ? " custom-select-option--multiple" : ""}${index === highlightedIndex ? " is-active" : ""}${selectedValues.includes(option.value) ? " is-selected" : ""}`}
                   role="option"
-                  aria-selected={option.value === String(value ?? "")}
+                  aria-selected={selectedValues.includes(option.value)}
                   tabIndex={-1}
                   disabled={option.disabled}
                   onClick={() => selectOption(option)}
                 >
+                  {multiple && (
+                    <span className="custom-select-option-check" aria-hidden="true" />
+                  )}
                   {option.subtitle ? (
                     <>
                       <span className="custom-select-option-name">
@@ -556,4 +604,8 @@ export default function SearchableSelect({
         )}
     </div>
   );
+}
+
+export function SearchableMultiSelect(props) {
+  return <SearchableSelect {...props} multiple />;
 }
