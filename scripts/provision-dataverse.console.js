@@ -508,14 +508,22 @@
         log("opção existente", `${entity}.${column}=${option.value}`);
         continue;
       }
-      await request("POST", "/InsertOptionValue", {
-        EntityLogicalName: entity,
-        AttributeLogicalName: column,
-        Value: option.value,
-        Label: label(option.label),
-        SolutionUniqueName: CONFIG.solutionUniqueName,
-      });
-      log("opção criada", `${entity}.${column}=${option.value} (${option.label})`);
+      try {
+        await request("POST", "/InsertOptionValue", {
+          EntityLogicalName: entity,
+          AttributeLogicalName: column,
+          Value: option.value,
+          Label: label(option.label),
+          SolutionUniqueName: CONFIG.solutionUniqueName,
+        });
+        log("opção criada", `${entity}.${column}=${option.value} (${option.label})`);
+      } catch (error) {
+        if (!/already exists with that value/i.test(error.message)) throw error;
+        log(
+          "opção já existente confirmada pelo Dataverse",
+          `${entity}.${column}=${option.value}`,
+        );
+      }
     }
   };
 
