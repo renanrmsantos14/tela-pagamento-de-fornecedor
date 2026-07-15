@@ -10,7 +10,7 @@ async function client() {
   return import(`../src/lib/dataverse.js?mock=${Date.now()}-${Math.random()}`);
 }
 
-async function remoteClient() {
+async function remoteClient({ direct = false } = {}) {
   const previousWindow = globalThis.window;
   const previousFetch = globalThis.fetch;
   const requests = [];
@@ -57,21 +57,41 @@ async function remoteClient() {
     }),
     "@odata.etag": 'W/"7"',
   };
-  globalThis.window = {
-    location: { hostname: "app.crm.dynamics.com", port: "" },
-    Xrm: {
-      Utility: {
-        getGlobalContext: () => ({
-          getClientUrl: () => "https://app.crm.dynamics.com",
-        }),
-      },
+  const parentXrm = {
+    Utility: {
+      getGlobalContext: () => ({
+        getClientUrl: () => "https://app.crm.dynamics.com",
+      }),
     },
-    parent: {},
+  };
+  globalThis.window = {
+    location: {
+      origin: "https://app.crm.dynamics.com",
+      hostname: "app.crm.dynamics.com",
+      pathname: direct ? "/WebResources/cr40f_TelaPagamentoFornecedores.html" : "/main.aspx",
+      port: "",
+    },
+    Xrm: direct
+      ? undefined
+      : {
+          Utility: {
+            getGlobalContext: () => ({
+              getClientUrl: () => "https://window.crm.dynamics.com",
+            }),
+          },
+        },
+    parent: direct ? {} : { Xrm: parentXrm },
     top: {},
   };
   globalThis.fetch = async (url, options = {}) => {
     requests.push({ url, options });
     if (options.method === "POST") return response({});
+    if (url.endsWith("/WhoAmI"))
+      return response({
+        UserId: "usr-remote-001",
+        OrganizationId: "org-remote-001",
+        BusinessUnitId: "bu-remote-001",
+      });
     const metadata = decodeURIComponent(url).match(
       /EntityDefinitions\(LogicalName='([^']+)'\)/,
     );
@@ -432,6 +452,8 @@ test("comprovante de pagamento pode ser enviado para o OneDrive no mock", async 
 test("contrato remoto usa navigation properties da metadata e normaliza lote", async () => {
   const remote = await remoteClient();
   try {
+    assert.equal(remote.dataverse.contextSource, "xrm");
+    assert.equal(remote.dataverse.clientUrl, "https://app.crm.dynamics.com");
     await remote.dataverse.upsertLink("drv-remote-002", "fav-remote-001");
     const createRequest = remote.requests.find(
       (request) => request.options.method === "POST",
@@ -517,6 +539,38 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
     assert.equal(detail.items[0].itemStatus, "paid");
     assert.equal(detail.events[0].operation, "paid");
     assert.equal(detail.favorecido.email, "favorecido@example.com");
+  } finally {
+    remote.restore();
+  }
+});
+
+test("webresource direto usa a sessao autenticada da propria organizacao", async () => {
+  const remote = await remoteClient({ direct: true });
+  try {
+    const identity = await remote.dataverse.loadDirectIdentity();
+    assert.equal(remote.dataverse.contextSource, "direct");
+    assert.equal(remote.dataverse.clientUrl, "https://app.crm.dynamics.com");
+    assert.deepEqual(identity, {
+      userId: "usr-remote-001",
+      organizationId: "org-remote-001",
+      businessUnitId: "bu-remote-001",
+    });
+    assert(
+      remote.requests.some((request) =>
+        request.url.endsWith("/api/data/v9.2/WhoAmI"),
+      ),
+    );
+    assert(
+      remote.requests.every(
+        (request) => request.options.credentials === "same-origin",
+      ),
+    );
+    await remote.dataverse.listDrivers();
+    assert(
+      remote.requests.some((request) =>
+        request.url.includes("/api/data/v9.2/cr40f_funcionarioses"),
+      ),
+    );
   } finally {
     remote.restore();
   }

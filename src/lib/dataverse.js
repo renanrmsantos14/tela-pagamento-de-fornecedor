@@ -91,10 +91,38 @@ const localPreviewHost = () =>
   localHost() ||
   (typeof window !== "undefined" && window.location.port === "5192") ||
   import.meta.env?.DEV === true;
-const getXrm = () =>
-  typeof window === "undefined"
-    ? null
-    : window.Xrm || window.parent?.Xrm || window.top?.Xrm || null;
+const readXrm = (target) => {
+  try {
+    return target?.Xrm || null;
+  } catch {
+    return null;
+  }
+};
+
+const getXrm = () => {
+  if (typeof window === "undefined") return null;
+  return readXrm(window.parent) || readXrm(window);
+};
+
+const directWebResourceClientUrl = () => {
+  if (typeof window === "undefined") return "";
+  const { location } = window;
+  if (!/^\/WebResources\//i.test(location?.pathname || "")) return "";
+  return location.origin || "";
+};
+
+const resolveDataverseContext = () => {
+  const xrm = getXrm();
+  const clientUrl = xrm?.Utility?.getGlobalContext?.().getClientUrl?.() || "";
+  if (clientUrl) return { xrm, clientUrl, source: "xrm" };
+
+  const directClientUrl = directWebResourceClientUrl();
+  return {
+    xrm: null,
+    clientUrl: directClientUrl,
+    source: directClientUrl ? "direct" : "none",
+  };
+};
 const escapeOData = (value) => String(value).replace(/'/g, "''");
 const normalizeLabel = (value) =>
   String(value || "")
@@ -374,17 +402,24 @@ function buildState() {
 
 class DataverseClient {
   constructor() {
-    this.xrm = getXrm();
-    this.clientUrl =
-      this.xrm?.Utility?.getGlobalContext?.().getClientUrl?.() || "";
+    const context = resolveDataverseContext();
+    this.xrm = context.xrm;
+    this.clientUrl = context.clientUrl;
+    this.contextSource = context.source;
     this.apiRoot = this.clientUrl
       ? `${this.clientUrl}/api/data/${API_VERSION}`
       : "";
     this.mockMode = !this.clientUrl && localPreviewHost();
+    this.identity = {
+      userId: "",
+      organizationId: "",
+      businessUnitId: "",
+    };
     this.cache = new Map();
     this.mock = this.loadMock();
     this.installGlobalErrorLogging();
     void this.flushErrorLogQueue();
+    if (this.contextSource === "direct") void this.loadDirectIdentity();
   }
   get available() {
     return Boolean(this.clientUrl || this.mockMode);
@@ -409,6 +444,18 @@ class DataverseClient {
       }),
     );
     return `${this.clientUrl || ""}/main.aspx?pagetype=webresource&webresourceName=new_formulario_geral.html&data=${data}`;
+  }
+
+  async loadDirectIdentity() {
+    const identity = await this.request("GET", "/WhoAmI").catch(() => null);
+    if (!identity) return null;
+
+    this.identity = {
+      userId: cleanGuid(identity.UserId),
+      organizationId: cleanGuid(identity.OrganizationId),
+      businessUnitId: cleanGuid(identity.BusinessUnitId),
+    };
+    return this.identity;
   }
   loadMock() {
     try {
@@ -516,7 +563,7 @@ class DataverseClient {
   async request(method, path, body, headers = {}) {
     if (!this.clientUrl)
       throw new Error(
-        "Xrm não encontrado. Abra o web resource dentro do model-driven app.",
+        "Contexto Dataverse indisponível. Abra o web resource em uma organização autenticada.",
       );
     let response;
     try {
@@ -524,6 +571,7 @@ class DataverseClient {
         path.startsWith("http") ? path : `${this.apiRoot}${path}`,
         {
           method,
+          credentials: "same-origin",
           headers: {
             Accept: "application/json",
             "Content-Type": "application/json; charset=utf-8",
