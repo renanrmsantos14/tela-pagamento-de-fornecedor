@@ -1143,6 +1143,8 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
     .join(" ");
   const gridScrollRef = useRef(null);
   const horizontalScrollRef = useRef(null);
+  const horizontalScrollFrameRef = useRef(0);
+  const pendingHorizontalScrollRef = useRef(0);
   const [horizontalScroll, setHorizontalScroll] = useState({
     contentWidth: 0,
     viewportWidth: 0,
@@ -1198,6 +1200,24 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
       .reduce((total, column) => total + column.width, 0);
   const pinnedStyle = (column) =>
     column.locked ? { left: `${pinnedLeft(column.id)}px` } : undefined;
+  const syncTableHorizontalScroll = (scrollLeft) => {
+    pendingHorizontalScrollRef.current = scrollLeft;
+    if (horizontalScrollFrameRef.current) return;
+    horizontalScrollFrameRef.current = window.requestAnimationFrame(() => {
+      const table = gridScrollRef.current;
+      const nextScrollLeft = pendingHorizontalScrollRef.current;
+      if (table && table.scrollLeft !== nextScrollLeft)
+        table.scrollLeft = nextScrollLeft;
+      horizontalScrollFrameRef.current = 0;
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (horizontalScrollFrameRef.current)
+        window.cancelAnimationFrame(horizontalScrollFrameRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const scrollElement = gridScrollRef.current;
@@ -1703,11 +1723,9 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
             ref={horizontalScrollRef}
             role="region"
             aria-label="Rolagem horizontal da tabela"
-            onScroll={(event) => {
-              const table = gridScrollRef.current;
-              if (table && table.scrollLeft !== event.currentTarget.scrollLeft)
-                table.scrollLeft = event.currentTarget.scrollLeft;
-            }}
+            onScroll={(event) =>
+              syncTableHorizontalScroll(event.currentTarget.scrollLeft)
+            }
           >
             <div style={{ width: `${horizontalScroll.contentWidth}px` }} />
           </div>

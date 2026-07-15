@@ -2287,6 +2287,8 @@ select:focus {
   padding-bottom: 20px;
   overflow-x: hidden;
   overflow-y: auto;
+  contain: paint;
+  will-change: scroll-position;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-color: #a9b8cc transparent;
