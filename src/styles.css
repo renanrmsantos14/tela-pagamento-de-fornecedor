@@ -3679,3 +3679,246 @@ textarea:focus-visible {
     grid-template-columns: minmax(0, 1fr) auto auto;
   }
 }
+/* Listas operacionais 2026: superficies independentes, sem tabela simulada. */
+.operations-list {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #e5ebf2;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fbfcfe 0%, #f5f8fc 100%);
+  box-shadow: 0 14px 35px rgb(15 30 55 / 0.06);
+}
+.operations-list-head {
+  padding: 7px 7px 10px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.operations-list-head > div {
+  display: grid;
+  gap: 3px;
+}
+.operations-list-head span,
+.operations-list-head small,
+.payment-lot-card-value small,
+.beneficiary-card-pix small {
+  color: #718198;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.operations-list-head strong {
+  color: #172033;
+  font-size: var(--text-md);
+  letter-spacing: -0.015em;
+}
+.operations-list-head small {
+  max-width: 35ch;
+  line-height: 1.4;
+  text-align: right;
+}
+.payment-lot-card {
+  min-height: 74px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto auto 18px;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #e4eaf2;
+  border-radius: 12px;
+  color: inherit;
+  background: #fff;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms var(--ease-out);
+}
+.payment-lot-card-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #255cae;
+  background: #eaf2ff;
+}
+.payment-lot-card-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.payment-lot-card-copy strong,
+.beneficiary-card-copy strong {
+  overflow: hidden;
+  color: #172033;
+  font-size: var(--text-md);
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.payment-lot-card-copy span,
+.beneficiary-card-copy span {
+  overflow: hidden;
+  color: #6b7a8f;
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.payment-lot-card-value {
+  min-width: 118px;
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+.payment-lot-card-value strong {
+  color: #203b67;
+  font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+}
+.payment-lot-card-arrow {
+  color: #93a3b8;
+  transition: transform 160ms var(--ease-out), color 160ms ease;
+}
+.beneficiary-card {
+  min-height: 82px;
+  padding: 11px 12px;
+  display: grid;
+  grid-template-columns: minmax(230px, 1.35fr) minmax(140px, 0.8fr) auto auto auto;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid #e4eaf2;
+  border-radius: 12px;
+  background: #fff;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms var(--ease-out);
+}
+.beneficiary-card-profile {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.beneficiary-card-avatar {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cfe0f7;
+  border-radius: 12px;
+  color: #255cae;
+  background: linear-gradient(145deg, #f1f6ff, #e4efff);
+  font-size: 12px;
+  font-weight: 850;
+}
+.beneficiary-card-copy,
+.beneficiary-card-pix {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.beneficiary-card-pix strong {
+  overflow: hidden;
+  color: #344964;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.beneficiary-card-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #526b8d;
+  font-size: var(--text-xs);
+  font-weight: 750;
+  white-space: nowrap;
+}
+.beneficiary-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.beneficiary-card-actions .secondary-button,
+.beneficiary-card-actions .text-button {
+  min-height: 36px;
+  padding-inline: 9px;
+  white-space: nowrap;
+}
+.beneficiary-card-actions :active { transform: scale(0.97); }
+.operations-empty {
+  min-height: 130px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed #cbd7e5;
+  border-radius: 12px;
+  color: #718198;
+  font-size: var(--text-sm);
+}
+@media (hover: hover) and (pointer: fine) {
+  .payment-lot-card:hover,
+  .beneficiary-card:hover {
+    border-color: #bfd4f1;
+    box-shadow: 0 10px 22px rgb(30 66 116 / 0.08);
+    transform: translateY(-1px);
+  }
+  .payment-lot-card:hover .payment-lot-card-arrow {
+    color: #255cae;
+    transform: translateX(2px);
+  }
+}
+.payment-lot-card:focus-visible,
+.beneficiary-card:focus-within {
+  outline: 0;
+  border-color: #78a2da;
+  box-shadow: 0 0 0 3px rgb(56 113 205 / 0.14);
+}
+@media (max-width: 860px) {
+  .beneficiary-card {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "profile status actions" "pix links actions";
+    gap: 8px 12px;
+  }
+  .beneficiary-card-profile { grid-area: profile; }
+  .beneficiary-card-pix { grid-area: pix; }
+  .beneficiary-card-links { grid-area: links; }
+  .beneficiary-card > .status-badge { grid-area: status; justify-self: end; }
+  .beneficiary-card-actions { grid-area: actions; }
+}
+@media (max-width: 620px) {
+  .operations-list { padding: 8px; border-radius: 14px; }
+  .operations-list-head { align-items: start; flex-direction: column; gap: 5px; }
+  .operations-list-head small { text-align: left; }
+  .payment-lot-card {
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    grid-template-areas: "icon copy status" "icon value arrow";
+    gap: 7px 10px;
+  }
+  .payment-lot-card-icon { grid-area: icon; align-self: start; }
+  .payment-lot-card-copy { grid-area: copy; }
+  .payment-lot-card-value { grid-area: value; justify-items: start; min-width: 0; }
+  .payment-lot-card > .status-badge { grid-area: status; justify-self: end; }
+  .payment-lot-card-arrow { grid-area: arrow; align-self: end; justify-self: end; }
+  .beneficiary-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "profile status" "pix links" "actions actions";
+    gap: 9px;
+  }
+  .beneficiary-card-actions { justify-content: flex-start; }
+}
+@media (max-width: 430px) {
+  .beneficiary-card-actions .secondary-button { flex: 1; justify-content: center; }
+  .beneficiary-card-actions .text-button { padding-inline: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .payment-lot-card,
+  .beneficiary-card,
+  .payment-lot-card-arrow { transition: none; }
+}

@@ -1759,37 +1759,33 @@ function LotsView({ lots, onNew, onOpen }) {
           Novo lote
         </button>
       </div>
-      <section className="surface lots-panel">
-        <div className="list-context">
-          <span>{lots.length} lote(s)</span>
-          <small>Toque em um lote para consultar a trilha e os documentos.</small>
+      <section className="operations-list operations-list-lots" aria-label="Lotes de pagamento">
+        <div className="operations-list-head">
+          <div>
+            <span>Visao operacional</span>
+            <strong>{lots.length} lote(s) no historico</strong>
+          </div>
+          <small>Abra um lote para consultar pagamentos e documentos.</small>
         </div>
         {lots.map((lot) => (
-          <button className="lot-row" key={lot.id} onClick={() => onOpen(lot)}>
-            <div className="lot-row-main">
+          <button className="payment-lot-card" key={lot.id} onClick={() => onOpen(lot)}>
+            <span className="payment-lot-card-icon" aria-hidden="true"><ClipboardList size={18} /></span>
+            <div className="payment-lot-card-copy">
               <strong>{lot.identifier}</strong>
-              <span>
-                {lot.favorecido?.nome ||
-                  JSON.parse(lot.favorecidoSnapshot || "{}").nome ||
-                  "Terceiro Favorecido"}
-              </span>
+              <span>{lot.favorecido?.nome || JSON.parse(lot.favorecidoSnapshot || "{}").nome || "Terceiro Favorecido"}</span>
             </div>
-            <div className="lot-row-value">
-              <small>Valor do lote</small>
+            <div className="payment-lot-card-value">
+              <small>Valor reservado</small>
               <strong>{money(lot.repasse)}</strong>
             </div>
-            <Badge
-              tone={
-                lot.paymentStatus === PAYMENT_STATUS.PAID ? "green" : "blue"
-              }
-            >
+            <Badge tone={lot.paymentStatus === PAYMENT_STATUS.PAID ? "green" : "blue"}>
               {statusText(lot)}
             </Badge>
-            <ChevronRight size={16} />
+            <ChevronRight className="payment-lot-card-arrow" size={18} aria-hidden="true" />
           </button>
         ))}
         {!lots.length && (
-          <div className="empty-small">Nenhum lote criado neste ambiente.</div>
+          <div className="operations-empty">Nenhum lote criado neste ambiente.</div>
         )}
       </section>
     </section>
@@ -1818,34 +1814,41 @@ function FavorecidosView({
           Novo terceiro
         </button>
       </div>
-      <section className="surface favorecido-list">
-        <div className="list-context">
-          <span>{favorecidos.length} favorecido(s)</span>
-          <small>Dados bancarios e vinculos operacionais centralizados.</small>
+      <section className="operations-list operations-list-beneficiaries" aria-label="Terceiros favorecidos">
+        <div className="operations-list-head">
+          <div>
+            <span>Base de pagamento</span>
+            <strong>{favorecidos.length} favorecido(s) cadastrado(s)</strong>
+          </div>
+          <small>PIX, situacao e vinculos por pessoa ou empresa.</small>
         </div>
         {favorecidos.map((row) => {
           const count = links.filter(
             (link) => link.favorecidoId === row.id && link.status === "ativo",
           ).length;
           return (
-            <article className="favorecido-row" key={row.id}>
-              <div className="favorecido-row-main">
-                <div className="favorecido-avatar" aria-hidden="true">
-                  {row.nome.trim().slice(0, 1).toUpperCase()}
+            <article className="beneficiary-card" key={row.id}>
+              <div className="beneficiary-card-profile">
+                <div className="beneficiary-card-avatar" aria-hidden="true">
+                  {row.nome.trim().slice(0, 2).toUpperCase()}
                 </div>
-                <div className="favorecido-row-copy">
+                <div className="beneficiary-card-copy">
                   <strong>{row.nome}</strong>
-                  <span>
-                    {row.tipoPessoa} · {row.documento} · PIX{" "}
-                    {maskPix(row.chavePix)}
-                  </span>
-                  <small>{count} motorista(s) ativo(s)</small>
+                  <span>{row.tipoPessoa} · {row.documento}</span>
                 </div>
+              </div>
+              <div className="beneficiary-card-pix">
+                <small>Chave PIX</small>
+                <strong>{maskPix(row.chavePix)}</strong>
+              </div>
+              <div className="beneficiary-card-links">
+                <UsersRound size={15} aria-hidden="true" />
+                <span>{count} motorista(s)</span>
               </div>
               <Badge tone={row.status === "ativo" ? "green" : "neutral"}>
                 {row.status}
               </Badge>
-              <div className="favorecido-actions">
+              <div className="beneficiary-card-actions">
                 <button className="secondary-button" onClick={() => onLinks(row)}>
                   <Link2 size={15} />
                   Vínculos
