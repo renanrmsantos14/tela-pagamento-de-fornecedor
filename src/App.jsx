@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -1220,6 +1220,8 @@ function RepasseGrid({
   const gridScrollRef = useRef(null);
   const horizontalScrollRef = useRef(null);
   const columnPickerRef = useRef(null);
+  const columnRowRefs = useRef(new Map());
+  const previousColumnPositionsRef = useRef(new Map());
   const savedViewRef = useRef(null);
   const horizontalScrollFrameRef = useRef(0);
   const pendingHorizontalScrollRef = useRef(0);
@@ -1306,6 +1308,25 @@ function RepasseGrid({
     document.addEventListener("pointerdown", closeMenus);
     return () => document.removeEventListener("pointerdown", closeMenus);
   }, [showPicker, showViews]);
+
+  useLayoutEffect(() => {
+    const previousPositions = previousColumnPositionsRef.current;
+    if (!previousPositions.size) return;
+    previousColumnPositionsRef.current = new Map();
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    columnRowRefs.current.forEach((element, id) => {
+      const previousTop = previousPositions.get(id);
+      const delta = previousTop - element.getBoundingClientRect().top;
+      if (previousTop === undefined || Math.abs(delta) < 1) return;
+      element.animate(
+        [
+          { transform: `translateY(${delta}px)` },
+          { transform: "translateY(0)" },
+        ],
+        { duration: 190, easing: "cubic-bezier(0.23, 1, 0.32, 1)" },
+      );
+    });
+  }, [columns]);
 
   useEffect(() => {
     const scrollElement = gridScrollRef.current;
@@ -1443,6 +1464,12 @@ function RepasseGrid({
       const target = next.findIndex((column) => column.id === targetId);
       if (source < 0 || target < 0 || next[source].locked !== next[target].locked)
         return current;
+      previousColumnPositionsRef.current = new Map(
+        [...columnRowRefs.current].map(([id, element]) => [
+          id,
+          element.getBoundingClientRect().top,
+        ]),
+      );
       const [column] = next.splice(source, 1);
       const targetIndex = next.findIndex((item) => item.id === targetId);
       next.splice(targetIndex + (placement === "after" ? 1 : 0), 0, column);
@@ -1714,6 +1741,10 @@ function RepasseGrid({
                   <div
                     className={`column-picker-row ${draggedColumn === column.id ? "is-dragging" : ""} ${dropTarget?.id === column.id ? `is-drop-${dropTarget.placement}` : ""}`}
                     key={column.id}
+                    ref={(element) => {
+                      if (element) columnRowRefs.current.set(column.id, element);
+                      else columnRowRefs.current.delete(column.id);
+                    }}
                     onDragOver={(event) => {
                       if (!draggedColumn || draggedColumn === column.id) return;
                       const source = orderedColumns.find(

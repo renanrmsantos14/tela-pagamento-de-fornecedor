@@ -2245,10 +2245,6 @@ select:focus {
     background-color 140ms ease,
     opacity 140ms ease;
 }
-.column-picker-row.is-drop-before,
-.column-picker-row.is-drop-after {
-  background: #edf4ff;
-}
 .column-picker-row.is-drop-before::before,
 .column-picker-row.is-drop-after::after {
   position: absolute;
