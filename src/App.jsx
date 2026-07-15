@@ -1686,22 +1686,22 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
               <span>Amplie o intervalo ou ajuste os filtros.</span>
             </div>
           )}
-          {horizontalScroll.contentWidth > horizontalScroll.viewportWidth && (
-            <div
-              className="repasse-grid-horizontal-scroll"
-              ref={horizontalScrollRef}
-              role="region"
-              aria-label="Rolagem horizontal da tabela"
-              onScroll={(event) => {
-                const table = gridScrollRef.current;
-                if (table && table.scrollLeft !== event.currentTarget.scrollLeft)
-                  table.scrollLeft = event.currentTarget.scrollLeft;
-              }}
-            >
-              <div style={{ width: `${horizontalScroll.contentWidth}px` }} />
-            </div>
-          )}
         </div>
+        {horizontalScroll.contentWidth > horizontalScroll.viewportWidth && (
+          <div
+            className="repasse-grid-horizontal-scroll"
+            ref={horizontalScrollRef}
+            role="region"
+            aria-label="Rolagem horizontal da tabela"
+            onScroll={(event) => {
+              const table = gridScrollRef.current;
+              if (table && table.scrollLeft !== event.currentTarget.scrollLeft)
+                table.scrollLeft = event.currentTarget.scrollLeft;
+            }}
+          >
+            <div style={{ width: `${horizontalScroll.contentWidth}px` }} />
+          </div>
+        )}
       </div>
     </section>
   );
