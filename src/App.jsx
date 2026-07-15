@@ -1760,9 +1760,13 @@ function LotsView({ lots, onNew, onOpen }) {
         </button>
       </div>
       <section className="surface lots-panel">
+        <div className="list-context">
+          <span>{lots.length} lote(s)</span>
+          <small>Toque em um lote para consultar a trilha e os documentos.</small>
+        </div>
         {lots.map((lot) => (
           <button className="lot-row" key={lot.id} onClick={() => onOpen(lot)}>
-            <div>
+            <div className="lot-row-main">
               <strong>{lot.identifier}</strong>
               <span>
                 {lot.favorecido?.nome ||
@@ -1770,7 +1774,10 @@ function LotsView({ lots, onNew, onOpen }) {
                   "Terceiro Favorecido"}
               </span>
             </div>
-            <strong>{money(lot.repasse)}</strong>
+            <div className="lot-row-value">
+              <small>Valor do lote</small>
+              <strong>{money(lot.repasse)}</strong>
+            </div>
             <Badge
               tone={
                 lot.paymentStatus === PAYMENT_STATUS.PAID ? "green" : "blue"
@@ -1812,33 +1819,44 @@ function FavorecidosView({
         </button>
       </div>
       <section className="surface favorecido-list">
+        <div className="list-context">
+          <span>{favorecidos.length} favorecido(s)</span>
+          <small>Dados bancarios e vinculos operacionais centralizados.</small>
+        </div>
         {favorecidos.map((row) => {
           const count = links.filter(
             (link) => link.favorecidoId === row.id && link.status === "ativo",
           ).length;
           return (
             <article className="favorecido-row" key={row.id}>
-              <div>
-                <strong>{row.nome}</strong>
-                <span>
-                  {row.tipoPessoa} · {row.documento} · PIX{" "}
-                  {maskPix(row.chavePix)}
-                </span>
-                <small>{count} motorista(s) ativo(s)</small>
+              <div className="favorecido-row-main">
+                <div className="favorecido-avatar" aria-hidden="true">
+                  {row.nome.trim().slice(0, 1).toUpperCase()}
+                </div>
+                <div className="favorecido-row-copy">
+                  <strong>{row.nome}</strong>
+                  <span>
+                    {row.tipoPessoa} · {row.documento} · PIX{" "}
+                    {maskPix(row.chavePix)}
+                  </span>
+                  <small>{count} motorista(s) ativo(s)</small>
+                </div>
               </div>
               <Badge tone={row.status === "ativo" ? "green" : "neutral"}>
                 {row.status}
               </Badge>
-              <button className="secondary-button" onClick={() => onLinks(row)}>
-                <Link2 size={15} />
-                Vínculos
-              </button>
-              <button className="text-button" onClick={() => onEdit(row)}>
-                Editar
-              </button>
-              <button className="text-button" onClick={() => onStatus(row)}>
-                {row.status === "ativo" ? "Inativar" : "Ativar"}
-              </button>
+              <div className="favorecido-actions">
+                <button className="secondary-button" onClick={() => onLinks(row)}>
+                  <Link2 size={15} />
+                  Vínculos
+                </button>
+                <button className="text-button" onClick={() => onEdit(row)}>
+                  Editar
+                </button>
+                <button className="text-button" onClick={() => onStatus(row)}>
+                  {row.status === "ativo" ? "Inativar" : "Ativar"}
+                </button>
+              </div>
             </article>
           );
         })}

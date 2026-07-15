@@ -1689,6 +1689,187 @@ select:focus {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Listas de acompanhamento: leitura em camadas e acoes por contexto. */
+.lots-panel,
+.favorecido-list {
+  gap: 9px;
+}
+.list-context {
+  min-height: 38px;
+  padding: 0 4px 5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #718096;
+}
+.list-context span {
+  color: #344964;
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+.list-context small {
+  font-size: var(--text-xs);
+  text-align: right;
+}
+.lot-row {
+  min-height: 78px;
+  padding: 12px 13px;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, auto) auto 18px;
+  grid-template-areas: "main value status chevron";
+  gap: 14px;
+  border: 1px solid #e6ebf1;
+  border-radius: 11px;
+  background: #fff;
+}
+.lot-row-main {
+  grid-area: main;
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+.lot-row-main strong {
+  color: #172033;
+  font-size: var(--text-md);
+  letter-spacing: -0.01em;
+}
+.lot-row-main span {
+  color: #6a7a8f;
+  font-size: var(--text-xs);
+}
+.lot-row-value {
+  grid-area: value;
+  min-width: 0;
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+.lot-row-value small {
+  color: #8390a0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.lot-row-value strong {
+  color: var(--navy);
+  font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+}
+.lot-row > .status-badge { grid-area: status; }
+.lot-row > svg { grid-area: chevron; color: #7e90a8; }
+.favorecido-row {
+  min-height: 92px;
+  padding: 13px 14px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "main status actions";
+  gap: 14px;
+  border: 1px solid #e6ebf1;
+  border-radius: 11px;
+  background: #fff;
+}
+.favorecido-row-main {
+  grid-area: main;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.favorecido-avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cfe0f7;
+  border-radius: 10px;
+  color: #285db5;
+  background: #edf4ff;
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+.favorecido-row-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.favorecido-row-copy strong {
+  color: #172033;
+  font-size: var(--text-md);
+}
+.favorecido-row-copy span,
+.favorecido-row-copy small {
+  overflow: hidden;
+  color: #718096;
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.favorecido-row-copy small {
+  color: #526b8d;
+  font-weight: 700;
+}
+.favorecido-row > .status-badge { grid-area: status; }
+.favorecido-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+}
+.favorecido-actions .secondary-button,
+.favorecido-actions .text-button {
+  min-height: 36px;
+  padding-inline: 9px;
+  white-space: nowrap;
+}
+.favorecido-actions .secondary-button:active,
+.favorecido-actions .text-button:active {
+  transform: scale(0.97);
+}
+@media (hover: hover) and (pointer: fine) {
+  .lot-row:hover,
+  .favorecido-row:hover {
+    border-color: #cfe0f7;
+    box-shadow: 0 8px 18px rgba(33, 60, 96, 0.06);
+  }
+}
+@media (max-width: 760px) {
+  .list-context {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .list-context small { text-align: left; }
+  .lot-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "main status" "value chevron";
+    gap: 9px 12px;
+  }
+  .lot-row-value { justify-items: start; }
+  .lot-row > .status-badge { justify-self: end; }
+  .lot-row > svg { align-self: end; }
+  .favorecido-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "main status" "actions actions";
+    gap: 10px;
+  }
+  .favorecido-actions { justify-content: flex-start; }
+}
+@media (max-width: 480px) {
+  .lot-row { min-height: 88px; }
+  .favorecido-row {
+    grid-template-columns: 1fr;
+    grid-template-areas: "main" "status" "actions";
+  }
+  .favorecido-row > .status-badge { justify-self: start; }
+  .favorecido-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .favorecido-actions .secondary-button { justify-content: center; }
+}
 @media (max-width: 1120px) {
   .metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3445,5 +3626,56 @@ textarea:focus-visible {
   .lot-row::before,
   .favorecido-row::before {
     transition: none;
+  }
+}
+
+/* Resolve regras responsivas legadas para estrutura das listas. */
+.lot-row {
+  min-height: 78px;
+  padding: 12px 13px;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, auto) auto 18px;
+  grid-template-areas: "main value status chevron";
+  gap: 14px;
+  border: 1px solid #e6ebf1;
+  border-radius: 11px;
+}
+.favorecido-row {
+  min-height: 92px;
+  padding: 13px 14px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "main status actions";
+  gap: 14px;
+  border: 1px solid #e6ebf1;
+  border-radius: 11px;
+}
+.lot-row > .lot-row-main { grid-area: main; }
+.lot-row > .lot-row-value { grid-area: value; }
+.favorecido-row > .favorecido-row-main { grid-area: main; }
+.favorecido-row > .favorecido-actions { grid-area: actions; }
+@media (max-width: 760px) {
+  .lot-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "main status" "value chevron";
+    gap: 9px 12px;
+  }
+  .lot-row > .lot-row-value { justify-items: start; }
+  .lot-row > svg { display: block; align-self: end; }
+  .favorecido-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "main status" "actions actions";
+    gap: 10px;
+  }
+  .favorecido-actions { justify-content: flex-start; }
+}
+@media (max-width: 480px) {
+  .lot-row { min-height: 88px; }
+  .favorecido-row {
+    grid-template-columns: 1fr;
+    grid-template-areas: "main" "status" "actions";
+  }
+  .favorecido-row > .status-badge { justify-self: start; }
+  .favorecido-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
 }
