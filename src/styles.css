@@ -2286,6 +2286,40 @@ select:focus {
   -webkit-overflow-scrolling: touch;
   scrollbar-color: #a9b8cc transparent;
 }
+.repasse-grid-horizontal-scroll {
+  position: sticky;
+  top: 8px;
+  z-index: 8;
+  max-width: 100%;
+  height: 16px;
+  margin: 0 1px 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid #d9e1eb;
+  border-radius: 999px;
+  background: #f1f4f8;
+  box-shadow: 0 3px 10px rgba(22, 48, 80, 0.08);
+  scrollbar-color: #7187a2 #e8edf3;
+}
+.repasse-grid-horizontal-scroll > div {
+  height: 1px;
+  pointer-events: none;
+}
+.repasse-grid-horizontal-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+.repasse-grid-horizontal-scroll::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: #e8edf3;
+}
+.repasse-grid-horizontal-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid #e8edf3;
+  border-radius: 999px;
+  background: #7187a2;
+}
+.repasse-grid-horizontal-scroll::-webkit-scrollbar-thumb:hover {
+  background: #506a8a;
+}
 .repasse-grid {
   width: max-content;
   min-width: 100%;

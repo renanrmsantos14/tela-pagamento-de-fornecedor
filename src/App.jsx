@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -1139,6 +1139,12 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
   const template = visibleColumns
     .map((column) => `${column.width}px`)
     .join(" ");
+  const gridScrollRef = useRef(null);
+  const horizontalScrollRef = useRef(null);
+  const [horizontalScroll, setHorizontalScroll] = useState({
+    contentWidth: 0,
+    viewportWidth: 0,
+  });
   const pendingCount = services.filter(
     (service) => service.valorRepasse <= 0,
   ).length;
@@ -1190,6 +1196,36 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
       .reduce((total, column) => total + column.width, 0);
   const pinnedStyle = (column) =>
     column.locked ? { left: `${pinnedLeft(column.id)}px` } : undefined;
+
+  useEffect(() => {
+    const scrollElement = gridScrollRef.current;
+    if (!scrollElement) return undefined;
+    const measure = () =>
+      setHorizontalScroll({
+        contentWidth: scrollElement.scrollWidth,
+        viewportWidth: scrollElement.clientWidth,
+      });
+    const syncHorizontalScrollbar = () => {
+      const scrollbar = horizontalScrollRef.current;
+      if (scrollbar && scrollbar.scrollLeft !== scrollElement.scrollLeft)
+        scrollbar.scrollLeft = scrollElement.scrollLeft;
+    };
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(measure);
+    observer?.observe(scrollElement);
+    if (scrollElement.firstElementChild)
+      observer?.observe(scrollElement.firstElementChild);
+    measure();
+    window.addEventListener("resize", measure);
+    scrollElement.addEventListener("scroll", syncHorizontalScrollbar);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+      scrollElement.removeEventListener("scroll", syncHorizontalScrollbar);
+    };
+  }, [template]);
 
   useEffect(() => {
     localStorage.setItem(REPASSE_COLUMNS_STORAGE_KEY, JSON.stringify(columns));
@@ -1527,7 +1563,22 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
           </div>
         </div>
       </div>
-      <div className="repasse-grid-scroll">
+      {horizontalScroll.contentWidth > horizontalScroll.viewportWidth && (
+        <div
+          className="repasse-grid-horizontal-scroll"
+          ref={horizontalScrollRef}
+          role="region"
+          aria-label="Rolagem horizontal da tabela"
+          onScroll={(event) => {
+            const table = gridScrollRef.current;
+            if (table && table.scrollLeft !== event.currentTarget.scrollLeft)
+              table.scrollLeft = event.currentTarget.scrollLeft;
+          }}
+        >
+          <div style={{ width: `${horizontalScroll.contentWidth}px` }} />
+        </div>
+      )}
+      <div className="repasse-grid-scroll" ref={gridScrollRef}>
         <div
           className="repasse-grid"
           style={{
