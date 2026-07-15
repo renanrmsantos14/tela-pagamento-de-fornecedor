@@ -6,7 +6,9 @@ import {
   ArrowUpDown,
   Banknote,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   CircleDollarSign,
   ClipboardList,
   Columns3,
@@ -173,6 +175,10 @@ const loadRepasseViews = () => {
 };
 const loadActiveRepasseView = () =>
   localStorage.getItem(REPASSE_ACTIVE_VIEW_STORAGE_KEY) || "";
+const orderRepasseColumns = (columns) => [
+  ...columns.filter((column) => column.locked),
+  ...columns.filter((column) => !column.locked),
+];
 const viewColumns = (savedColumns) => {
   const defaults = new Map(REPASSE_COLUMNS.map((column) => [column.id, column]));
   const saved = Array.isArray(savedColumns) ? savedColumns : [];
@@ -189,12 +195,12 @@ const viewColumns = (savedColumns) => {
       };
     });
   const present = new Set(mapped.map((column) => column.id));
-  return [
+  return orderRepasseColumns([
     ...mapped,
     ...REPASSE_COLUMNS.filter((column) => !present.has(column.id)).map(
       (column) => ({ ...column, visible: true }),
     ),
-  ];
+  ]);
 };
 
 function Drawer({ title, subtitle, children, onClose, wide = false }) {
@@ -326,10 +332,11 @@ export default function App() {
   }
   async function linkService(service, favorecidoId) {
     const previousFavorecidoId = service.favorecidoId;
+    const isSelectedLink = (link) =>
+      link.motoristaId === service.motoristaId &&
+      link.favorecidoId === favorecidoId;
     const previousLink = links.find(
-      (link) =>
-        link.motoristaId === service.motoristaId &&
-        link.favorecidoId === favorecidoId,
+      isSelectedLink,
     );
     const optimisticLink = previousLink || {
       id: `pending-link-${service.id}-${favorecidoId}`,
@@ -361,7 +368,18 @@ export default function App() {
           row.id === service.id ? { ...row, ...saved, favorecidoId } : row,
         ),
       );
-      setLinks(await dataverse.listLinks());
+      const refreshedLinks = await dataverse.listLinks();
+      setLinks((rows) => {
+        const confirmedLink = refreshedLinks.find(
+          (link) => isSelectedLink(link) && link.status === "ativo",
+        );
+        if (confirmedLink) return refreshedLinks;
+        const currentLink = rows.find(isSelectedLink) || optimisticLink;
+        return [
+          ...refreshedLinks.filter((link) => !isSelectedLink(link)),
+          { ...currentLink, status: "ativo" },
+        ];
+      });
       setPreselected((current) => new Set(current).add(service.id));
       setNotice("Vínculo criado e serviço pré-selecionado.");
     } catch (err) {
@@ -1151,7 +1169,6 @@ function PaymentsView({
       <RepasseGrid
         services={services.filter((row) => row.status === "concluido")}
         favorecidos={allFavorecidos}
-        links={links}
         busy={busy}
         onSave={onSaveRepasse}
         onLink={onLink}
@@ -1159,7 +1176,7 @@ function PaymentsView({
     </section>
   );
 }
-function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
+function RepasseGrid({ services, favorecidos, busy, onSave, onLink }) {
   const [columns, setColumns] = useState(loadRepasseColumns);
   const [density, setDensity] = useState(loadRepasseDensity);
   const [views, setViews] = useState(loadRepasseViews);
@@ -1172,9 +1189,7 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
   const [draggedColumn, setDraggedColumn] = useState("");
   const [resize, setResize] = useState(null);
   const [sort, setSort] = useState({ id: "dataServico", direction: "desc" });
-  const orderedColumns = [...columns].sort(
-    (left, right) => Number(right.locked) - Number(left.locked),
-  );
+  const orderedColumns = orderRepasseColumns(columns);
   const visibleColumns = orderedColumns.filter((column) => column.visible);
   const pinnedColumns = visibleColumns.filter((column) => column.locked);
   const lastPinnedColumnId = pinnedColumns[pinnedColumns.length - 1]?.id;
@@ -1391,11 +1406,11 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
   const reorderColumns = (sourceId, targetId) => {
     if (!sourceId || sourceId === targetId) return;
     setColumns((current) => {
-      const next = [...current].sort(
-        (left, right) => Number(right.locked) - Number(left.locked),
-      );
+      const next = orderRepasseColumns(current);
       const source = next.findIndex((column) => column.id === sourceId);
       const target = next.findIndex((column) => column.id === targetId);
+      if (source < 0 || target < 0 || next[source].locked !== next[target].locked)
+        return current;
       next.splice(target, 0, next.splice(source, 1)[0]);
       return next;
     });
@@ -1412,8 +1427,10 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
     );
   const toggleColumnPin = (id) =>
     setColumns((current) =>
-      current.map((column) =>
-        column.id === id ? { ...column, locked: !column.locked } : column,
+      orderRepasseColumns(
+        current.map((column) =>
+          column.id === id ? { ...column, locked: !column.locked } : column,
+        ),
       ),
     );
   const resetColumns = () =>
@@ -1433,11 +1450,10 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
         : { id, direction: "asc" },
     );
   const moveColumnWithKeyboard = (id, direction) => {
-    const target =
-      orderedColumns[
-        orderedColumns.findIndex((column) => column.id === id) + direction
-      ];
-    if (!target) return;
+    const index = orderedColumns.findIndex((column) => column.id === id);
+    const source = orderedColumns[index];
+    const target = orderedColumns[index + direction];
+    if (!source || !target || source.locked !== target.locked) return;
     reorderColumns(id, target.id);
   };
   const applyView = (view) => {
@@ -1484,12 +1500,6 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
     setViewMessage(`View “${activeView.name}” excluída.`);
   };
   const cell = (service, column) => {
-    const linked = links.some(
-      (link) =>
-        link.status === "ativo" &&
-        link.motoristaId === service.motoristaId &&
-        link.favorecidoId === service.favorecidoId,
-    );
     if (column.id === "valorRepasse")
       return (
         <RepasseInput
@@ -1503,7 +1513,6 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
         <FavorecidoCell
           service={service}
           favorecidos={favorecidos}
-          linked={linked}
           saving={busy(`link-${service.id}`)}
           onLink={onLink}
         />
@@ -1652,7 +1661,7 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
                 role="dialog"
                 aria-label="Escolher colunas"
               >
-                <div>
+                <div className="column-picker-head">
                   <strong>Exibir colunas</strong>
                   <button className="text-button" onClick={resetColumns}>
                     Restaurar
@@ -1665,29 +1674,59 @@ function RepasseGrid({ services, favorecidos, links, busy, onSave, onLink }) {
                   placeholder="Localizar coluna"
                   aria-label="Localizar coluna"
                 />
-                {pickerColumns.map((column) => (
-                  <label key={column.id}>
-                    <input
-                      type="checkbox"
-                      checked={column.visible}
-                      onChange={() => toggleColumn(column.id)}
-                    />
-                    <span>{column.label}</span>
-                    <button
-                      type="button"
-                      className={`column-pin ${column.locked ? "is-active" : ""}`}
-                      aria-label={`${column.locked ? "Desafixar" : "Fixar"} ${column.label}`}
-                      aria-pressed={column.locked}
-                      title={column.locked ? "Desafixar coluna" : "Fixar à esquerda"}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        toggleColumnPin(column.id);
-                      }}
-                    >
-                      <Pin size={14} />
-                    </button>
-                  </label>
-                ))}
+                {pickerColumns.map((column) => {
+                  const index = orderedColumns.findIndex(
+                    (item) => item.id === column.id,
+                  );
+                  const previous = orderedColumns[index - 1];
+                  const next = orderedColumns[index + 1];
+                  const canMoveUp = previous?.locked === column.locked;
+                  const canMoveDown = next?.locked === column.locked;
+                  return (
+                    <div className="column-picker-row" key={column.id}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={column.visible}
+                          onChange={() => toggleColumn(column.id)}
+                        />
+                        <span>{column.label}</span>
+                      </label>
+                      <div className="column-picker-actions">
+                        <button
+                          type="button"
+                          className="column-order"
+                          aria-label={`Mover ${column.label} para cima`}
+                          title="Mover para cima"
+                          disabled={!canMoveUp}
+                          onClick={() => moveColumnWithKeyboard(column.id, -1)}
+                        >
+                          <ChevronUp size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="column-order"
+                          aria-label={`Mover ${column.label} para baixo`}
+                          title="Mover para baixo"
+                          disabled={!canMoveDown}
+                          onClick={() => moveColumnWithKeyboard(column.id, 1)}
+                        >
+                          <ChevronDown size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className={`column-pin ${column.locked ? "is-active" : ""}`}
+                          aria-label={`${column.locked ? "Desafixar" : "Fixar"} ${column.label}`}
+                          aria-pressed={column.locked}
+                          title={column.locked ? "Desafixar coluna" : "Fixar à esquerda"}
+                          onClick={() => toggleColumnPin(column.id)}
+                        >
+                          <Pin size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1882,13 +1921,16 @@ function RepasseInput({ service, saving, onSave }) {
         onBlur={save}
         aria-label={`Repasse de ${service.identificador}`}
       />
-      <small className={`repasse-margin ${marginTone}`}>
-        {currentMargin.toLocaleString("pt-BR", {
-          minimumFractionDigits: 1,
-          maximumFractionDigits: 1,
-        })}
-        %
-      </small>
+      <div className="repasse-meta">
+        {pending && <span className="repasse-pending" role="status">Pendente</span>}
+        <small className={`repasse-margin ${marginTone}`}>
+          {currentMargin.toLocaleString("pt-BR", {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1,
+          })}
+          %
+        </small>
+      </div>
       {status?.type === "saving" && (
         <span
           className="repasse-save-icon is-saving"
@@ -1915,12 +1957,11 @@ function RepasseInput({ service, saving, onSave }) {
           <AlertTriangle size={13} aria-hidden="true" />
         </button>
       )}
-      {pending && <Badge tone="amber">Repasse pendente</Badge>}
     </div>
   );
 }
-function FavorecidoCell({ service, favorecidos, linked, saving, onLink }) {
-  if (linked && service.favorecidoId) {
+function FavorecidoCell({ service, favorecidos, saving, onLink }) {
+  if (service.favorecidoId) {
     const favorecido = favorecidos.find(
       (row) => row.id === service.favorecidoId,
     );

@@ -2217,7 +2217,7 @@ select:focus {
   transform-origin: top right;
   animation: picker-enter 160ms var(--ease-out);
 }
-.column-picker > div {
+.column-picker-head {
   padding: 2px 3px 8px;
   display: flex;
   align-items: center;
@@ -2232,29 +2232,44 @@ select:focus {
   border-radius: 7px;
   font-size: var(--text-sm);
 }
-.column-picker label {
+.column-picker-row {
   min-height: 32px;
   padding: 0 5px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   border-radius: 6px;
+  transition: background-color 140ms ease;
+}
+.column-picker-row label {
+  min-height: 32px;
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: #40526a;
   font-size: var(--text-sm);
   font-weight: 700;
 }
-.column-picker label input {
+.column-picker-row label input {
   width: 16px;
   min-height: 16px;
   padding: 0;
 }
-.column-picker label > span {
+.column-picker-row label > span {
   min-width: 0;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.column-picker-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.column-order,
 .column-pin {
   width: 26px;
   min-width: 26px;
@@ -2271,10 +2286,15 @@ select:focus {
     background-color 140ms ease,
     transform 140ms var(--ease-out);
 }
+.column-order:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
 .column-pin.is-active {
   color: var(--blue);
   background: #edf3ff;
 }
+.column-order:not(:disabled):active,
 .column-pin:active {
   transform: scale(0.94);
 }
@@ -2511,7 +2531,6 @@ select:focus {
 }
 .grid-money-input input.is-pending {
   border-color: #e4bd6c;
-  background: #fffdf8;
 }
 .grid-money-input input:focus {
   border-color: #8fa9d1;
@@ -2525,12 +2544,28 @@ select:focus {
   min-height: 12px;
   font-size: 9px;
 }
-.grid-money-input > .status-badge {
-  min-height: 16px;
-  margin-top: 3px;
-  padding: 0 6px;
+.repasse-meta {
+  min-height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.repasse-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--warning);
   font-size: 9px;
+  font-weight: 800;
   line-height: 1;
+}
+.repasse-pending::before {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+  content: "";
 }
 .repasse-margin {
   color: #78879a;
@@ -2540,6 +2575,9 @@ select:focus {
   line-height: 1.15;
   text-align: right;
   transition: color 140ms ease;
+}
+.repasse-meta .repasse-margin {
+  margin-left: auto;
 }
 .repasse-margin.is-positive {
   color: #23815f;
@@ -2652,8 +2690,8 @@ select:focus {
     color: #4e5353;
     background: #f4f4f3;
   }
-  .column-picker label:hover {
-  background: #fcfcfb;
+  .column-picker-row:hover {
+    background: #fcfcfb;
   }
 }
 @media (min-width: 1600px) {
