@@ -15,6 +15,8 @@ import {
   Link2,
   LayoutDashboard,
   Pencil,
+  PanelLeftClose,
+  PanelLeftOpen,
   Pin,
   GripVertical,
   Plus,
@@ -270,6 +272,7 @@ export default function App() {
   const [lots, setLots] = useState([]);
   const [reservationStatusOptions, setReservationStatusOptions] = useState([]);
   const [tab, setTab] = useState("overview");
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [range, setRange] = useState(monthRange);
   const [search, setSearch] = useState("");
   const [driverIds, setDriverIds] = useState([]);
@@ -579,19 +582,32 @@ export default function App() {
       </main>
     );
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${sidebarExpanded ? "" : "sidebar-collapsed"}`}>
       <aside className="sidebar">
+        <button
+          className="sidebar-toggle"
+          type="button"
+          onClick={() => setSidebarExpanded((expanded) => !expanded)}
+          aria-label={sidebarExpanded ? "Recolher menu lateral" : "Expandir menu lateral"}
+          title={sidebarExpanded ? "Recolher menu lateral" : "Expandir menu lateral"}
+        >
+          {sidebarExpanded ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+        </button>
         <Brand />
         <Nav tab={tab} onChange={setTab} />
         <button
           className="primary-button sidebar-create"
+          title="Novo lote"
           onClick={() => setDrawer({ type: "lot" })}
         >
           <Plus size={16} />
           Novo lote
         </button>
         <div className="sidebar-foot">
-          <span className="connection-dot mock" />
+          <span
+            className="connection-dot mock"
+            title={dataverse.mockMode ? "Modo local completo" : "Dataverse conectado"}
+          />
           <div>
             <strong>{dataverse.environmentLabel}</strong>
             <span>
@@ -617,7 +633,7 @@ export default function App() {
           </button>
         </header>
         <div className="content-wrap">
-          <div className="desktop-actions">
+          <div className="desktop-actions" aria-label="Ações do ambiente">
             <span className="environment-pill">
               {dataverse.environmentLabel}
             </span>
@@ -876,30 +892,34 @@ function Nav({ tab, onChange }) {
       <button
         className={tab === "overview" ? "active" : ""}
         onClick={() => onChange("overview")}
+        title="Visão geral"
       >
         <LayoutDashboard size={17} />
-        Visão geral
+        <span>Visão geral</span>
       </button>
       <button
         className={tab === "payments" ? "active" : ""}
         onClick={() => onChange("payments")}
+        title="Lançar repasses"
       >
         <CircleDollarSign size={17} />
-        Lançar repasses
+        <span>Lançar repasses</span>
       </button>
       <button
         className={tab === "lots" ? "active" : ""}
         onClick={() => onChange("lots")}
+        title="Lotes de pagamento"
       >
         <ClipboardList size={17} />
-        Lotes de pagamento
+        <span>Lotes de pagamento</span>
       </button>
       <button
         className={tab === "favorecidos" ? "active" : ""}
         onClick={() => onChange("favorecidos")}
+        title="Terceiros favorecidos"
       >
         <UsersRound size={17} />
-        Terceiros Favorecidos
+        <span>Terceiros Favorecidos</span>
       </button>
     </nav>
   );
@@ -1023,7 +1043,7 @@ function OverviewView({
           <h1>Dashboard financeiro</h1>
           <p>Resultado, exposição e pendências de fornecedores no mesmo recorte.</p>
         </div>
-        <div className="dashboard-title-actions">
+        <div className="dashboard-title-actions" role="group" aria-label="Ações do dashboard">
           <button className="secondary-button" onClick={onNewFavorecido}>
             <UsersRound size={16} /> Terceiro
           </button>

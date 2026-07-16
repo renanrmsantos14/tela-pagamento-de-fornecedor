@@ -66,6 +66,10 @@ p {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 238px minmax(0, 1fr);
+  transition: grid-template-columns 220ms var(--ease-out);
+}
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 72px minmax(0, 1fr);
 }
 .sidebar {
   position: sticky;
@@ -77,6 +81,26 @@ p {
   gap: 24px;
   color: #fff;
   background: var(--navy);
+}
+.sidebar-toggle {
+  width: 40px;
+  height: 40px;
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  border: 0;
+  border-radius: 10px;
+  color: #c7d2e2;
+  background: transparent;
+  transition: transform 140ms var(--ease-out), background-color 160ms ease, color 160ms ease;
+}
+.sidebar-toggle:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+.sidebar-toggle:active {
+  transform: scale(0.97);
 }
 .brand-block {
   display: flex;
@@ -146,6 +170,34 @@ p {
 .sidebar-create {
   margin-top: auto;
 }
+.sidebar-collapsed .sidebar {
+  padding-inline: 16px;
+  gap: 24px;
+}
+.sidebar-collapsed .sidebar-toggle {
+  margin-inline: auto;
+}
+.sidebar-collapsed .brand-block,
+.sidebar-collapsed .main-nav button,
+.sidebar-collapsed .sidebar-create,
+.sidebar-collapsed .sidebar-foot {
+  justify-content: center;
+  padding-inline: 0;
+}
+.sidebar-collapsed .brand-block div:last-child,
+.sidebar-collapsed .main-nav button span,
+.sidebar-collapsed .sidebar-foot div {
+  display: none;
+}
+.sidebar-collapsed .sidebar-create {
+  font-size: 0;
+}
+.sidebar-collapsed .sidebar-create svg {
+  margin: 0;
+}
+.sidebar-collapsed .sidebar-foot {
+  padding-top: 12px;
+}
 .sidebar-foot {
   padding: 12px 8px 0;
   display: flex;
@@ -187,12 +239,12 @@ p {
   padding: 22px 26px 78px;
 }
 .desktop-actions {
-  height: 32px;
-  margin-bottom: 8px;
+  min-height: 40px;
+  margin-bottom: 12px;
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 .mobile-header {
   display: none;
@@ -477,6 +529,16 @@ p {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.page-title > .dashboard-title-actions {
+  min-width: max-content;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dashboard-title-actions > .primary-button,
+.dashboard-title-actions > .secondary-button {
+  min-height: 42px;
 }
 .dashboard-filters {
   margin-bottom: 12px;
