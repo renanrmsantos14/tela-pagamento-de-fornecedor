@@ -10,6 +10,7 @@ import {
   CircleDollarSign,
   ClipboardList,
   Columns3,
+  ExternalLink,
   FileDown,
   FileText,
   Link2,
@@ -296,6 +297,7 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [lotDetail, setLotDetail] = useState(null);
+  const [lastDocumentPdf, setLastDocumentPdf] = useState(null);
   const [preselected, setPreselected] = useState(new Set());
   const refreshInFlightRef = useRef(false);
   const busy = (key) => Boolean(saving[key]);
@@ -570,9 +572,9 @@ export default function App() {
         url: upload.url || upload.link,
         name: upload.name || pdf.name,
       });
-      downloadPaymentPdf(pdf);
+      setLastDocumentPdf({ lotId: updated.id, pdf });
       setLotDetail(await dataverse.getLotDetail(updated.id));
-      setNotice("PDF salvo no OneDrive e download iniciado.");
+      setNotice("PDF salvo no OneDrive. Escolha baixar ou abrir o link.");
     } catch (err) {
       await dataverse
         .registerDocumentResult(lot.id, { ok: false, error: err.message })
@@ -582,6 +584,21 @@ export default function App() {
     } finally {
       setBusy(`document-${lot.id}`, false);
     }
+  }
+  function downloadDocument(lot) {
+    if (lastDocumentPdf?.lotId === lot.id) {
+      downloadPaymentPdf(lastDocumentPdf.pdf);
+      return;
+    }
+    const link = document.createElement("a");
+    link.href = lot.documentUrl;
+    link.download = lot.documentName || `Pagamento_${lot.identifier}.pdf`;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
   async function markPaid(lot, proofInput = {}) {
     setBusy(`pay-${lot.id}`, true);
@@ -952,6 +969,7 @@ export default function App() {
           onClose={() => setDrawer(null)}
           onPay={markPaid}
           onSend={runDocument}
+          onDownload={downloadDocument}
           onEdit={() => setDrawer({ type: "editLot", lot: lotDetail })}
           onCancel={() =>
             setDrawer({
@@ -3017,6 +3035,7 @@ function LotDetailDrawer({
   onClose,
   onPay,
   onSend,
+  onDownload,
   onEdit,
   onCancel,
   onRevert,
@@ -3114,7 +3133,7 @@ function LotDetailDrawer({
                       ? "Reenviar documento"
                       : "Gerar documento"}
                   </strong>
-                  <span>Salva no OneDrive e inicia o download do PDF.</span>
+                  <span>Salva no OneDrive e disponibiliza as opcoes de acesso.</span>
                 </div>
                 <ChevronRight size={16} />
               </button>
@@ -3142,15 +3161,21 @@ function LotDetailDrawer({
           </div>
         </div>
         {lot.documentUrl && (
-          <a
-            className="document-link"
-            href={lot.documentUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <FileDown size={16} />
-            Abrir documento atual
-          </a>
+          <div className="document-actions">
+            <button className="document-link" onClick={() => onDownload(lot)}>
+              <FileDown size={16} />
+              Baixar PDF
+            </button>
+            <a
+              className="document-link document-open-link"
+              href={lot.documentUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <ExternalLink size={16} />
+              Abrir no OneDrive
+            </a>
+          </div>
         )}
         <div className="detail-card">
           <h3>Linha do tempo</h3>
