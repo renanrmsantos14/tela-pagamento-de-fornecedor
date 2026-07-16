@@ -4829,6 +4829,28 @@ input[type="date"]::-webkit-datetime-edit-year-field {
   white-space: nowrap;
 }
 .beneficiary-card-actions :active { transform: scale(0.97); }
+.beneficiary-card.is-inactive {
+  border-color: #e5e8ed;
+  background: var(--surface-soft);
+}
+.beneficiary-card.is-inactive .beneficiary-card-avatar {
+  color: #718096;
+  background: #edf0f3;
+  border-color: #d8dee6;
+}
+.beneficiary-card.is-inactive .beneficiary-card-copy strong,
+.beneficiary-card.is-inactive .beneficiary-card-pix strong {
+  color: #65748a;
+}
+.beneficiary-status-action {
+  min-width: 72px;
+}
+.favorecido-linked-name small {
+  color: var(--success);
+  font-size: 10px;
+  font-weight: 750;
+  white-space: nowrap;
+}
 .operations-empty {
   min-height: 130px;
   display: grid;

@@ -135,6 +135,30 @@ const lotActivityText = (lot, busy) => {
   if (busy(`cancel-${lot.id}`)) return "Cancelando lote";
   return "";
 };
+const applyActiveFavorecidoDefaults = (serviceRows, linkRows, favorecidoRows) => {
+  const activeFavorecidoIds = new Set(
+    favorecidoRows
+      .filter((favorecido) => favorecido.status === "ativo")
+      .map((favorecido) => favorecido.id),
+  );
+  const activeByDriver = linkRows.reduce((map, link) => {
+    if (link.status !== "ativo" || !activeFavorecidoIds.has(link.favorecidoId))
+      return map;
+    const current = map.get(link.motoristaId) || [];
+    current.push(link.favorecidoId);
+    map.set(link.motoristaId, current);
+    return map;
+  }, new Map());
+  return serviceRows.map((service) => {
+    const activeFavorecidos = activeByDriver.get(service.motoristaId) || [];
+    if (service.favorecidoId || activeFavorecidos.length !== 1) return service;
+    return {
+      ...service,
+      favorecidoId: activeFavorecidos[0],
+      favorecidoFromActiveLink: true,
+    };
+  });
+};
 const formatServiceDate = (value, fallback = "") => {
   const date = new Date(value);
   if (!value || Number.isNaN(date.getTime())) return fallback;
@@ -318,6 +342,10 @@ export default function App() {
       else delete next[key];
       return next;
     });
+  const reportActionError = (action, err) => {
+    const detail = err?.message || "Falha inesperada. Tente novamente.";
+    setError(`${action} nao foi concluido. ${detail}`);
+  };
   async function refresh() {
     if (refreshInFlightRef.current) return;
     refreshInFlightRef.current = true;
@@ -333,7 +361,9 @@ export default function App() {
           dataverse.listLots(),
           dataverse.listReservationStatuses(),
         ]);
-      setServices(serviceRows);
+      setServices(
+        applyActiveFavorecidoDefaults(serviceRows, linkRows, favorecidoRows),
+      );
       setPreviousServices(previousServiceRows);
       setFavorecidos(favorecidoRows);
       setDrivers(driverRows);
@@ -341,7 +371,7 @@ export default function App() {
       setLots(lotRows);
       setReservationStatusOptions(statusRows);
     } catch (err) {
-      setError(err.message);
+      reportActionError("Atualizacao dos dados", err);
     } finally {
       refreshInFlightRef.current = false;
       setBusy("refresh", false);
@@ -375,7 +405,7 @@ export default function App() {
       setLotDetail(detail);
       setDrawer({ type: "lotDetail" });
     } catch (err) {
-      setError(err.message);
+      reportActionError("Abertura do lote", err);
     }
   };
   async function saveRepasse(service, raw) {
@@ -530,7 +560,7 @@ export default function App() {
           : rows.filter((link) => link.id !== optimisticLink.id),
       );
       setAutosaveError(saveKey, { message: err.message, favorecidoId });
-      setError(err.message);
+      reportActionError("Vinculo do favorecido", err);
       await refresh();
     } finally {
       setBusy(saveKey, false);
@@ -546,7 +576,7 @@ export default function App() {
       await refresh();
       await openLot(created);
     } catch (err) {
-      setError(err.message);
+      reportActionError("Criacao do lote", err);
     } finally {
       setBusy("lot", false);
     }
@@ -564,7 +594,7 @@ export default function App() {
       await refresh();
       await openLot(updated);
     } catch (err) {
-      setError(err.message);
+      reportActionError("Atualizacao do lote", err);
     } finally {
       setBusy("lot", false);
     }
@@ -591,7 +621,7 @@ export default function App() {
         .registerDocumentResult(lot.id, { ok: false, error: err.message })
         .catch(() => undefined);
       setLotDetail(await dataverse.getLotDetail(lot.id).catch(() => lotDetail));
-      setError(err.message);
+      reportActionError("Geracao do documento", err);
     } finally {
       setBusy(`document-${lot.id}`, false);
     }
@@ -627,7 +657,7 @@ export default function App() {
       await runDocument(paid);
       await refresh();
     } catch (err) {
-      setError(err.message);
+      reportActionError("Registro do pagamento", err);
     } finally {
       setBusy(`pay-${lot.id}`, false);
     }
@@ -647,7 +677,10 @@ export default function App() {
       );
       await refresh();
     } catch (err) {
-      setError(err.message);
+      reportActionError(
+        action.type === "cancel" ? "Cancelamento do lote" : "Reversao do pagamento",
+        err,
+      );
     } finally {
       setBusy(`${action.type}-${action.lot.id}`, false);
     }
@@ -810,17 +843,44 @@ export default function App() {
               favorecidos={favorecidos}
               drivers={drivers}
               links={links}
+              busy={busy}
               onNew={() => setDrawer({ type: "favorecido" })}
               onEdit={(favorecido) =>
                 setDrawer({ type: "favorecido", favorecido })
               }
               onLinks={(favorecido) => setDrawer({ type: "links", favorecido })}
               onStatus={async (row) => {
-                await dataverse.setFavorecidoStatus(
-                  row.id,
-                  row.status === "ativo" ? "inativo" : "ativo",
+                const nextStatus = row.status === "ativo" ? "inativo" : "ativo";
+                const saveKey = `favorecido-status-${row.id}`;
+                setBusy(saveKey, true);
+                setFavorecidos((rows) =>
+                  rows.map((item) =>
+                    item.id === row.id ? { ...item, status: nextStatus } : item,
+                  ),
                 );
-                await refresh();
+                try {
+                  await dataverse.setFavorecidoStatus(row.id, nextStatus);
+                  setNotice(
+                    nextStatus === "ativo"
+                      ? "Terceiro Favorecido reativado."
+                      : "Terceiro Favorecido inativado. Ele nao aparece em novos pagamentos.",
+                  );
+                  await refresh();
+                } catch (err) {
+                  setFavorecidos((rows) =>
+                    rows.map((item) =>
+                      item.id === row.id ? { ...item, status: row.status } : item,
+                    ),
+                  );
+                  reportActionError(
+                    nextStatus === "ativo"
+                      ? "Reativacao do Terceiro Favorecido"
+                      : "Inativacao do Terceiro Favorecido",
+                    err,
+                  );
+                } finally {
+                  setBusy(saveKey, false);
+                }
               }}
             />
           )}
@@ -877,7 +937,7 @@ export default function App() {
               );
               await refresh();
             } catch (err) {
-              setError(err.message);
+              reportActionError("Cadastro do Terceiro Favorecido", err);
             } finally {
               setBusy("favorecido", false);
             }
@@ -911,7 +971,7 @@ export default function App() {
               await refresh();
               setNotice("Vinculo criado e linhas preenchidas.");
             } catch (err) {
-              setError(err.message);
+              reportActionError("Criacao do vinculo", err);
             } finally {
               setBusy("link-drawer", false);
             }
@@ -942,7 +1002,7 @@ export default function App() {
               await refresh();
               setNotice("Vinculo inativado e linhas desvinculadas.");
             } catch (err) {
-              setError(err.message);
+              reportActionError("Inativacao do vinculo", err);
             } finally {
               setBusy("link-drawer", false);
             }
@@ -2489,6 +2549,9 @@ function FavorecidoCell({
           <span title={favorecido?.nome || "Favorecido"}>
             {favorecido?.nome || "Favorecido"}
           </span>
+          {service.favorecidoFromActiveLink && (
+            <small>Vinculo ativo</small>
+          )}
           <button
             type="button"
             className="favorecido-edit"
@@ -2603,6 +2666,7 @@ function FavorecidosView({
   favorecidos,
   drivers,
   links,
+  busy,
   onNew,
   onEdit,
   onLinks,
@@ -2633,8 +2697,13 @@ function FavorecidosView({
           const count = links.filter(
             (link) => link.favorecidoId === row.id && link.status === "ativo",
           ).length;
+          const changingStatus = busy(`favorecido-status-${row.id}`);
           return (
-            <article className="beneficiary-card" key={row.id}>
+            <article
+              className={`beneficiary-card ${row.status === "inativo" ? "is-inactive" : ""}`}
+              key={row.id}
+              aria-busy={changingStatus}
+            >
               <div className="beneficiary-card-profile">
                 <div className="beneficiary-card-avatar" aria-hidden="true">
                   {row.nome.trim().slice(0, 2).toUpperCase()}
@@ -2650,7 +2719,11 @@ function FavorecidosView({
               </div>
               <div className="beneficiary-card-links">
                 <UsersRound size={15} aria-hidden="true" />
-                <span>{count} motorista(s)</span>
+                <span>
+                  {row.status === "inativo"
+                    ? "Inativo em novos pagamentos"
+                    : `${count} motorista(s) vinculado(s)`}
+                </span>
               </div>
               <Badge tone={row.status === "ativo" ? "green" : "neutral"}>
                 {row.status}
@@ -2663,8 +2736,16 @@ function FavorecidosView({
                 <button className="text-button" onClick={() => onEdit(row)}>
                   Editar
                 </button>
-                <button className="text-button" onClick={() => onStatus(row)}>
-                  {row.status === "ativo" ? "Inativar" : "Ativar"}
+                <button
+                  className="text-button beneficiary-status-action"
+                  disabled={changingStatus}
+                  onClick={() => onStatus(row)}
+                >
+                  {changingStatus
+                    ? "Atualizando..."
+                    : row.status === "ativo"
+                      ? "Inativar"
+                      : "Reativar"}
                 </button>
               </div>
             </article>
