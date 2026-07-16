@@ -4026,6 +4026,10 @@ textarea:focus-visible {
   color: #9a4e12;
   background: #fff0e5;
 }
+.status-badge.tone-red {
+  color: #b42318;
+  background: #fef0ee;
+}
 .tone-neutral {
   color: #556579;
   background: #edf1f5;

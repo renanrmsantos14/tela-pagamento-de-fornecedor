@@ -135,6 +135,11 @@ const statusText = (lot) =>
           ? "Pago · falha documental"
           : "Pago · documento pendente"
       : "Rascunho";
+const lotStatusTone = (lot) => {
+  if (lot.lotStatus === LOT_STATUS.CANCELLED) return "red";
+  if (lot.paymentStatus !== PAYMENT_STATUS.PAID) return "neutral";
+  return lot.documentStatus === DOCUMENT_STATUS.SENT ? "green" : "amber";
+};
 const lotActivityText = (lot, busy) => {
   if (busy(`pay-${lot.id}`)) return "Registrando pagamento";
   if (busy(`document-${lot.id}`)) return "Gerando documento";
@@ -3021,7 +3026,7 @@ function LotsView({ lots, busy, onNew, onOpen }) {
                 {activity}
               </span>
             ) : (
-              <Badge tone={lot.paymentStatus === PAYMENT_STATUS.PAID ? "green" : "blue"}>
+              <Badge tone={lotStatusTone(lot)}>
                 {statusText(lot)}
               </Badge>
             )}
@@ -3604,7 +3609,7 @@ function LotDetailDrawer({
       <div className="detail-stack">
         <div className="detail-hero">
           <div>
-            <Badge tone={isPaid ? "green" : "blue"}>{statusText(lot)}</Badge>
+            <Badge tone={lotStatusTone(lot)}>{statusText(lot)}</Badge>
             <span>Versão {lot.version}</span>
           </div>
           <h3>
