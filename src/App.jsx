@@ -128,6 +128,13 @@ const statusText = (lot) =>
           ? "Pago · falha documental"
           : "Pago · documento pendente"
       : "Rascunho";
+const lotActivityText = (lot, busy) => {
+  if (busy(`pay-${lot.id}`)) return "Registrando pagamento";
+  if (busy(`document-${lot.id}`)) return "Gerando documento";
+  if (busy(`revert-${lot.id}`)) return "Revertendo pagamento";
+  if (busy(`cancel-${lot.id}`)) return "Cancelando lote";
+  return "";
+};
 const formatServiceDate = (value, fallback = "") => {
   const date = new Date(value);
   if (!value || Number.isNaN(date.getTime())) return fallback;
@@ -573,6 +580,9 @@ export default function App() {
         url: upload.url || upload.link,
         name: upload.name || pdf.name,
       });
+      setLots((current) =>
+        current.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)),
+      );
       setLastDocumentPdf({ lotId: updated.id, pdf });
       setLotDetail(await dataverse.getLotDetail(updated.id));
       setNotice("PDF salvo no OneDrive. Escolha baixar ou abrir o link.");
@@ -609,6 +619,9 @@ export default function App() {
         : null;
       const proofUrl = proof?.url || proofInput.url || "";
       const paid = await dataverse.markPaid(lot.id, proofUrl);
+      setLots((current) =>
+        current.map((row) => (row.id === paid.id ? { ...row, ...paid } : row)),
+      );
       setLotDetail(await dataverse.getLotDetail(paid.id));
       setNotice("Pagamento registrado. Gerando documento.");
       await runDocument(paid);
@@ -729,18 +742,6 @@ export default function App() {
               {isRefreshing ? "Atualizando…" : "Atualizar"}
             </button>
           </div>
-          {isRefreshing && (
-            <div
-              className="data-refresh-indicator"
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              <RefreshCw size={16} className="spin" aria-hidden="true" />
-              <span>Atualizando dados desta tela</span>
-              <small>Navegação continua disponível</small>
-            </div>
-          )}
           {error && (
             <Alert tone="error" onClose={() => setError("")}>
               {error}
@@ -799,6 +800,7 @@ export default function App() {
           {tab === "lots" && (
             <LotsView
               lots={lots}
+              busy={busy}
               onNew={() => setDrawer({ type: "lot" })}
               onOpen={openLot}
             />
@@ -2535,7 +2537,7 @@ function FavorecidoCell({
   );
 }
 
-function LotsView({ lots, onNew, onOpen }) {
+function LotsView({ lots, busy, onNew, onOpen }) {
   return (
     <section className="page-section">
       <div className="page-title">
@@ -2557,8 +2559,15 @@ function LotsView({ lots, onNew, onOpen }) {
           </div>
           <small>Abra um lote para consultar pagamentos e documentos.</small>
         </div>
-        {lots.map((lot) => (
-          <button className="payment-lot-card" key={lot.id} onClick={() => onOpen(lot)}>
+        {lots.map((lot) => {
+          const activity = lotActivityText(lot, busy);
+          return (
+          <button
+            className={`payment-lot-card ${activity ? "is-updating" : ""}`}
+            key={lot.id}
+            onClick={() => onOpen(lot)}
+            aria-busy={Boolean(activity)}
+          >
             <span className="payment-lot-card-icon" aria-hidden="true"><ClipboardList size={18} /></span>
             <div className="payment-lot-card-copy">
               <strong>{lot.identifier}</strong>
@@ -2568,12 +2577,20 @@ function LotsView({ lots, onNew, onOpen }) {
               <small>Valor reservado</small>
               <strong>{money(lot.repasse)}</strong>
             </div>
-            <Badge tone={lot.paymentStatus === PAYMENT_STATUS.PAID ? "green" : "blue"}>
-              {statusText(lot)}
-            </Badge>
+            {activity ? (
+              <span className="payment-lot-card-progress" role="status">
+                <RefreshCw size={14} className="spin" aria-hidden="true" />
+                {activity}
+              </span>
+            ) : (
+              <Badge tone={lot.paymentStatus === PAYMENT_STATUS.PAID ? "green" : "blue"}>
+                {statusText(lot)}
+              </Badge>
+            )}
             <ChevronRight className="payment-lot-card-arrow" size={18} aria-hidden="true" />
           </button>
-        ))}
+          );
+        })}
         {!lots.length && (
           <div className="operations-empty">Nenhum lote criado neste ambiente.</div>
         )}
@@ -3045,6 +3062,8 @@ function LotDetailDrawer({
   const [proofError, setProofError] = useState("");
   const [isProofDropTarget, setIsProofDropTarget] = useState(false);
   const isPaid = lot.paymentStatus === PAYMENT_STATUS.PAID;
+  const isPaymentProcessing = busy(`pay-${lot.id}`);
+  const isDocumentProcessing = busy(`document-${lot.id}`);
   const setProof = (file) => {
     if (!file) return;
     if (file.size > MAX_PAYMENT_PROOF_SIZE) {
@@ -3158,13 +3177,13 @@ function LotDetailDrawer({
                 </label>
                 <button
                   className="pt-action-button pt-action-primary"
-                  disabled={busy(`pay-${lot.id}`) || Boolean(proofError)}
+                  disabled={isPaymentProcessing || Boolean(proofError)}
                   onClick={() => onPay(lot, { file: proofFile })}
                 >
                   <CheckCircle2 size={18} />
                   <div>
-                    <strong>Registrar como pago</strong>
-                    <span>Confirma pagamento integral e gera documento.</span>
+                    <strong>{isPaymentProcessing ? "Registrando pagamento..." : "Registrar como pago"}</strong>
+                    <span>{isPaymentProcessing ? "O status do lote sera atualizado em seguida." : "Confirma pagamento integral e gera documento."}</span>
                   </div>
                   <ChevronRight size={16} />
                 </button>
@@ -3172,17 +3191,19 @@ function LotDetailDrawer({
             )}
             {isPaid && (
               <button
-                disabled={busy(`document-${lot.id}`)}
+                disabled={isDocumentProcessing}
                 onClick={() => onSend(lot)}
               >
                 <Send size={18} />
                 <div>
                   <strong>
-                    {lot.documentStatus === DOCUMENT_STATUS.FAILED
+                    {isDocumentProcessing
+                      ? "Gerando documento..."
+                      : lot.documentStatus === DOCUMENT_STATUS.FAILED
                       ? "Reenviar documento"
                       : "Gerar documento"}
                   </strong>
-                  <span>Salva no OneDrive e disponibiliza as opcoes de acesso.</span>
+                  <span>{isDocumentProcessing ? "Salvando no OneDrive." : "Salva no OneDrive e disponibiliza as opcoes de acesso."}</span>
                 </div>
                 <ChevronRight size={16} />
               </button>
