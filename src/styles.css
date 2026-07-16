@@ -1550,6 +1550,30 @@ select:focus {
   display: grid;
   gap: 6px;
 }
+.lot-review-context {
+  padding: 13px 14px;
+  display: grid;
+  gap: 3px;
+  border: 1px solid #cbd9f8;
+  border-radius: 10px;
+  background: #f7faff;
+}
+.lot-review-context > span {
+  color: #587099;
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.lot-review-context strong {
+  color: var(--navy);
+  font-size: var(--text-md);
+}
+.lot-review-context small {
+  color: #526b8d;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
 .selection-row {
   min-height: 57px;
   padding: 8px;
@@ -2676,11 +2700,24 @@ select:focus {
   background: #f6f6f5;
 }
 .repasse-grid-select-cell input {
-  width: 16px;
-  height: 16px;
+  width: 28px;
+  height: 28px;
   margin: 0;
+  border: 1px solid #91a1b5;
+  border-radius: 7px;
   accent-color: var(--blue);
   cursor: pointer;
+  transition:
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+.repasse-grid-select-cell input:hover:not(:disabled),
+.repasse-grid-select-cell input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgb(33 89 210 / 0.14);
+}
+.repasse-grid-select-cell input:active:not(:disabled) {
+  transform: scale(0.92);
 }
 .repasse-grid-select-cell input:disabled {
   cursor: not-allowed;
@@ -2708,7 +2745,12 @@ select:focus {
   background: #f3f7fe;
 }
 .repasse-grid-row.is-selected {
-  box-shadow: inset 3px 0 #4b7fc8;
+  box-shadow: inset 4px 0 #2159d2;
+}
+.repasse-select-all.is-active {
+  border-color: #93b4ef;
+  color: #174aaf;
+  background: #edf4ff;
 }
 .repasse-grid-cell {
   min-width: 0;

@@ -714,14 +714,6 @@ export default function App() {
         </button>
         <Brand />
         <Nav tab={tab} onChange={setTab} />
-        <button
-          className="primary-button sidebar-create"
-          title="Novo lote"
-          onClick={() => setDrawer({ type: "lot" })}
-        >
-          <Plus size={16} />
-          Novo lote
-        </button>
         <div className="sidebar-foot">
           <span
             className="connection-dot mock"
@@ -1655,6 +1647,19 @@ function RepasseGrid({
     [eligibleLotServices, selectedIds],
   );
   const selectedFavorecidoId = selectedServices[0]?.favorecidoId || "";
+  const selectableFavorecidoId =
+    selectedFavorecidoId || eligibleLotServices[0]?.favorecidoId || "";
+  const selectableLotServices = useMemo(
+    () =>
+      eligibleLotServices.filter(
+        (service) => service.favorecidoId === selectableFavorecidoId,
+      ),
+    [eligibleLotServices, selectableFavorecidoId],
+  );
+  const allSelectableServicesSelected =
+    selectableLotServices.length > 0 &&
+    selectableLotServices.every((service) => selectedIds.has(service.id));
+  const selectAllRef = useRef(null);
   useEffect(() => {
     const eligibleIds = new Set(eligibleLotServices.map((service) => service.id));
     setSelectedIds((current) => {
@@ -1662,6 +1667,11 @@ function RepasseGrid({
       return next.size === current.size ? current : next;
     });
   }, [eligibleLotServices]);
+  useEffect(() => {
+    if (!selectAllRef.current) return;
+    selectAllRef.current.indeterminate =
+      selectedServices.length > 0 && !allSelectableServicesSelected;
+  }, [selectedServices.length, allSelectableServicesSelected]);
   const pinnedStyles = useMemo(() => {
     let left = 44;
     const styles = new Map();
@@ -1986,6 +1996,14 @@ function RepasseGrid({
       else next.add(serviceId);
       return next;
     });
+  const toggleAllSelectableServices = () =>
+    setSelectedIds((current) => {
+      if (allSelectableServicesSelected) {
+        const selectableIds = new Set(selectableLotServices.map((service) => service.id));
+        return new Set([...current].filter((id) => !selectableIds.has(id)));
+      }
+      return new Set(selectableLotServices.map((service) => service.id));
+    });
 
   return (
     <section
@@ -1999,6 +2017,23 @@ function RepasseGrid({
           <small>Configuração salva automaticamente.</small>
         </div>
         <div className="repasse-grid-actions">
+          <button
+            className={`secondary-button repasse-select-all ${allSelectableServicesSelected ? "is-active" : ""}`}
+            type="button"
+            disabled={!selectableLotServices.length}
+            onClick={toggleAllSelectableServices}
+            aria-pressed={allSelectableServicesSelected}
+            title={
+              selectableFavorecidoId
+                ? "Seleciona todos os serviços prontos do mesmo favorecido"
+                : "Nenhum serviço pronto para lote neste filtro"
+            }
+          >
+            <CheckCircle2 size={16} />
+            {allSelectableServicesSelected
+              ? "Limpar seleção"
+              : "Selecionar todos prontos"}
+          </button>
           <button
             className="primary-button repasse-generate-lot"
             disabled={!selectedServices.length}
@@ -2250,7 +2285,25 @@ function RepasseGrid({
             className="repasse-grid-head"
             style={{ gridTemplateColumns: gridTemplate }}
           >
-            <div className="repasse-grid-select-cell is-header" />
+            <div className="repasse-grid-select-cell is-header">
+              <input
+                ref={selectAllRef}
+                type="checkbox"
+                checked={allSelectableServicesSelected}
+                disabled={!selectableLotServices.length}
+                onChange={toggleAllSelectableServices}
+                aria-label={
+                  allSelectableServicesSelected
+                    ? "Limpar seleção de serviços prontos"
+                    : "Selecionar todos os serviços prontos do favorecido"
+                }
+                title={
+                  allSelectableServicesSelected
+                    ? "Limpar seleção"
+                    : "Selecionar todos prontos"
+                }
+              />
+            </div>
             {visibleColumns.map((column) => (
               <div
                 className={`repasse-grid-header ${column.locked ? "is-pinned" : ""} ${column.id === lastPinnedColumnId ? "is-pinned-edge" : ""}`}
@@ -2973,6 +3026,7 @@ function LotDrawer({
   onClose,
   onSave,
 }) {
+  const isReview = !existingLot && preselected.size > 0;
   const [favorecidoId, setFavorecidoId] = useState(
     existingLot?.favorecidoId || initialFavorecidoId || favorecidos[0]?.id || "",
   );
@@ -2988,13 +3042,16 @@ function LotDrawer({
     const reservedHere = scoped.filter(
       (row) => row.pagamentoId === existingLot?.id,
     );
-    return [
+    const selectable = [
       ...eligible,
       ...reservedHere.filter(
         (row) => !eligible.some((candidate) => candidate.id === row.id),
       ),
     ];
-  }, [services, favorecidoId, links, from, to, existingLot?.id]);
+    return isReview
+      ? selectable.filter((row) => preselected.has(row.id))
+      : selectable;
+  }, [services, favorecidoId, links, from, to, existingLot?.id, isReview, preselected]);
   const [selected, setSelected] = useState([]);
   useEffect(
     () =>
@@ -3017,43 +3074,59 @@ function LotDrawer({
   const favorecido = favorecidos.find((row) => row.id === favorecidoId);
   return (
     <Drawer
-      title={existingLot ? "Editar rascunho" : "Montar lote"}
-      subtitle="Reserva segura de serviços"
+      title={existingLot ? "Editar rascunho" : isReview ? "Revisar lote" : "Montar lote"}
+      subtitle={
+        isReview
+          ? "Serviços selecionados na tabela de repasses"
+          : "Reserva segura de serviços"
+      }
       wide
       onClose={onClose}
     >
       <div className="form-stack">
-        <label className="field">
-          <span>Terceiro Favorecido</span>
-          <SearchableSelect
-            value={favorecidoId}
-            onChange={setFavorecidoId}
-            clearable={false}
-            aria-label="Terceiro favorecido do lote"
-            options={favorecidos.map((row) => ({
-              value: row.id,
-              label: row.nome,
-            }))}
-          />
-        </label>
-        <div className="form-grid">
-          <label className="field">
-            <span>De</span>
-            <input
-              type="date"
-              value={from}
-              onChange={(event) => setFrom(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            <span>Até</span>
-            <input
-              type="date"
-              value={to}
-              onChange={(event) => setTo(event.target.value)}
-            />
-          </label>
-        </div>
+        {isReview ? (
+          <div className="lot-review-context">
+            <span>Favorecido</span>
+            <strong>{favorecido?.nome || "Não informado"}</strong>
+            <small>
+              Revise os serviços abaixo. Para incluir outros, volte à tabela de repasses.
+            </small>
+          </div>
+        ) : (
+          <>
+            <label className="field">
+              <span>Terceiro Favorecido</span>
+              <SearchableSelect
+                value={favorecidoId}
+                onChange={setFavorecidoId}
+                clearable={false}
+                aria-label="Terceiro favorecido do lote"
+                options={favorecidos.map((row) => ({
+                  value: row.id,
+                  label: row.nome,
+                }))}
+              />
+            </label>
+            <div className="form-grid">
+              <label className="field">
+                <span>De</span>
+                <input
+                  type="date"
+                  value={from}
+                  onChange={(event) => setFrom(event.target.value)}
+                />
+              </label>
+              <label className="field">
+                <span>Até</span>
+                <input
+                  type="date"
+                  value={to}
+                  onChange={(event) => setTo(event.target.value)}
+                />
+              </label>
+            </div>
+          </>
+        )}
         <div className="lot-summary">
           <div>
             <span>Serviços</span>
@@ -3126,7 +3199,9 @@ function LotDrawer({
               ? "Reservando…"
               : existingLot
                 ? "Salvar rascunho"
-                : "Criar lote"}
+                : isReview
+                  ? "Confirmar lote"
+                  : "Criar lote"}
           </button>
         </div>
       </div>
