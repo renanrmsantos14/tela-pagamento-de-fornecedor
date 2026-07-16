@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { dataverse } from "./lib/dataverse";
 import { buildPaymentPdf } from "./lib/document";
+import { scheduleAfterPaint } from "./lib/ui";
 import SearchableSelect, { SearchableMultiSelect } from "./SearchableSelect";
 import {
   DOCUMENT_STATUS,
@@ -857,6 +858,7 @@ export default function App() {
               setVehicleTypes={setVehicleTypes}
               vehicleTypeOptions={vehicleTypeOptions}
               reservationStatusOptions={reservationStatusOptions}
+              lotDrawerOpen={drawer?.type === "lot" || drawer?.type === "editLot"}
               busy={busy}
               autosaveErrors={autosaveErrors}
               onSaveRepasse={saveRepasse}
@@ -1452,6 +1454,7 @@ function PaymentsView({
   setVehicleTypes,
   vehicleTypeOptions,
   reservationStatusOptions,
+  lotDrawerOpen,
   busy,
   autosaveErrors,
   onSaveRepasse,
@@ -1499,6 +1502,7 @@ function PaymentsView({
   const filteredServices = useMemo(
     () =>
       services.filter((row) =>
+        !row.pagamentoId &&
         (!cpStatusFilter.length || cpStatusFilter.includes(String(row.status))) &&
         (!statusFilter.length || statusFilter.includes(row.reservationStatus)),
       ),
@@ -1615,6 +1619,7 @@ function PaymentsView({
         onSave={onSaveRepasse}
         onLink={onLink}
         links={links}
+        lotDrawerOpen={lotDrawerOpen}
         onGenerateLot={onGenerateLot}
       />
     </section>
@@ -1628,6 +1633,7 @@ function RepasseGrid({
   onSave,
   onLink,
   links,
+  lotDrawerOpen,
   onGenerateLot,
 }) {
   const [columns, setColumns] = useState(loadRepasseColumns);
@@ -2189,14 +2195,11 @@ function RepasseGrid({
           )}
         </div>
         <div className="repasse-grid-actions">
-          <button
-            className="primary-button repasse-generate-lot"
-            disabled={!selectedServices.length}
-            onClick={() => onGenerateLot(selectedServices)}
-          >
-            <ClipboardList size={16} />
-            Gerar lote{selectedServices.length ? ` (${selectedServices.length})` : ""}
-          </button>
+          <GenerateLotButton
+            selectedServices={selectedServices}
+            drawerOpen={lotDrawerOpen}
+            onGenerateLot={onGenerateLot}
+          />
           <div className="saved-view-wrap" ref={savedViewRef}>
             <button
               className={`secondary-button ${activeView ? "is-active" : ""}`}
@@ -2699,6 +2702,52 @@ function RepasseGrid({
         </div>
       )}
     </section>
+  );
+}
+function GenerateLotButton({ selectedServices, drawerOpen, onGenerateLot }) {
+  const [preparing, setPreparing] = useState(false);
+  const cancelPreparationRef = useRef(null);
+
+  useEffect(() => {
+    if (drawerOpen) setPreparing(false);
+  }, [drawerOpen]);
+  useEffect(
+    () => () => {
+      cancelPreparationRef.current?.();
+    },
+    [],
+  );
+
+  const openLotReview = () => {
+    if (preparing || !selectedServices.length) return;
+    setPreparing(true);
+    cancelPreparationRef.current = scheduleAfterPaint(() => {
+      cancelPreparationRef.current = null;
+      try {
+        onGenerateLot(selectedServices);
+      } catch (error) {
+        setPreparing(false);
+        throw error;
+      }
+    });
+  };
+
+  return (
+    <button
+      className={`primary-button repasse-generate-lot ${preparing ? "is-preparing" : ""}`}
+      disabled={preparing || !selectedServices.length}
+      aria-busy={preparing}
+      onClick={openLotReview}
+    >
+      {preparing ? (
+        <RefreshCw size={16} className="spin" aria-hidden="true" />
+      ) : (
+        <ClipboardList size={16} aria-hidden="true" />
+      )}
+      {preparing
+        ? "Preparando lote..."
+        : `Gerar lote${selectedServices.length ? ` (${selectedServices.length})` : ""}`}
+    </button>
   );
 }
 function RepasseInput({ service, saving, onSave, onTabNavigate }) {
