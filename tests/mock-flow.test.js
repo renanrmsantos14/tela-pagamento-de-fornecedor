@@ -304,10 +304,7 @@ async function remoteClient({
             cr40f_valorcobrado: 1000,
             cr40f_valorrepasse: 600,
             cr40f_margem: 400,
-            cr40f_snapshotfinanceiro: JSON.stringify({
-              identificador: "RES-REMOTE-001",
-              motorista: "Motorista remoto",
-            }),
+            cr40f_snapshotfinanceiro: "{}",
           },
         ],
       });

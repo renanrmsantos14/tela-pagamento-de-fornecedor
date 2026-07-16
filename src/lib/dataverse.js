@@ -2036,6 +2036,23 @@ class DataverseClient {
     const items = itemRows.map((row) =>
       this.normalizeItem(row, itemEntity, lot),
     );
+    if (items.some((item) => !item.identificador || !item.motorista)) {
+      const services = await this.listFinanceServices();
+      const serviceBySourceId = new Map(
+        services.flatMap((service) => [
+          [service.compositionId, service],
+          [service.reservationId, service],
+        ]),
+      );
+      items.forEach((item) => {
+        const service =
+          serviceBySourceId.get(item.compositionId) ||
+          serviceBySourceId.get(item.reservationId);
+        if (!service) return;
+        item.identificador ||= service.identificador || "";
+        item.motorista ||= service.motorista || "";
+      });
+    }
     return {
       ...lot,
       items,
