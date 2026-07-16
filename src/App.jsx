@@ -149,6 +149,7 @@ const normalizeFilterLabel = (value) =>
     .trim();
 const maskPix = (value) =>
   value?.length > 8 ? `${value.slice(0, 3)}••••${value.slice(-3)}` : value;
+const MAX_PAYMENT_PROOF_SIZE = 5 * 1024 * 1024;
 const downloadPaymentPdf = (pdf) => {
   const link = document.createElement("a");
   link.href = pdf.dataUri;
@@ -3040,9 +3041,32 @@ function LotDetailDrawer({
   onCancel,
   onRevert,
 }) {
-  const [proofUrl, setProofUrl] = useState("");
   const [proofFile, setProofFile] = useState(null);
+  const [proofError, setProofError] = useState("");
+  const [isProofDropTarget, setIsProofDropTarget] = useState(false);
   const isPaid = lot.paymentStatus === PAYMENT_STATUS.PAID;
+  const setProof = (file) => {
+    if (!file) return;
+    if (file.size > MAX_PAYMENT_PROOF_SIZE) {
+      setProofError("O comprovante precisa ter no maximo 5 MB.");
+      return;
+    }
+    setProofFile(file);
+    setProofError("");
+  };
+  const handleProofPaste = (event) => {
+    const files = [
+      ...Array.from(event.clipboardData?.files || []),
+      ...Array.from(event.clipboardData?.items || [])
+        .filter((item) => item.kind === "file")
+        .map((item) => item.getAsFile())
+        .filter(Boolean),
+    ];
+    if (files[0]) {
+      event.preventDefault();
+      setProof(files[0]);
+    }
+  };
   return (
     <Drawer
       title={lot.identifier}
@@ -3084,7 +3108,7 @@ function LotDetailDrawer({
           <h3>Ações</h3>
           <div className="detail-actions">
             {canPay(lot) && (
-              <button onClick={onEdit}>
+              <button className="pt-action-button pt-action-edit" onClick={onEdit}>
                 <ClipboardList size={18} />
                 <div>
                   <strong>Editar rascunho</strong>
@@ -3095,22 +3119,47 @@ function LotDetailDrawer({
             )}
             {canPay(lot) && (
               <>
-                <label className="proof-input field">
+                <label
+                  className={`proof-input field proof-dropzone ${isProofDropTarget ? "is-dropping" : ""} ${proofFile ? "has-proof" : ""}`}
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    event.currentTarget
+                      .querySelector('input[type="file"]')
+                      ?.click();
+                  }}
+                  onPaste={handleProofPaste}
+                  onDragEnter={(event) => {
+                    event.preventDefault();
+                    setIsProofDropTarget(true);
+                  }}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDragLeave={(event) => {
+                    if (event.currentTarget === event.target)
+                      setIsProofDropTarget(false);
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setIsProofDropTarget(false);
+                    setProof(event.dataTransfer.files?.[0]);
+                  }}
+                >
                   <span>Comprovante opcional</span>
                   <input
-                    value={proofUrl}
-                    onChange={(event) => setProofUrl(event.target.value)}
-                    placeholder="URL interna do comprovante"
-                  />
-                  <input
                     type="file"
-                    onChange={(event) => setProofFile(event.target.files?.[0] || null)}
+                    onChange={(event) => setProof(event.target.files?.[0])}
                   />
-                  <small>{proofFile ? `${proofFile.name} · será salvo no OneDrive e substituirá a URL` : "Qualquer arquivo · máximo 5 MB"}</small>
+                  <span className="proof-status">
+                    {proofFile?.name || "Arraste, solte ou cole com Ctrl+V"}
+                  </span>
+                  {proofError && <small className="proof-error">{proofError}</small>}
+                  <small className="proof-legacy-copy">Anexo opcional.</small>
                 </label>
                 <button
-                  disabled={busy(`pay-${lot.id}`)}
-                  onClick={() => onPay(lot, { file: proofFile, url: proofUrl })}
+                  className="pt-action-button pt-action-primary"
+                  disabled={busy(`pay-${lot.id}`) || Boolean(proofError)}
+                  onClick={() => onPay(lot, { file: proofFile })}
                 >
                   <CheckCircle2 size={18} />
                   <div>
