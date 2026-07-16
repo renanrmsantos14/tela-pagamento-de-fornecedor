@@ -1247,7 +1247,7 @@ function PaymentsView({
     [services, statusFilter],
   );
   return (
-    <section className="page-section">
+    <section className="page-section repasse-page">
       <div className="page-title">
         <div>
           <span>Financeiro / operação</span>
