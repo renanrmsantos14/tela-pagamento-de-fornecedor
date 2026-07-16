@@ -366,15 +366,10 @@ test("fluxo local: repasse, vínculo, rascunho, pagamento, documento e auditoria
     name: "teste.pdf",
     base64: "AA==",
   });
-  const email = await dataverse.sendEmailWithPdf(paid, {
-    name: "teste.pdf",
-    base64: "AA==",
-  });
   await dataverse.registerDocumentResult(lot.id, {
     ok: true,
     url: upload.url,
     name: "teste.pdf",
-    emailId: email.id,
   });
   const detail = await dataverse.getLotDetail(lot.id);
   assert.equal(detail.documentStatus, "sent");
@@ -418,6 +413,8 @@ test("falha documental mantém pagamento e reversão exige motivo", async () => 
       !row.pagamentoId &&
       row.favorecidoId === favorecido.id,
   );
+  assert.equal(detail.emailId, "");
+  assert.equal(typeof dataverse.sendEmailWithPdf, "undefined");
   const lot = await dataverse.createDraftLot({
     favorecido,
     services: [service],

@@ -148,6 +148,15 @@ const maskPix = (value) =>
   value?.length > 8 ? `${value.slice(0, 3)}••••${value.slice(-3)}` : value;
 const REPASSE_COLUMNS = [
   { id: "identificador", label: "Serviço", width: 150, locked: true },
+const downloadPaymentPdf = (pdf) => {
+  const link = document.createElement("a");
+  link.href = pdf.dataUri;
+  link.download = pdf.name;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};
   { id: "valorCobrado", label: "Total CP", width: 135, locked: true },
   { id: "valorRepasse", label: "Repasse", width: 140, locked: true },
   { id: "dataServico", label: "Data e hora", width: 150 },
@@ -515,15 +524,13 @@ export default function App() {
       const detail = await dataverse.getLotDetail(lot.id);
       const pdf = buildPaymentPdf(detail, detail.items);
       const upload = await dataverse.saveDocumentToOneDrive(detail, pdf);
-      const email = await dataverse.sendEmailWithPdf(detail, pdf);
       const updated = await dataverse.registerDocumentResult(lot.id, {
         ok: true,
         url: upload.url || upload.link,
         name: upload.name || pdf.name,
-        emailId: email.id,
       });
       setLotDetail(await dataverse.getLotDetail(updated.id));
-      setNotice("PDF salvo e enviado por e-mail.");
+      setNotice("PDF salvo no OneDrive e download iniciado.");
     } catch (err) {
       await dataverse
         .registerDocumentResult(lot.id, { ok: false, error: err.message })
@@ -563,6 +570,7 @@ export default function App() {
       setNotice(
         action.type === "cancel"
           ? "Lote cancelado e serviços liberados."
+      downloadPaymentPdf(pdf);
           : "Pagamento revertido.",
       );
       await refresh();
@@ -2875,7 +2883,7 @@ function LotDetailDrawer({
                       ? "Reenviar documento"
                       : "Gerar documento"}
                   </strong>
-                  <span>Salva no OneDrive e envia PDF anexado.</span>
+                  <span>Salva no OneDrive e inicia o download do PDF.</span>
                 </div>
                 <ChevronRight size={16} />
               </button>

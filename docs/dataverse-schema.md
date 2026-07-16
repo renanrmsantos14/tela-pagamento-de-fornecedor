@@ -60,8 +60,8 @@ Choices normalizados no cliente:
 `cr40f_itempagamentoaterceiro` precisa guardar o lookup da composição original,
 lookup do lote, reserva/serviço, data, motorista, trajeto, valores congelados e
 snapshot JSON financeiro. `cr40f_eventopagamentoaterceiro` precisa guardar
-operação, resultado, estados, motivo, mensagem, detalhe técnico, versão, URL e
-ID do e-mail. Use `createdby` e `createdon` como autoria e horário oficiais.
+operação, resultado, estados, motivo, mensagem, detalhe técnico, versão e URL.
+Use `createdby` e `createdon` como autoria e horário oficiais.
 
 ## Publicação DEV
 

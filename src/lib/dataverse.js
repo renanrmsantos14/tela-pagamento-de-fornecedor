@@ -64,9 +64,6 @@ const runtimeConfig = () => {
       root.__ONEDRIVE_FLOW_URL ||
       root.__PAYMENT_FLOW_URL ||
       "",
-    financeQueueId: config.financeQueueId || root.__FINANCE_QUEUE_ID || "",
-    financeCopyEmail:
-      config.financeCopyEmail || root.__FINANCE_COPY_EMAIL || "",
   };
 };
 const fileToDataUrl = (file) =>
@@ -1797,53 +1794,6 @@ class DataverseClient {
       throw new Error("Flow OneDrive nao retornou URL do documento.");
     return data;
   }
-  async sendEmailWithPdf(lot, pdf) {
-    this.consumeFailure("email");
-    if (this.mockMode)
-      return { id: newId("email"), subject: `Pagamento ${lot.identifier}` };
-    const { financeQueueId: queueId, financeCopyEmail: financeCopy } =
-      runtimeConfig();
-    if (!queueId || !financeCopy)
-      throw new Error("Configure Queue e e-mail de cópia do Financeiro.");
-    const snapshot = parseSnapshot(lot.favorecidoSnapshot);
-    const email = await this.request("POST", "/emails", {
-      subject: `Pagamento ${lot.identifier}`,
-      description: `Prezada(o), segue demonstrativo de pagamento ${lot.identifier} em anexo.`,
-      directioncode: true,
-      email_activity_parties: [
-        {
-          participationtypemask: 1,
-          [`partyid_queue@odata.bind`]: `/queues(${cleanGuid(queueId)})`,
-        },
-        {
-          participationtypemask: 2,
-          addressused: snapshot.email,
-          unresolvedpartyname: snapshot.nome,
-        },
-        {
-          participationtypemask: 3,
-          addressused: financeCopy,
-          unresolvedpartyname: "Financeiro Betinhos",
-        },
-      ],
-    });
-    const emailId = email?.activityid || email?.emailid;
-    if (!emailId)
-      throw new Error("Dataverse nao retornou o identificador do e-mail.");
-    await this.request("POST", "/activitymimeattachments", {
-      subject: pdf.name,
-      filename: pdf.name,
-      mimetype: "application/pdf",
-      body: pdf.base64,
-      "objectid_email@odata.bind": `/emails(${cleanGuid(emailId)})`,
-    });
-    await this.request(
-      "POST",
-      `/emails(${cleanGuid(emailId)})/Microsoft.Dynamics.CRM.SendEmail`,
-      { IssueSend: true },
-    );
-    return { id: emailId };
-  }
   async registerDocumentResult(lotId, result) {
     if (!this.mockMode) {
       const detail = await this.getLotDetail(lotId);
@@ -1853,20 +1803,19 @@ class DataverseClient {
           : CHOICES.documentFailed,
         cr40f_documentourl: result.url || null,
         cr40f_documentonome: result.name || null,
-        cr40f_documentoemailid: result.emailId || null,
+        cr40f_documentoemailid: null,
         cr40f_errodocumento: result.error || null,
       });
       await this.recordRemoteEvent(
         lotId,
         result.ok ? "document_sent" : "document_failed",
         result.ok
-          ? "PDF salvo e enviado por e-mail."
-          : "Falha ao gerar ou enviar documento.",
+          ? "PDF salvo no OneDrive."
+          : "Falha ao gerar ou salvar documento.",
         {
           result: result.ok ? "success" : "failure",
           version: detail.version,
           documentUrl: result.url || "",
-          emailId: result.emailId || "",
           detail: result.error || "",
         },
       );
@@ -1878,14 +1827,14 @@ class DataverseClient {
       : DOCUMENT_STATUS.FAILED;
     lot.documentUrl = result.url || lot.documentUrl || "";
     lot.documentName = result.name || lot.documentName || "";
-    lot.emailId = result.emailId || "";
+    lot.emailId = "";
     lot.documentError = result.error || "";
     this.addEvent(
       lotId,
       result.ok ? "document_sent" : "document_failed",
       result.ok
-        ? "PDF salvo e enviado por e-mail."
-        : "Falha ao gerar ou enviar documento.",
+        ? "PDF salvo no OneDrive."
+        : "Falha ao gerar ou salvar documento.",
       {
         result: result.ok ? "success" : "failure",
         version: lot.version,
