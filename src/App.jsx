@@ -284,6 +284,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [lotDetail, setLotDetail] = useState(null);
   const [preselected, setPreselected] = useState(new Set());
+  const refreshInFlightRef = useRef(false);
   const busy = (key) => Boolean(saving[key]);
   const setBusy = (key, value) =>
     setSaving((current) => ({ ...current, [key]: value }));
@@ -295,6 +296,8 @@ export default function App() {
       return next;
     });
   async function refresh() {
+    if (refreshInFlightRef.current) return;
+    refreshInFlightRef.current = true;
     setBusy("refresh", true);
     try {
       const [serviceRows, previousServiceRows, favorecidoRows, driverRows, linkRows, lotRows, statusRows] =
@@ -317,6 +320,7 @@ export default function App() {
     } catch (err) {
       setError(err.message);
     } finally {
+      refreshInFlightRef.current = false;
       setBusy("refresh", false);
     }
   }
@@ -581,6 +585,7 @@ export default function App() {
         <p>Abra dentro do model-driven app ou use a prévia local.</p>
       </main>
     );
+  const isRefreshing = busy("refresh");
   return (
     <div className={`app-shell ${sidebarExpanded ? "" : "sidebar-collapsed"}`}>
       <aside className="sidebar">
@@ -628,8 +633,11 @@ export default function App() {
             className="icon-button"
             onClick={refresh}
             aria-label="Atualizar"
+            title={isRefreshing ? "Atualizando dados" : "Atualizar dados"}
+            disabled={isRefreshing}
+            aria-busy={isRefreshing}
           >
-            <RefreshCw size={17} className={busy("refresh") ? "spin" : ""} />
+            <RefreshCw size={17} className={isRefreshing ? "spin" : ""} />
           </button>
         </header>
         <div className="content-wrap">
@@ -644,11 +652,28 @@ export default function App() {
             >
               Resetar mock
             </button>
-            <button className="icon-button" onClick={refresh}>
-              <RefreshCw size={15} className={busy("refresh") ? "spin" : ""} />
-              Atualizar
+            <button
+              className="icon-button"
+              onClick={refresh}
+              disabled={isRefreshing}
+              aria-busy={isRefreshing}
+            >
+              <RefreshCw size={15} className={isRefreshing ? "spin" : ""} />
+              {isRefreshing ? "Atualizando…" : "Atualizar"}
             </button>
           </div>
+          {isRefreshing && (
+            <div
+              className="data-refresh-indicator"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <RefreshCw size={16} className="spin" aria-hidden="true" />
+              <span>Atualizando dados desta tela</span>
+              <small>Navegação continua disponível</small>
+            </div>
+          )}
           {error && (
             <Alert tone="error" onClose={() => setError("")}>
               {error}
