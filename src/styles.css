@@ -558,7 +558,7 @@ p {
   margin-bottom: 10px;
   padding: 10px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   box-shadow: none;
 }
@@ -3767,7 +3767,7 @@ textarea:focus-visible {
   gap: 8px;
 }
 .repasse-page .finance-filter-grid {
-  grid-template-columns: 0.72fr 0.72fr 1.22fr 1.22fr 1.02fr 1.1fr;
+  grid-template-columns: 0.66fr 0.66fr 1.08fr 1.08fr 1fr 0.96fr 1.02fr;
   gap: 6px;
 }
 .finance-filter-grid label {

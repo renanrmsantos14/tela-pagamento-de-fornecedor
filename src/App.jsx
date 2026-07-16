@@ -325,6 +325,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [driverIds, setDriverIds] = useState([]);
   const [favorecidoIds, setFavorecidoIds] = useState([]);
+  const [vehicleTypes, setVehicleTypes] = useState([]);
   const [saving, setSaving] = useState({});
   const [autosaveErrors, setAutosaveErrors] = useState({});
   const [drawer, setDrawer] = useState(null);
@@ -389,18 +390,28 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [notice]);
   const activeFavorecidos = favorecidos.filter((row) => row.status === "ativo");
+  const vehicleTypeOptions = useMemo(() => {
+    const options = new Set();
+    services.forEach((service) => {
+      if (service.tipoVeiculo) options.add(service.tipoVeiculo);
+    });
+    return [...options]
+      .sort((left, right) => left.localeCompare(right, "pt-BR"))
+      .map((value) => ({ value, label: value }));
+  }, [services]);
   const visibleServices = useMemo(
     () =>
       services.filter(
         (service) =>
           (!driverIds.length || driverIds.includes(service.motoristaId)) &&
           (!favorecidoIds.length || favorecidoIds.includes(service.favorecidoId)) &&
+          (!vehicleTypes.length || vehicleTypes.includes(service.tipoVeiculo)) &&
           (!search ||
             `${service.identificador} ${service.motorista} ${service.trajeto}`
               .toLowerCase()
               .includes(search.toLowerCase())),
       ),
-    [services, driverIds, favorecidoIds, search],
+    [services, driverIds, favorecidoIds, vehicleTypes, search],
   );
   const openLot = async (lot) => {
     try {
@@ -798,6 +809,9 @@ export default function App() {
               setDriverIds={setDriverIds}
               favorecidoIds={favorecidoIds}
               setFavorecidoIds={setFavorecidoIds}
+              vehicleTypes={vehicleTypes}
+              setVehicleTypes={setVehicleTypes}
+              vehicleTypeOptions={vehicleTypeOptions}
               onNavigate={setTab}
               onNewLot={() => setDrawer({ type: "lot" })}
               onNewFavorecido={() => setDrawer({ type: "favorecido" })}
@@ -818,6 +832,9 @@ export default function App() {
               setDriverIds={setDriverIds}
               favorecidoIds={favorecidoIds}
               setFavorecidoIds={setFavorecidoIds}
+              vehicleTypes={vehicleTypes}
+              setVehicleTypes={setVehicleTypes}
+              vehicleTypeOptions={vehicleTypeOptions}
               reservationStatusOptions={reservationStatusOptions}
               busy={busy}
               autosaveErrors={autosaveErrors}
@@ -1136,13 +1153,17 @@ function OverviewView({
   setDriverIds,
   favorecidoIds,
   setFavorecidoIds,
+  vehicleTypes,
+  setVehicleTypes,
+  vehicleTypeOptions,
   onNavigate,
   onNewLot,
   onNewFavorecido,
 }) {
   const matchesDashboardFilter = (service) =>
     (!driverIds.length || driverIds.includes(service.motoristaId)) &&
-    (!favorecidoIds.length || favorecidoIds.includes(service.favorecidoId));
+    (!favorecidoIds.length || favorecidoIds.includes(service.favorecidoId)) &&
+    (!vehicleTypes.length || vehicleTypes.includes(service.tipoVeiculo));
   const completedServices = services.filter(
     (service) => service.status === "concluido" && matchesDashboardFilter(service),
   );
@@ -1267,6 +1288,15 @@ function OverviewView({
             placeholder="Todos os favorecidos"
           />
         </label>
+        <label className="field"><span>Tipo de veículo</span>
+          <SearchableMultiSelect
+            value={vehicleTypes}
+            onChange={setVehicleTypes}
+            aria-label="Filtrar por tipo de veículo"
+            options={vehicleTypeOptions}
+            placeholder="Todos os veículos"
+          />
+        </label>
       </section>
 
       <section className="dashboard-metrics" aria-label="Resumo financeiro do período">
@@ -1382,6 +1412,9 @@ function PaymentsView({
   setDriverIds,
   favorecidoIds,
   setFavorecidoIds,
+  vehicleTypes,
+  setVehicleTypes,
+  vehicleTypeOptions,
   reservationStatusOptions,
   busy,
   autosaveErrors,
@@ -1504,6 +1537,16 @@ function PaymentsView({
               aria-label="Filtrar lançamentos por favorecido"
               options={favorecidos.map((row) => ({ value: row.id, label: row.nome }))}
               placeholder="Todos os favorecidos"
+            />
+          </label>
+          <label className="field">
+            <span>Tipo de veículo</span>
+            <SearchableMultiSelect
+              value={vehicleTypes}
+              onChange={setVehicleTypes}
+              aria-label="Filtrar lançamentos por tipo de veículo"
+              options={vehicleTypeOptions}
+              placeholder="Todos os veículos"
             />
           </label>
           <label className="field">
