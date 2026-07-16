@@ -83,3 +83,39 @@ Reduzir custo de renderizacao, busca e atualizacao de dados em todo o app sem al
 - Nao usar virtualizacao de linhas nesta rodada: ela desmontaria inputs e seletores durante a rolagem, podendo perder rascunhos.
 - Nao alterar `inlineDynamicImports` ou o empacotamento em HTML unico: isso quebraria carregamento do webresource no Dataverse.
 - Invalidar referencias em todas as mutacoes e no botao Atualizar para evitar dados operacionais defasados.
+
+---
+
+# Plano - envio do documento do lote por e-mail
+
+## Objetivo
+
+Adicionar acao explicita para enviar ao favorecido o PDF real do lote como anexo,
+usando Flow solution-aware e configuracao portavel entre ambientes.
+
+## Arquivos
+
+- `[MODIFY] src/App.jsx`
+  - adicionar botao `Enviar documento do lote`;
+  - gerar o PDF, salvar copia no OneDrive, chamar o Flow de e-mail e exibir estado.
+- `[MODIFY] src/lib/dataverse.js`
+  - resolver `new_FlowURLEnviarDocumentoLoteFornecedor` no Dataverse;
+  - enviar contrato HTTP com destinatario e PDF em base64;
+  - persistir ID da execucao/e-mail e auditoria no lote.
+- `[MODIFY] src/styles.css`
+  - diferenciar a acao de envio sem alterar o drawer.
+- `[MODIFY] tests/mock-flow.test.js`
+  - validar URL por variavel de ambiente, payload do anexo e retorno.
+- `[MODIFY] docs/flow-contract.md`
+  - documentar contrato, ALM, connection reference e ativacao por ambiente.
+- `[NEW] power-automate/enviar-documento-lote/*`
+  - manter schema HTTP e definicao versionada do Flow.
+
+## Criterios de aceite
+
+1. O app nao envia link: `conteudoBase64` do PDF segue no body do Flow.
+2. O Flow usa `Send an email (V2)` com `Name` e `ContentBytes`.
+3. URL do gatilho nao fica fixa no app; vem da variavel Dataverse.
+4. Conexao Outlook fica em connection reference da solucao.
+5. Falha de e-mail nao desfaz pagamento e fica auditada.
+6. `npm test`, `npm run build` e `git diff --check` passam.

@@ -14,6 +14,7 @@ async function remoteClient({
   direct = false,
   metadataAvailable = true,
   oneDriveFlowUrl = "",
+  documentEmailFlowUrl = "",
 } = {}) {
   const previousWindow = globalThis.window;
   const previousFetch = globalThis.fetch;
@@ -90,19 +91,27 @@ async function remoteClient({
   };
   globalThis.fetch = async (url, options = {}) => {
     requests.push({ url, options });
-    if (url.includes("environmentvariabledefinitions"))
+    if (url.includes("environmentvariabledefinitions")) {
+      const isEmailFlow = decodeURIComponent(url).includes(
+        "new_FlowURLEnviarDocumentoLoteFornecedor",
+      );
       return response({
         value: [
           {
             environmentvariabledefinitionid: "flow-definition-001",
-            defaultvalue: oneDriveFlowUrl,
+            defaultvalue: isEmailFlow
+              ? documentEmailFlowUrl
+              : oneDriveFlowUrl,
           },
         ],
       });
+    }
     if (url.includes("environmentvariablevalues"))
       return response({ value: [] });
     if (url === oneDriveFlowUrl && options.method === "POST")
       return response({ shareLink: "https://onedrive.example/documento.pdf" });
+    if (url === documentEmailFlowUrl && options.method === "POST")
+      return response({ ok: true, emailId: "flow-run-email-001" });
     if (options.method === "POST") return response({});
     if (url.endsWith("/WhoAmI"))
       return response({
@@ -432,6 +441,14 @@ test("fluxo local: repasse, vínculo, rascunho, pagamento, documento e auditoria
   assert.equal(detail.documentStatus, "sent");
   assert.equal(detail.emailId, "");
   assert.equal(typeof dataverse.sendEmailWithPdf, "undefined");
+  const email = await dataverse.sendLotDocumentEmail(
+    { ...detail, favorecido },
+    {
+      name: "teste.pdf",
+      base64: "AA==",
+    },
+  );
+  assert.match(email.emailId, /^email-/);
   assert.ok(detail.events.length >= 3);
   assert.equal(detail.items[0].valorCobrado > 0, true);
 });
@@ -733,6 +750,42 @@ test("URL do Flow de OneDrive vem da variável de ambiente Dataverse", async () 
     );
     assert(
       remote.requests.some((request) => request.url === flowUrl),
+    );
+  } finally {
+    remote.restore();
+  }
+});
+
+test("Flow de e-mail recebe o PDF real pela variavel do ambiente", async () => {
+  const flowUrl = "https://flow.example/enviar-documento-lote";
+  const remote = await remoteClient({ documentEmailFlowUrl: flowUrl });
+  try {
+    const lot = await remote.dataverse.getLotDetail("lot-remote-001");
+    const result = await remote.dataverse.sendLotDocumentEmail(lot, {
+      name: "Pagamento_PT-2026-REMOTE_v1.pdf",
+      base64: "JVBERi0xLjQ=",
+    });
+    assert.equal(result.emailId, "flow-run-email-001");
+    const request = remote.requests.find(
+      (item) => item.url === flowUrl && item.options.method === "POST",
+    );
+    assert.ok(request);
+    const payload = JSON.parse(request.options.body);
+    assert.equal(
+      payload.contrato,
+      "new_FlowURLEnviarDocumentoLoteFornecedor.v1",
+    );
+    assert.equal(payload.destinatario, "favorecido@example.com");
+    assert.equal(payload.nomeArquivo, "Pagamento_PT-2026-REMOTE_v1.pdf");
+    assert.equal(payload.conteudoBase64, "JVBERi0xLjQ=");
+    assert.equal(payload.mimeType, "application/pdf");
+    assert.equal(Object.hasOwn(payload, "url"), false);
+    assert(
+      remote.requests.some((item) =>
+        decodeURIComponent(item.url).includes(
+          "new_FlowURLEnviarDocumentoLoteFornecedor",
+        ),
+      ),
     );
   } finally {
     remote.restore();

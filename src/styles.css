@@ -1819,6 +1819,17 @@ select:focus {
   background: var(--navy-2);
   box-shadow: 0 8px 18px rgb(0 26 61 / 0.18);
 }
+.detail-actions > .pt-action-send-document {
+  border-color: #b9ddc9;
+  background: #f4fbf6;
+}
+.detail-actions > .pt-action-send-document strong {
+  color: #17633a;
+}
+.detail-actions > .pt-action-send-document:hover {
+  border-color: #86c4a2;
+  background: #edf8f1;
+}
 .muted-copy {
   margin-top: 7px;
   color: #667589;

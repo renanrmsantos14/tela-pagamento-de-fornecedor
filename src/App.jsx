@@ -602,27 +602,36 @@ export default function App() {
   }
   async function runDocument(lot) {
     setBusy(`document-${lot.id}`, true);
+    let pdf = null;
+    let upload = null;
     try {
       const detail = await dataverse.getLotDetail(lot.id);
-      const pdf = buildPaymentPdf(detail, detail.items);
-      const upload = await dataverse.saveDocumentToOneDrive(detail, pdf);
+      pdf = buildPaymentPdf(detail, detail.items);
+      upload = await dataverse.saveDocumentToOneDrive(detail, pdf);
+      const email = await dataverse.sendLotDocumentEmail(detail, pdf);
       const updated = await dataverse.registerDocumentResult(lot.id, {
         ok: true,
         url: upload.url || upload.link,
         name: upload.name || pdf.name,
+        emailId: email.emailId,
       });
       setLots((current) =>
         current.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)),
       );
       setLastDocumentPdf({ lotId: updated.id, pdf });
       setLotDetail(await dataverse.getLotDetail(updated.id));
-      setNotice("PDF salvo no OneDrive. Escolha baixar ou abrir o link.");
+      setNotice(`Documento enviado para ${detail.favorecido.email}.`);
     } catch (err) {
       await dataverse
-        .registerDocumentResult(lot.id, { ok: false, error: err.message })
+        .registerDocumentResult(lot.id, {
+          ok: false,
+          error: err.message,
+          url: upload?.url || upload?.link || "",
+          name: upload?.name || pdf?.name || "",
+        })
         .catch(() => undefined);
       setLotDetail(await dataverse.getLotDetail(lot.id).catch(() => lotDetail));
-      reportActionError("Geracao do documento", err);
+      reportActionError("Envio do documento", err);
     } finally {
       setBusy(`document-${lot.id}`, false);
     }
@@ -654,8 +663,7 @@ export default function App() {
         current.map((row) => (row.id === paid.id ? { ...row, ...paid } : row)),
       );
       setLotDetail(await dataverse.getLotDetail(paid.id));
-      setNotice("Pagamento registrado. Gerando documento.");
-      await runDocument(paid);
+      setNotice("Pagamento registrado. Documento pronto para envio.");
       await refresh();
     } catch (err) {
       reportActionError("Registro do pagamento", err);
@@ -3352,6 +3360,7 @@ function LotDetailDrawer({
             )}
             {isPaid && (
               <button
+                className="pt-action-button pt-action-send-document"
                 disabled={isDocumentProcessing}
                 onClick={() => onSend(lot)}
               >
@@ -3359,12 +3368,18 @@ function LotDetailDrawer({
                 <div>
                   <strong>
                     {isDocumentProcessing
-                      ? "Gerando documento..."
-                      : lot.documentStatus === DOCUMENT_STATUS.FAILED
-                      ? "Reenviar documento"
-                      : "Gerar documento"}
+                      ? "Enviando documento..."
+                      : lot.documentStatus === DOCUMENT_STATUS.SENT
+                        ? "Reenviar documento do lote"
+                        : lot.documentStatus === DOCUMENT_STATUS.FAILED
+                          ? "Tentar enviar documento novamente"
+                          : "Enviar documento do lote"}
                   </strong>
-                  <span>{isDocumentProcessing ? "Salvando no OneDrive." : "Salva no OneDrive e disponibiliza as opcoes de acesso."}</span>
+                  <span>
+                    {isDocumentProcessing
+                      ? "Preparando PDF e anexando ao e-mail."
+                      : `Envia o PDF real para ${lot.favorecido?.email || "o e-mail do favorecido"}.`}
+                  </span>
                 </div>
                 <ChevronRight size={16} />
               </button>

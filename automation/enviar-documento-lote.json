@@ -1,0 +1,201 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_office365": {
+        "api": {
+          "name": "shared_office365"
+        },
+        "connection": {
+          "connectionReferenceLogicalName": "__OFFICE365_CONNECTION_REFERENCE__"
+        },
+        "runtimeSource": "embedded"
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "Http",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "contrato": {
+                  "type": "string"
+                },
+                "loteId": {
+                  "type": "string"
+                },
+                "identificadorLote": {
+                  "type": "string"
+                },
+                "versao": {
+                  "type": "integer"
+                },
+                "destinatario": {
+                  "type": "string"
+                },
+                "nomeFavorecido": {
+                  "type": "string"
+                },
+                "assunto": {
+                  "type": "string"
+                },
+                "corpoHtml": {
+                  "type": "string"
+                },
+                "nomeArquivo": {
+                  "type": "string"
+                },
+                "conteudoBase64": {
+                  "type": "string"
+                },
+                "mimeType": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "contrato",
+                "loteId",
+                "identificadorLote",
+                "versao",
+                "destinatario",
+                "assunto",
+                "corpoHtml",
+                "nomeArquivo",
+                "conteudoBase64",
+                "mimeType"
+              ]
+            }
+          }
+        }
+      },
+      "actions": {
+        "Validar_contrato": {
+          "type": "If",
+          "expression": {
+            "and": [
+              {
+                "equals": [
+                  "@triggerBody()?['contrato']",
+                  "new_FlowURLEnviarDocumentoLoteFornecedor.v1"
+                ]
+              },
+              {
+                "contains": [
+                  "@triggerBody()?['destinatario']",
+                  "@"
+                ]
+              },
+              {
+                "greater": [
+                  "@length(triggerBody()?['conteudoBase64'])",
+                  0
+                ]
+              }
+            ]
+          },
+          "actions": {
+            "Enviar_email_com_anexo": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "parameters": {
+                  "emailMessage/To": "@triggerBody()?['destinatario']",
+                  "emailMessage/Subject": "@triggerBody()?['assunto']",
+                  "emailMessage/Body": "@triggerBody()?['corpoHtml']",
+                  "emailMessage/Attachments": [
+                    {
+                      "Name": "@triggerBody()?['nomeArquivo']",
+                      "ContentBytes": "@base64ToBinary(triggerBody()?['conteudoBase64'])"
+                    }
+                  ],
+                  "emailMessage/Importance": "Normal"
+                },
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365",
+                  "operationId": "SendEmailV2",
+                  "connectionName": "shared_office365"
+                }
+              }
+            },
+            "Responder_sucesso": {
+              "type": "Response",
+              "kind": "Http",
+              "inputs": {
+                "statusCode": 200,
+                "headers": {
+                  "Content-Type": "application/json"
+                },
+                "body": {
+                  "ok": true,
+                  "emailId": "@{workflow().run.name}",
+                  "loteId": "@{triggerBody()?['loteId']}"
+                }
+              },
+              "runAfter": {
+                "Enviar_email_com_anexo": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Responder_falha_envio": {
+              "type": "Response",
+              "kind": "Http",
+              "inputs": {
+                "statusCode": 502,
+                "headers": {
+                  "Content-Type": "application/json"
+                },
+                "body": {
+                  "ok": false,
+                  "message": "O conector Office 365 Outlook não confirmou o envio.",
+                  "emailId": "@{workflow().run.name}"
+                }
+              },
+              "runAfter": {
+                "Enviar_email_com_anexo": [
+                  "Failed",
+                  "TimedOut"
+                ]
+              }
+            }
+          },
+          "else": {
+            "actions": {
+              "Responder_contrato_invalido": {
+                "type": "Response",
+                "kind": "Http",
+                "inputs": {
+                  "statusCode": 400,
+                  "headers": {
+                    "Content-Type": "application/json"
+                  },
+                  "body": {
+                    "ok": false,
+                    "message": "Contrato, destinatário ou anexo inválido."
+                  }
+                }
+              }
+            }
+          },
+          "runAfter": {}
+        }
+      },
+      "outputs": {}
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}

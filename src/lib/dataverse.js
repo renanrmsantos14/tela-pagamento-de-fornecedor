@@ -12,6 +12,10 @@ const API_VERSION = "v9.2";
 const STORE_KEY = "betinhos_pagamentos_terceiros_mock_v4";
 const FLOW_CONTRACT = "new_FlowURLFlowSalvarArquivosOnedrive";
 const FLOW_RUNTIME_KEY = "VITE_FLOW_SALVAR_ARQUIVOS_ONEDRIVE_URL";
+const EMAIL_FLOW_CONTRACT = "new_FlowURLEnviarDocumentoLoteFornecedor";
+const EMAIL_FLOW_RUNTIME_KEY = "VITE_FLOW_ENVIAR_DOCUMENTO_LOTE_URL";
+const EMAIL_FLOW_PAYLOAD_CONTRACT =
+  "new_FlowURLEnviarDocumentoLoteFornecedor.v1";
 const MAX_PAYMENT_PROOF_SIZE = 5 * 1024 * 1024;
 const ERROR_LOG_ENTITY_SET = "new_appmotoristaslogs";
 const ERROR_LOG_QUEUE_KEY = "betinhos-pagamentos-error-log-queue-v1";
@@ -101,6 +105,8 @@ const runtimeConfig = () => {
       root.__ONEDRIVE_FLOW_URL ||
       root.__PAYMENT_FLOW_URL ||
       "",
+    documentEmailFlowUrl:
+      config.documentEmailFlowUrl || root.__DOCUMENT_EMAIL_FLOW_URL || "",
   };
 };
 const fileToDataUrl = (file) =>
@@ -686,6 +692,23 @@ class DataverseClient {
     return (
       root.__APP_FLOW_ENV?.[FLOW_RUNTIME_KEY] ||
       runtimeConfig().oneDriveFlowUrl ||
+      ""
+    );
+  }
+  async resolveDocumentEmailFlowUrl() {
+    if (this.clientUrl) {
+      try {
+        const url =
+          await this.getDataverseEnvironmentVariableValue(EMAIL_FLOW_CONTRACT);
+        if (url) return url;
+      } catch {
+        // Mantém fallback de runtime somente para prévia local.
+      }
+    }
+    const root = typeof window === "undefined" ? {} : window;
+    return (
+      root.__APP_FLOW_ENV?.[EMAIL_FLOW_RUNTIME_KEY] ||
+      runtimeConfig().documentEmailFlowUrl ||
       ""
     );
   }
@@ -1950,6 +1973,59 @@ class DataverseClient {
       throw new Error("Flow OneDrive nao retornou URL do documento.");
     return { ...data, url: data.shareLink || data.webUrl || data.url || data.link };
   }
+  async sendLotDocumentEmail(lot, pdf) {
+    this.consumeFailure("email");
+    const recipient = String(lot.favorecido?.email || "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient))
+      throw new Error("Favorecido sem e-mail válido para envio.");
+    if (!pdf?.base64) throw new Error("PDF vazio para envio.");
+    if (this.mockMode)
+      return {
+        ok: true,
+        emailId: `email-${crypto.randomUUID()}`,
+      };
+    const endpoint = await this.resolveDocumentEmailFlowUrl();
+    if (!endpoint)
+      throw new Error(
+        `URL do Flow de e-mail não configurada na variável ${EMAIL_FLOW_CONTRACT}.`,
+      );
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contrato: EMAIL_FLOW_PAYLOAD_CONTRACT,
+        loteId: lot.id,
+        identificadorLote: lot.identifier,
+        versao: Number(lot.version || 1),
+        destinatario: recipient,
+        nomeFavorecido: lot.favorecido?.nome || "",
+        assunto: `Betinhos | Documento do lote ${lot.identifier}`,
+        corpoHtml:
+          `<p>Olá, ${lot.favorecido?.nome || "fornecedor"}.</p>` +
+          `<p>Segue anexo o documento do lote <strong>${lot.identifier}</strong>.</p>` +
+          "<p>Atenciosamente,<br>Betinhos Executive Service</p>",
+        nomeArquivo: pdf.name,
+        conteudoBase64: pdf.base64,
+        mimeType: "application/pdf",
+      }),
+    });
+    const text = await response.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    if (!response.ok || data?.ok === false)
+      throw new Error(
+        data?.message ||
+          data?.error ||
+          `Flow de e-mail retornou ${response.status}.`,
+      );
+    const emailId = String(data?.emailId || data?.runId || "").trim();
+    if (!emailId) throw new Error("Flow de e-mail não retornou emailId.");
+    return { ...data, ok: true, emailId };
+  }
   async registerDocumentResult(lotId, result) {
     if (!this.mockMode) {
       const detail = await this.getLotDetail(lotId);
@@ -1959,19 +2035,20 @@ class DataverseClient {
           : CHOICES.documentFailed,
         cr40f_documentourl: result.url || null,
         cr40f_documentonome: result.name || null,
-        cr40f_documentoemailid: null,
+        cr40f_documentoemailid: result.emailId || null,
         cr40f_errodocumento: result.error || null,
       });
       await this.recordRemoteEvent(
         lotId,
         result.ok ? "document_sent" : "document_failed",
         result.ok
-          ? "PDF salvo no OneDrive."
-          : "Falha ao gerar ou salvar documento.",
+          ? "PDF enviado ao favorecido como anexo."
+          : "Falha ao gerar, salvar ou enviar documento.",
         {
           result: result.ok ? "success" : "failure",
           version: detail.version,
           documentUrl: result.url || "",
+          emailId: result.emailId || "",
           detail: result.error || "",
         },
       );
@@ -1983,18 +2060,19 @@ class DataverseClient {
       : DOCUMENT_STATUS.FAILED;
     lot.documentUrl = result.url || lot.documentUrl || "";
     lot.documentName = result.name || lot.documentName || "";
-    lot.emailId = "";
+    lot.emailId = result.emailId || "";
     lot.documentError = result.error || "";
     this.addEvent(
       lotId,
       result.ok ? "document_sent" : "document_failed",
       result.ok
-        ? "PDF salvo no OneDrive."
-        : "Falha ao gerar ou salvar documento.",
+        ? "PDF enviado ao favorecido como anexo."
+        : "Falha ao gerar, salvar ou enviar documento.",
       {
         result: result.ok ? "success" : "failure",
         version: lot.version,
         documentUrl: result.url || "",
+        emailId: result.emailId || "",
         detail: result.error || "",
       },
     );
