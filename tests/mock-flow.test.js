@@ -441,6 +441,11 @@ test("fluxo local: repasse, vínculo, rascunho, pagamento, documento e auditoria
   assert.equal(detail.documentStatus, "sent");
   assert.equal(detail.emailId, "");
   assert.equal(typeof dataverse.sendEmailWithPdf, "undefined");
+  const updatedEmail = "contato.atualizado@alfatransporte.com.br";
+  await dataverse.updateFavorecido(favorecido.id, {
+    ...favorecido,
+    email: updatedEmail,
+  });
   const email = await dataverse.sendLotDocumentEmail(
     { ...detail, favorecido },
     {
@@ -449,6 +454,7 @@ test("fluxo local: repasse, vínculo, rascunho, pagamento, documento e auditoria
     },
   );
   assert.match(email.emailId, /^email-/);
+  assert.equal(email.recipient, updatedEmail);
   assert.ok(detail.events.length >= 3);
   assert.equal(detail.items[0].valorCobrado > 0, true);
 });

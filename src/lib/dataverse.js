@@ -1975,7 +1975,12 @@ class DataverseClient {
   }
   async sendLotDocumentEmail(lot, pdf) {
     this.consumeFailure("email");
-    const recipient = String(lot.favorecido?.email || "").trim();
+    const favorecidoId = lot.favorecidoId || lot.favorecido?.id || "";
+    const currentFavorecido = favorecidoId
+      ? (await this.listFavorecidos(true)).find((row) => row.id === favorecidoId)
+      : null;
+    const favorecido = currentFavorecido || lot.favorecido || {};
+    const recipient = String(favorecido.email || "").trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient))
       throw new Error("Favorecido sem e-mail válido para envio.");
     if (!pdf?.base64) throw new Error("PDF vazio para envio.");
@@ -1983,6 +1988,7 @@ class DataverseClient {
       return {
         ok: true,
         emailId: `email-${crypto.randomUUID()}`,
+        recipient,
       };
     const endpoint = await this.resolveDocumentEmailFlowUrl();
     if (!endpoint)
@@ -1998,10 +2004,10 @@ class DataverseClient {
         identificadorLote: lot.identifier,
         versao: Number(lot.version || 1),
         destinatario: recipient,
-        nomeFavorecido: lot.favorecido?.nome || "",
+        nomeFavorecido: favorecido.nome || "",
         assunto: `Betinhos | Documento do lote ${lot.identifier}`,
         corpoHtml:
-          `<p>Olá, ${lot.favorecido?.nome || "fornecedor"}.</p>` +
+          `<p>Olá, ${favorecido.nome || "fornecedor"}.</p>` +
           `<p>Segue anexo o documento do lote <strong>${lot.identifier}</strong>.</p>` +
           "<p>Atenciosamente,<br>Betinhos Executive Service</p>",
         nomeArquivo: pdf.name,
@@ -2024,7 +2030,7 @@ class DataverseClient {
       );
     const emailId = String(data?.emailId || data?.runId || "").trim();
     if (!emailId) throw new Error("Flow de e-mail não retornou emailId.");
-    return { ...data, ok: true, emailId };
+    return { ...data, ok: true, emailId, recipient };
   }
   async registerDocumentResult(lotId, result) {
     if (!this.mockMode) {

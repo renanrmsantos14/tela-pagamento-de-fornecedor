@@ -3198,9 +3198,18 @@ select:focus {
 .repasse-grid-shell.is-compact .repasse-grid-cell {
   padding-block: 4px;
 }
+.repasse-grid-shell.is-compact .repasse-grid-select-cell:not(.is-header) {
+  padding: 4px;
+}
+.repasse-grid-shell.is-compact .repasse-selection-control:not(.is-header-control) {
+  width: 32px;
+  height: 32px;
+}
 .repasse-grid-shell.is-compact .grid-money-input input,
-.repasse-grid-shell.is-compact .repasse-grid-cell select {
+.repasse-grid-shell.is-compact .repasse-grid-cell select,
+.repasse-grid-shell.is-compact .repasse-favorecido-select .custom-select-trigger {
   min-height: 32px;
+  height: 32px;
 }
 .repasse-grid-shell.is-compact .repasse-save-icon {
   height: 32px;

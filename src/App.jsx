@@ -161,6 +161,15 @@ const applyActiveFavorecidoDefaults = (serviceRows, linkRows, favorecidoRows) =>
     };
   });
 };
+const resolveLotFavorecido = (lot, favorecidoById) => {
+  const favorecidoId = lot.favorecidoId || lot.favorecido?.id || "";
+  const currentFavorecido = favorecidoById.get(favorecidoId);
+  if (!currentFavorecido) return lot;
+  return {
+    ...lot,
+    favorecido: { ...lot.favorecido, ...currentFavorecido },
+  };
+};
 const formatServiceDate = (value, fallback = "") => {
   const date = new Date(value);
   if (!value || Number.isNaN(date.getTime())) return fallback;
@@ -390,6 +399,18 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [notice]);
   const activeFavorecidos = favorecidos.filter((row) => row.status === "ativo");
+  const favorecidoById = useMemo(
+    () => new Map(favorecidos.map((favorecido) => [favorecido.id, favorecido])),
+    [favorecidos],
+  );
+  const resolvedLots = useMemo(
+    () => lots.map((lot) => resolveLotFavorecido(lot, favorecidoById)),
+    [lots, favorecidoById],
+  );
+  const resolvedLotDetail = useMemo(
+    () => (lotDetail ? resolveLotFavorecido(lotDetail, favorecidoById) : null),
+    [lotDetail, favorecidoById],
+  );
   const vehicleTypeOptions = useMemo(() => {
     const options = new Set();
     services.forEach((service) => {
@@ -633,7 +654,7 @@ export default function App() {
       );
       setLastDocumentPdf({ lotId: updated.id, pdf });
       setLotDetail(await dataverse.getLotDetail(updated.id));
-      setNotice(`Documento enviado para ${detail.favorecido.email}.`);
+      setNotice(`Documento enviado para ${email.recipient || detail.favorecido.email}.`);
     } catch (err) {
       await dataverse
         .registerDocumentResult(lot.id, {
@@ -799,7 +820,7 @@ export default function App() {
             <OverviewView
               services={services}
               previousServices={previousServices}
-              lots={lots}
+              lots={resolvedLots}
               links={links}
               favorecidos={favorecidos}
               drivers={drivers}
@@ -852,7 +873,7 @@ export default function App() {
           )}
           {tab === "lots" && (
             <LotsView
-              lots={lots}
+              lots={resolvedLots}
               busy={busy}
               onNew={() => setDrawer({ type: "lot" })}
               onOpen={openLot}
@@ -943,6 +964,14 @@ export default function App() {
           onClose={() => setDrawer(null)}
           onSave={async (form) => {
             setBusy("favorecido", true);
+            const previousFavorecido = drawer.favorecido;
+            if (previousFavorecido) {
+              setFavorecidos((rows) =>
+                rows.map((row) =>
+                  row.id === previousFavorecido.id ? { ...row, ...form } : row,
+                ),
+              );
+            }
             try {
               if (drawer.favorecido) {
                 await dataverse.updateFavorecido(drawer.favorecido.id, form);
@@ -957,6 +986,13 @@ export default function App() {
               );
               await refresh();
             } catch (err) {
+              if (previousFavorecido) {
+                setFavorecidos((rows) =>
+                  rows.map((row) =>
+                    row.id === previousFavorecido.id ? previousFavorecido : row,
+                  ),
+                );
+              }
               reportActionError("Cadastro do Terceiro Favorecido", err);
             } finally {
               setBusy("favorecido", false);
@@ -1045,9 +1081,9 @@ export default function App() {
           }
         />
       )}
-      {drawer?.type === "lotDetail" && lotDetail && (
+      {drawer?.type === "lotDetail" && resolvedLotDetail && (
         <LotDetailDrawer
-          lot={lotDetail}
+          lot={resolvedLotDetail}
           busy={busy}
           onClose={() => setDrawer(null)}
           onPay={markPaid}
@@ -2153,25 +2189,6 @@ function RepasseGrid({
           )}
         </div>
         <div className="repasse-grid-actions">
-          <button
-            className={`secondary-button repasse-select-all ${allSelectableServicesSelected ? "is-active" : ""}`}
-            type="button"
-            disabled={!selectableLotServices.length}
-            onClick={requestToggleAllSelectableServices}
-            aria-pressed={allSelectableServicesSelected}
-            title={
-              selectableFavorecidoId
-                ? selectableFavorecidoGroups.length > 1 && !selectedFavorecidoId
-                  ? "Escolha o favorecido dos serviços que deseja selecionar"
-                  : "Seleciona todos os serviços prontos do mesmo favorecido"
-                : "Nenhum serviço pronto para lote neste filtro"
-            }
-          >
-            <CheckCircle2 size={16} />
-            {allSelectableServicesSelected
-              ? "Limpar seleção"
-              : "Selecionar todos prontos"}
-          </button>
           <button
             className="primary-button repasse-generate-lot"
             disabled={!selectedServices.length}

@@ -1,6 +1,6 @@
 {
   "name": "pagamentos-terceiros-betinhos",
-  "version": "1.0.24",
+  "version": "1.0.29",
   "private": true,
   "type": "module",
   "scripts": {
