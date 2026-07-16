@@ -2131,7 +2131,7 @@ function RepasseInput({ service, saving, onSave }) {
         aria-label={`Repasse de ${service.identificador}`}
       />
       <div className="repasse-meta">
-        {pending && <span className="repasse-pending" role="status">Pendente</span>}
+        {pending && <span className="repasse-pending" role="status" aria-label="Repasse pendente" title="Repasse pendente" />}
         <small className={`repasse-margin ${marginTone}`}>
           {currentMargin.toLocaleString("pt-BR", {
             minimumFractionDigits: 1,

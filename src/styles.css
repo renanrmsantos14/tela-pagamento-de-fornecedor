@@ -2680,20 +2680,12 @@ select:focus {
   gap: 6px;
 }
 .repasse-pending {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--warning);
-  font-size: 9px;
-  font-weight: 800;
-  line-height: 1;
-}
-.repasse-pending::before {
-  width: 4px;
-  height: 4px;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
   border-radius: 999px;
-  background: currentColor;
-  content: "";
+  background: var(--warning);
+  box-shadow: 0 0 0 3px rgba(177, 122, 0, 0.12);
 }
 .repasse-margin {
   color: #78879a;
