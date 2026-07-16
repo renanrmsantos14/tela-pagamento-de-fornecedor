@@ -344,6 +344,7 @@ export default function App() {
     });
   const reportActionError = (action, err) => {
     const detail = err?.message || "Falha inesperada. Tente novamente.";
+    void dataverse.logError(err, { action, phase: "ui.action" });
     setError(`${action} nao foi concluido. ${detail}`);
   };
   async function refresh() {
@@ -2427,6 +2428,10 @@ function RepasseInput({ service, saving, onSave, onTabNavigate }) {
       await onSave(service, draft);
       setFeedback({ type: "saved" });
     } catch (err) {
+      void dataverse.logError(err, {
+        action: "Atualizacao do repasse",
+        phase: "ui.action",
+      });
       setFeedback({
         type: "error",
         message: err.message,
