@@ -304,7 +304,10 @@ async function remoteClient({
             cr40f_valorcobrado: 1000,
             cr40f_valorrepasse: 600,
             cr40f_margem: 400,
-            cr40f_snapshotfinanceiro: "{}",
+            cr40f_snapshotfinanceiro: JSON.stringify({
+              identificador: "RES-REMOTE-001",
+              motorista: "Motorista remoto",
+            }),
           },
         ],
       });
@@ -691,6 +694,8 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
     const detail = await remote.dataverse.getLotDetail("lot-remote-001");
     assert.equal(detail.items[0].itemStatus, "paid");
     assert.equal(detail.items[0].motoristaId, "drv-remote-001");
+    assert.equal(detail.items[0].identificador, "RES-REMOTE-001");
+    assert.equal(detail.items[0].motorista, "Motorista remoto");
     assert.equal(detail.events[0].operation, "paid");
     assert.equal(detail.favorecido.email, "favorecido@example.com");
   } finally {

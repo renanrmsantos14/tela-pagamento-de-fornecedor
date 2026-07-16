@@ -794,6 +794,7 @@ class DataverseClient {
     };
   }
   normalizeItem(row, entity, lot) {
+    const snapshot = parseSnapshot(row?.cr40f_snapshotfinanceiro);
     return {
       id: cleanGuid(row?.[entity.id]),
       paymentId: cleanGuid(row?._cr40f_pagamentoaterceiro_value),
@@ -803,8 +804,10 @@ class DataverseClient {
       compositionId: cleanGuid(row?._cr40f_composicao_value),
       reservationId: cleanGuid(row?._cr40f_reserva_value),
       motoristaId: cleanGuid(row?._cr40f_motoristareferencia_value),
+      identificador: snapshot.identificador || "",
       dataServico: row?.cr40f_dataservico || "",
       trajeto: row?.cr40f_trajeto || "",
+      motorista: snapshot.motorista || "",
       valorCobrado: Number(row?.cr40f_valorcobrado || 0),
       valorRepasse: Number(row?.cr40f_valorrepasse || 0),
       margem: Number(row?.cr40f_margem || 0),
