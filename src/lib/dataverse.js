@@ -1855,7 +1855,7 @@ class DataverseClient {
     }
     if (!response.ok)
       throw new Error(data?.message || data?.error || `Flow OneDrive retornou ${response.status}.`);
-    const url = data?.url || data?.link;
+    const url = data?.webUrl || data?.url || data?.link;
     if (!url) throw new Error("Flow OneDrive nao retornou URL do comprovante.");
     return { url, name: fileName };
   }
@@ -1943,9 +1943,9 @@ class DataverseClient {
           data?.error ||
           `Flow OneDrive retornou ${response.status}.`,
       );
-    if (!data || (!data.url && !data.link))
+    if (!data || (!data.webUrl && !data.url && !data.link))
       throw new Error("Flow OneDrive nao retornou URL do documento.");
-    return data;
+    return { ...data, url: data.webUrl || data.url || data.link };
   }
   async registerDocumentResult(lotId, result) {
     if (!this.mockMode) {
