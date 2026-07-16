@@ -10,7 +10,11 @@ async function client() {
   return import(`../src/lib/dataverse.js?mock=${Date.now()}-${Math.random()}`);
 }
 
-async function remoteClient({ direct = false, metadataAvailable = true } = {}) {
+async function remoteClient({
+  direct = false,
+  metadataAvailable = true,
+  oneDriveFlowUrl = "",
+} = {}) {
   const previousWindow = globalThis.window;
   const previousFetch = globalThis.fetch;
   const requests = [];
@@ -86,6 +90,19 @@ async function remoteClient({ direct = false, metadataAvailable = true } = {}) {
   };
   globalThis.fetch = async (url, options = {}) => {
     requests.push({ url, options });
+    if (url.includes("environmentvariabledefinitions"))
+      return response({
+        value: [
+          {
+            environmentvariabledefinitionid: "flow-definition-001",
+            defaultvalue: oneDriveFlowUrl,
+          },
+        ],
+      });
+    if (url.includes("environmentvariablevalues"))
+      return response({ value: [] });
+    if (url === oneDriveFlowUrl && options.method === "POST")
+      return response({ url: "https://onedrive.example/documento.pdf" });
     if (options.method === "POST") return response({});
     if (url.endsWith("/WhoAmI"))
       return response({
@@ -692,6 +709,28 @@ test("mantém campos operacionais quando metadata da reserva falha", async () =>
       remote.requests.some((request) =>
         request.url.includes("cr40f_dataehorriodesada"),
       ),
+    );
+  } finally {
+    remote.restore();
+  }
+});
+
+test("URL do Flow de OneDrive vem da variável de ambiente Dataverse", async () => {
+  const flowUrl = "https://flow.example/salvar-arquivo";
+  const remote = await remoteClient({ oneDriveFlowUrl: flowUrl });
+  try {
+    const upload = await remote.dataverse.saveDocumentToOneDrive(
+      { id: "lot-remote-001", identifier: "PT-2026-REMOTE", year: 2026, version: 1 },
+      { name: "pagamento.pdf", base64: "cGRm" },
+    );
+    assert.equal(upload.url, "https://onedrive.example/documento.pdf");
+    assert(
+      remote.requests.some(
+        (request) => request.url.includes("environmentvariabledefinitions"),
+      ),
+    );
+    assert(
+      remote.requests.some((request) => request.url === flowUrl),
     );
   } finally {
     remote.restore();

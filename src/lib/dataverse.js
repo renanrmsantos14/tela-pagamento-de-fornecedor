@@ -11,6 +11,7 @@ import {
 const API_VERSION = "v9.2";
 const STORE_KEY = "betinhos_pagamentos_terceiros_mock_v4";
 const FLOW_CONTRACT = "new_FlowURLFlowSalvarArquivosOnedrive";
+const FLOW_RUNTIME_KEY = "VITE_FLOW_SALVAR_ARQUIVOS_ONEDRIVE_URL";
 const MAX_PAYMENT_PROOF_SIZE = 5 * 1024 * 1024;
 const ERROR_LOG_ENTITY_SET = "new_appmotoristaslogs";
 const ERROR_LOG_QUEUE_KEY = "betinhos-pagamentos-error-log-queue-v1";
@@ -454,6 +455,7 @@ class DataverseClient {
     this.apiRoot = this.clientUrl
       ? `${this.clientUrl}/api/data/${API_VERSION}`
       : "";
+    this.flowUrlCache = new Map();
     this.mockMode = !this.clientUrl && localPreviewHost();
     this.identity = {
       userId: "",
@@ -653,6 +655,39 @@ class DataverseClient {
       throw error;
     }
     return data;
+  }
+  async getDataverseEnvironmentVariableValue(schemaName) {
+    if (this.flowUrlCache.has(schemaName))
+      return this.flowUrlCache.get(schemaName);
+    const definition = await this.request(
+      "GET",
+      `/environmentvariabledefinitions?$select=environmentvariabledefinitionid,defaultvalue&$filter=schemaname eq '${escapeOData(schemaName)}'&$top=1`,
+    );
+    const definitionRow = definition?.value?.[0];
+    if (!definitionRow?.environmentvariabledefinitionid) return "";
+    const value = await this.request(
+      "GET",
+      `/environmentvariablevalues?$select=value&$filter=_environmentvariabledefinitionid_value eq ${cleanGuid(definitionRow.environmentvariabledefinitionid)}&$top=1`,
+    );
+    const url = String(value?.value?.[0]?.value || definitionRow.defaultvalue || "").trim();
+    this.flowUrlCache.set(schemaName, url);
+    return url;
+  }
+  async resolveOneDriveFlowUrl() {
+    if (this.clientUrl) {
+      try {
+        const url = await this.getDataverseEnvironmentVariableValue(FLOW_CONTRACT);
+        if (url) return url;
+      } catch {
+        // Mantém fallback de runtime para prévia local e indisponibilidade de metadata.
+      }
+    }
+    const root = typeof window === "undefined" ? {} : window;
+    return (
+      root.__APP_FLOW_ENV?.[FLOW_RUNTIME_KEY] ||
+      runtimeConfig().oneDriveFlowUrl ||
+      ""
+    );
   }
   async entity(logicalName) {
     if (this.cache.has(logicalName)) return this.cache.get(logicalName);
@@ -1804,7 +1839,7 @@ class DataverseClient {
       },
     };
     if (!payload.conteudoBase64) throw new Error("Comprovante vazio para envio.");
-    const endpoint = runtimeConfig().oneDriveFlowUrl;
+    const endpoint = await this.resolveOneDriveFlowUrl();
     if (!endpoint) throw new Error("URL do Flow de OneDrive não configurada.");
     const response = await fetch(endpoint, {
       method: "POST",
@@ -1878,7 +1913,7 @@ class DataverseClient {
         url: `https://onedrive.local/${lot.identifier}-v${lot.version}.pdf`,
         name: pdf.name,
       };
-    const endpoint = runtimeConfig().oneDriveFlowUrl;
+    const endpoint = await this.resolveOneDriveFlowUrl();
     if (!endpoint) throw new Error("URL do Flow de OneDrive não configurada.");
     const response = await fetch(endpoint, {
       method: "POST",
