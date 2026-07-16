@@ -111,6 +111,8 @@ export default function SearchableSelect({
   variant = "",
   name,
   "aria-label": ariaLabel,
+  tabStop,
+  onTabNavigate,
 }) {
   const rootRef = useRef(null);
   const triggerRef = useRef(null);
@@ -399,6 +401,7 @@ export default function SearchableSelect({
   const handleTriggerKeyDown = (event) => {
     if (event.key === "Tab") {
       closeSelect();
+      onTabNavigate?.(event, triggerRef.current);
       return;
     }
     if ([" ", "Enter", "ArrowDown", "ArrowUp"].includes(event.key)) {
@@ -433,6 +436,11 @@ export default function SearchableSelect({
         selectOption(option);
       }
     } else if (event.key === "Tab") {
+      if (onTabNavigate) {
+        closeSelect();
+        onTabNavigate(event, triggerRef.current);
+        return;
+      }
       event.preventDefault();
       closeSelect();
       focusAdjacentControl(triggerRef.current, event.shiftKey ? -1 : 1);
@@ -496,6 +504,7 @@ export default function SearchableSelect({
         type="button"
         className="custom-select-trigger"
         data-searchable-select-trigger="true"
+        data-repasse-tab-stop={tabStop}
         aria-label={ariaLabel}
         aria-expanded={open}
         aria-controls={panelId}

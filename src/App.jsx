@@ -47,6 +47,8 @@ import {
   marginPercent,
   parseMoney,
   paymentTotals,
+  repassePercent,
+  serviceLotEligibilityReason,
   validateFavorecido,
 } from "./domain/payment";
 
@@ -146,8 +148,6 @@ const normalizeFilterLabel = (value) =>
     .trim();
 const maskPix = (value) =>
   value?.length > 8 ? `${value.slice(0, 3)}••••${value.slice(-3)}` : value;
-const REPASSE_COLUMNS = [
-  { id: "identificador", label: "Serviço", width: 150, locked: true },
 const downloadPaymentPdf = (pdf) => {
   const link = document.createElement("a");
   link.href = pdf.dataUri;
@@ -157,6 +157,10 @@ const downloadPaymentPdf = (pdf) => {
   link.click();
   link.remove();
 };
+const REPASSE_COLUMNS = [
+  { id: "identificador", label: "Serviço", width: 150, locked: true },
+  { id: "statusCp", label: "Status da CP", width: 170, locked: true },
+  { id: "statusReserva", label: "Status da reserva", width: 190, locked: true },
   { id: "valorCobrado", label: "Total CP", width: 135, locked: true },
   { id: "valorRepasse", label: "Repasse", width: 140, locked: true },
   { id: "dataServico", label: "Data e hora", width: 150 },
@@ -391,6 +395,23 @@ export default function App() {
         } catch {
           currentService = null;
         }
+        if (currentService?.valorRepasse === service.valorRepasse) {
+          try {
+            const saved = await dataverse.saveServiceRepasse(
+              service.id,
+              value,
+              currentService.etag,
+            );
+            setServices((rows) =>
+              rows.map((row) =>
+                row.id === service.id ? { ...row, ...saved } : row,
+              ),
+            );
+            return saved;
+          } catch (retryError) {
+            if (retryError.status !== 412) throw retryError;
+          }
+        }
         if (currentService)
           setServices((rows) =>
             rows.map((row) =>
@@ -413,6 +434,13 @@ export default function App() {
   async function linkService(service, favorecidoId) {
     const saveKey = `link-${service.id}`;
     const previousFavorecidoId = service.favorecidoId;
+    const emptyDriverServiceIds = services
+      .filter(
+        (row) =>
+          row.motoristaId === service.motoristaId && !row.favorecidoId,
+      )
+      .map((row) => row.id);
+    const affectedServiceIds = [...new Set([service.id, ...emptyDriverServiceIds])];
     const isSelectedLink = (link) =>
       link.motoristaId === service.motoristaId &&
       link.favorecidoId === favorecidoId;
@@ -429,7 +457,9 @@ export default function App() {
     setBusy(saveKey, true);
     setServices((rows) =>
       rows.map((row) =>
-        row.id === service.id ? { ...row, favorecidoId } : row,
+        affectedServiceIds.includes(row.id)
+          ? { ...row, favorecidoId }
+          : row,
       ),
     );
     setLinks((rows) =>
@@ -445,9 +475,15 @@ export default function App() {
         favorecidoId,
         service.motoristaId,
       );
+      await dataverse.assignFavorecidoToServices(
+        emptyDriverServiceIds.filter((id) => id !== service.id),
+        favorecidoId,
+      );
       setServices((rows) =>
         rows.map((row) =>
-          row.id === service.id ? { ...row, ...saved, favorecidoId } : row,
+          affectedServiceIds.includes(row.id)
+            ? { ...row, ...saved, favorecidoId }
+            : row,
         ),
       );
       const refreshedLinks = await dataverse.listLinks();
@@ -467,8 +503,12 @@ export default function App() {
     } catch (err) {
       setServices((rows) =>
         rows.map((row) =>
-          row.id === service.id
-            ? { ...row, favorecidoId: previousFavorecidoId }
+          affectedServiceIds.includes(row.id)
+            ? {
+                ...row,
+                favorecidoId:
+                  row.id === service.id ? previousFavorecidoId : "",
+              }
             : row,
         ),
       );
@@ -481,6 +521,7 @@ export default function App() {
       );
       setAutosaveError(saveKey, { message: err.message, favorecidoId });
       setError(err.message);
+      await refresh();
     } finally {
       setBusy(saveKey, false);
     }
@@ -529,6 +570,7 @@ export default function App() {
         url: upload.url || upload.link,
         name: upload.name || pdf.name,
       });
+      downloadPaymentPdf(pdf);
       setLotDetail(await dataverse.getLotDetail(updated.id));
       setNotice("PDF salvo no OneDrive e download iniciado.");
     } catch (err) {
@@ -570,7 +612,6 @@ export default function App() {
       setNotice(
         action.type === "cancel"
           ? "Lote cancelado e serviços liberados."
-      downloadPaymentPdf(pdf);
           : "Pagamento revertido.",
       );
       await refresh();
@@ -833,9 +874,22 @@ export default function App() {
           onSave={async (id) => {
             setBusy("link-drawer", true);
             try {
+              const driverServices = await dataverse.listFinanceServices({
+                motoristaId: id,
+              });
+              const serviceIds = driverServices
+                .filter(
+                  (service) =>
+                    service.motoristaId === id && !service.favorecidoId,
+                )
+                .map((service) => service.id);
               await dataverse.upsertLink(id, drawer.favorecido.id);
+              await dataverse.assignFavorecidoToServices(
+                serviceIds,
+                drawer.favorecido.id,
+              );
               await refresh();
-              setNotice("Vinculo criado.");
+              setNotice("Vinculo criado e linhas preenchidas.");
             } catch (err) {
               setError(err.message);
             } finally {
@@ -845,9 +899,28 @@ export default function App() {
           onDeactivate={async (id) => {
             setBusy("link-drawer", true);
             try {
+              const link = links.find((row) => row.id === id);
+              const driverServices = link
+                ? await dataverse.listFinanceServices({
+                    motoristaId: link.motoristaId,
+                  })
+                : [];
+              const serviceIds = link
+                ? driverServices
+                    .filter(
+                      (service) =>
+                        service.motoristaId === link.motoristaId &&
+                        service.favorecidoId === link.favorecidoId,
+                    )
+                    .map((service) => service.id)
+                : [];
+              await dataverse.clearFavorecidoFromServices(
+                serviceIds,
+                link?.favorecidoId,
+              );
               await dataverse.setLinkStatus(id, "inativo");
               await refresh();
-              setNotice("Vinculo inativado.");
+              setNotice("Vinculo inativado e linhas desvinculadas.");
             } catch (err) {
               setError(err.message);
             } finally {
@@ -1233,7 +1306,30 @@ function PaymentsView({
   onGenerateLot,
 }) {
   const [statusFilter, setStatusFilter] = useState([]);
+  const [cpStatusFilter, setCpStatusFilter] = useState([]);
   const statusDefaultApplied = useRef(false);
+  const cpStatusDefaultApplied = useRef(false);
+  const cpStatusOptions = useMemo(() => {
+    const options = new Map();
+    services.forEach((service) => {
+      const value = String(service.status || "");
+      if (!value || options.has(value)) return;
+      options.set(value, {
+        value,
+        label: service.statusLabel || service.status || "Sem status",
+      });
+    });
+    return [...options.values()];
+  }, [services]);
+  useEffect(() => {
+    if (cpStatusDefaultApplied.current || !cpStatusOptions.length) return;
+    cpStatusDefaultApplied.current = true;
+    setCpStatusFilter(
+      cpStatusOptions
+        .filter((option) => normalizeFilterLabel(option.label) === "concluido")
+        .map((option) => option.value),
+    );
+  }, [cpStatusOptions]);
   useEffect(() => {
     if (statusDefaultApplied.current || !reservationStatusOptions.length) return;
     statusDefaultApplied.current = true;
@@ -1250,10 +1346,20 @@ function PaymentsView({
   const filteredServices = useMemo(
     () =>
       services.filter((row) =>
-        !statusFilter.length || statusFilter.includes(row.reservationStatus),
+        (!cpStatusFilter.length || cpStatusFilter.includes(String(row.status))) &&
+        (!statusFilter.length || statusFilter.includes(row.reservationStatus)),
       ),
-    [services, statusFilter],
+    [services, cpStatusFilter, statusFilter],
   );
+  const servicesWithStatusColor = useMemo(() => {
+    const colors = new Map(
+      reservationStatusOptions.map((option) => [option.value, option.color]),
+    );
+    return filteredServices.map((service) => ({
+      ...service,
+      reservationStatusColor: colors.get(service.reservationStatus) || "",
+    }));
+  }, [filteredServices, reservationStatusOptions]);
   return (
     <section className="page-section repasse-page">
       <div className="page-title">
@@ -1317,11 +1423,21 @@ function PaymentsView({
             />
           </label>
           <label className="field">
-            <span>Status</span>
+            <span>Status da CP</span>
+            <SearchableMultiSelect
+              value={cpStatusFilter}
+              onChange={setCpStatusFilter}
+              aria-label="Filtrar lançamentos por status da CP"
+              options={cpStatusOptions}
+              placeholder="Todos os status da CP"
+            />
+          </label>
+          <label className="field">
+            <span>Status da reserva</span>
             <SearchableMultiSelect
               value={statusFilter}
               onChange={setStatusFilter}
-              aria-label="Filtrar lançamentos por status"
+              aria-label="Filtrar lançamentos por status da reserva"
               options={reservationStatusOptions}
               placeholder="Todos os status"
             />
@@ -1329,7 +1445,7 @@ function PaymentsView({
         </div>
       </section>
       <RepasseGrid
-        services={filteredServices}
+        services={servicesWithStatusColor}
         favorecidos={allFavorecidos}
         busy={busy}
         autosaveErrors={autosaveErrors}
@@ -1381,6 +1497,7 @@ function RepasseGrid({
   );
   const gridTemplate = useMemo(() => `44px ${template}`, [template]);
   const gridScrollRef = useRef(null);
+  const missingInformationLogRef = useRef(new Set());
   const columnPickerRef = useRef(null);
   const columnRowRefs = useRef(new Map());
   const previousColumnPositionsRef = useRef(new Map());
@@ -1660,6 +1777,19 @@ function RepasseGrid({
     setActiveViewId("");
     setViewMessage(`View “${activeView.name}” excluída.`);
   };
+  const moveGridFocus = (event, trigger, columnId) => {
+    if (event.key !== "Tab") return;
+    const controls = [
+      ...gridScrollRef.current.querySelectorAll(
+        `[data-repasse-tab-stop="${columnId}"]`,
+      ),
+    ].filter((control) => !control.disabled && control.offsetParent !== null);
+    const nextControl =
+      controls[controls.indexOf(trigger) + (event.shiftKey ? -1 : 1)];
+    if (!nextControl) return;
+    event.preventDefault();
+    nextControl.focus();
+  };
   const cell = (service, column) => {
     if (column.id === "identificador")
       return (
@@ -1668,12 +1798,74 @@ function RepasseGrid({
           reservationId={service.reservationId}
         />
       );
+    if (column.id === "statusCp") {
+      if (!service.statusLabel && !service.status) {
+        const logKey = `${service.id}:new_status`;
+        if (!missingInformationLogRef.current.has(logKey)) {
+          missingInformationLogRef.current.add(logKey);
+          console.warn(
+            "[Tela Pagamento de Fornecedores] Status da CP exibido como Não informado",
+            {
+              servico: service.identificador || service.id,
+              composicaoId: service.compositionId || null,
+              campo: "new_status",
+              valorRecebido: service.status || null,
+              motivo:
+                "A composição não trouxe valor nem rótulo formatado para o status da CP.",
+            },
+          );
+        }
+      }
+      return (
+        <span
+          className={`status-badge status-cp-${normalizeFilterLabel(service.status || "sem-status").replace(/[^a-z0-9]+/g, "-")}`}
+          title={service.statusLabel || "Status da CP não informado"}
+        >
+          {service.statusLabel || "Status da CP não informado"}
+        </span>
+      );
+    }
+    if (column.id === "statusReserva") {
+      if (!service.reservationStatusLabel && !service.reservationStatus) {
+        const logKey = `${service.id}:cr40f_status`;
+        if (!missingInformationLogRef.current.has(logKey)) {
+          missingInformationLogRef.current.add(logKey);
+          console.warn(
+            "[Tela Pagamento de Fornecedores] Informação exibida como Não informado",
+            {
+              servico: service.identificador || service.id,
+              reservaId: service.reservationId || null,
+              campo: "cr40f_status",
+              valorRecebido: service.reservationStatus || null,
+              motivo:
+                "O registro da reserva não trouxe valor nem rótulo formatado para o status.",
+            },
+          );
+        }
+      }
+      return (
+        <span
+          className={`status-badge status-${service.reservationStatus} ${service.reservationStatusColor ? "has-choice-color" : ""}`}
+          style={
+            service.reservationStatusColor
+              ? { "--choice-color": service.reservationStatusColor }
+              : undefined
+          }
+          title={service.reservationStatusLabel || "Status n\u00e3o informado"}
+        >
+          {service.reservationStatusLabel || "N\u00e3o informado"}
+        </span>
+      );
+    }
     if (column.id === "valorRepasse")
       return (
         <RepasseInput
           service={service}
           saving={busy(`repasse-${service.id}`) || busy(`link-${service.id}`)}
           onSave={onSave}
+          onTabNavigate={(event, trigger) =>
+            moveGridFocus(event, trigger, "valorRepasse")
+          }
         />
       );
     if (column.id === "favorecido")
@@ -1681,9 +1873,13 @@ function RepasseGrid({
         <FavorecidoCell
           service={service}
           favorecidos={favorecidos}
+          links={links}
           saving={busy(`link-${service.id}`)}
           error={autosaveErrors[`link-${service.id}`]}
           onLink={onLink}
+          onTabNavigate={(event, trigger) =>
+            moveGridFocus(event, trigger, "favorecido")
+          }
         />
       );
     if (column.id === "valorCobrado")
@@ -2067,8 +2263,13 @@ function RepasseGrid({
               service.favorecidoId !== selectedFavorecidoId;
             const isSelected = selectedIds.has(service.id);
             const selectionDisabled = !isEligibleForLot || isOtherFavorecido;
+            const eligibilityReason = !service.favorecidoId
+              ? "Nenhum favorecido vinculado ao serviço"
+              : !activeFavorecidoIds.has(service.favorecidoId)
+                ? "Favorecido vinculado está inativo"
+                : serviceLotEligibilityReason(service, service.favorecidoId, links);
             const selectionLabel = !isEligibleForLot
-              ? "Serviço ainda não está elegível para lote"
+              ? `Não pode entrar no lote. Motivo: ${eligibilityReason}.`
               : isOtherFavorecido
                 ? "Um lote só pode conter serviços do mesmo favorecido"
                 : `Selecionar ${service.identificador} para gerar lote`;
@@ -2078,7 +2279,10 @@ function RepasseGrid({
               key={service.id}
               style={{ gridTemplateColumns: gridTemplate }}
             >
-              <div className="repasse-grid-select-cell">
+              <div
+                className="repasse-grid-select-cell"
+                title={selectionDisabled ? selectionLabel : undefined}
+              >
                 <input
                   type="checkbox"
                   checked={isSelected}
@@ -2113,11 +2317,12 @@ function RepasseGrid({
     </section>
   );
 }
-function RepasseInput({ service, saving, onSave }) {
-  const [draft, setDraft] = useState(moneyInput(service.valorRepasse));
+function RepasseInput({ service, saving, onSave, onTabNavigate }) {
+  const displayValue = (value) => (value > 0 ? moneyInput(value) : "");
+  const [draft, setDraft] = useState(displayValue(service.valorRepasse));
   const [feedback, setFeedback] = useState(null);
   useEffect(
-    () => setDraft(moneyInput(service.valorRepasse)),
+    () => setDraft(displayValue(service.valorRepasse)),
     [service.valorRepasse],
   );
   useEffect(() => {
@@ -2127,11 +2332,11 @@ function RepasseInput({ service, saving, onSave }) {
   }, [feedback]);
   const value = parseMoney(draft);
   const changed = value !== service.valorRepasse;
-  const currentMargin = marginPercent({ ...service, valorRepasse: value });
+  const currentRepassePercent = repassePercent({ ...service, valorRepasse: value });
   const marginTone =
-    currentMargin < 0
+    currentRepassePercent < 0
       ? "is-negative"
-      : currentMargin === 0
+      : currentRepassePercent === 0
         ? "is-neutral"
         : "is-positive";
   const save = async () => {
@@ -2161,12 +2366,14 @@ function RepasseInput({ service, saving, onSave }) {
           setFeedback(null);
         }}
         onBlur={save}
+        onKeyDown={(event) => onTabNavigate?.(event, event.currentTarget)}
+        data-repasse-tab-stop="valorRepasse"
         aria-label={`Repasse de ${service.identificador}`}
       />
       <div className="repasse-meta">
         {pending && <span className="repasse-pending" role="status" aria-label="Repasse pendente" title="Repasse pendente" />}
         <small className={`repasse-margin ${marginTone}`}>
-          {currentMargin.toLocaleString("pt-BR", {
+          {currentRepassePercent.toLocaleString("pt-BR", {
             minimumFractionDigits: 1,
             maximumFractionDigits: 1,
           })}
@@ -2218,9 +2425,32 @@ function AutoSaveErrorIcon({ message, label, onRetry, canRetry = true }) {
     </button>
   );
 }
-function FavorecidoCell({ service, favorecidos, saving, error, onLink }) {
+function FavorecidoCell({
+  service,
+  favorecidos,
+  links,
+  saving,
+  error,
+  onLink,
+  onTabNavigate,
+}) {
   const [editing, setEditing] = useState(false);
   useEffect(() => setEditing(false), [service.favorecidoId]);
+  const linkedFavorecidos = favorecidos.filter(
+    (favorecido) =>
+      favorecido.status === "ativo" &&
+      links.some(
+        (link) =>
+          link.status === "ativo" &&
+          link.motoristaId === service.motoristaId &&
+          link.favorecidoId === favorecido.id,
+      ),
+  );
+  const selectedFavorecidoId = linkedFavorecidos.some(
+    (favorecido) => favorecido.id === service.favorecidoId,
+  )
+    ? service.favorecidoId
+    : "";
   const errorIcon = error ? (
     <AutoSaveErrorIcon
       message={error.message}
@@ -2228,13 +2458,12 @@ function FavorecidoCell({ service, favorecidos, saving, error, onLink }) {
       onRetry={() => onLink(service, error.favorecidoId)}
     />
   ) : null;
-  if (service.favorecidoId && !editing) {
-    const favorecido = favorecidos.find(
-      (row) => row.id === service.favorecidoId,
+  if (selectedFavorecidoId && !editing) {
+    const favorecido = linkedFavorecidos.find(
+      (row) => row.id === selectedFavorecidoId,
     );
     return (
       <div className="favorecido-linked">
-        <Badge tone="green">Vinculado</Badge>
         <div className="favorecido-linked-name">
           <span title={favorecido?.nome || "Favorecido"}>
             {favorecido?.nome || "Favorecido"}
@@ -2257,22 +2486,24 @@ function FavorecidoCell({ service, favorecidos, saving, error, onLink }) {
   return (
     <div className="favorecido-cell">
       <SearchableSelect
-        value={service.favorecidoId || ""}
+        value={selectedFavorecidoId}
         disabled={saving}
         clearable={false}
         placeholder="Vincular favorecido"
         aria-label={`Trocar favorecido de ${service.identificador}`}
         className="repasse-favorecido-select"
+        tabStop="favorecido"
+        onTabNavigate={onTabNavigate}
         options={[
           { value: "", label: "Vincular favorecido" },
-          ...favorecidos.map((row) => ({
+          ...linkedFavorecidos.map((row) => ({
             value: row.id,
             label: row.nome,
             search: `${row.documento || ""} ${row.email || ""}`,
           })),
         ]}
         onChange={async (value) => {
-          if (!value || value === service.favorecidoId) {
+          if (!value || value === selectedFavorecidoId) {
             setEditing(false);
             return;
           }

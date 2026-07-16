@@ -1,14 +1,17 @@
 {
   "name": "pagamentos-terceiros-betinhos",
-  "version": "1.0.0",
+  "version": "1.0.12",
   "private": true,
   "type": "module",
   "scripts": {
+    "version:update": "node scripts/update-app-version.mjs",
+    "predev": "npm run version:update",
     "dev": "node scripts/dev-with-port.mjs",
     "test": "node --test tests/domain.test.js tests/mock-flow.test.js",
     "build": "node scripts/build-webresource.mjs",
     "wr": "node scripts/build-webresource.mjs",
     "deploy:webresource": "powershell -ExecutionPolicy Bypass -File scripts/deploy-webresource.ps1",
+    "prepush": "npm run version:update",
     "push": "powershell -ExecutionPolicy Bypass -File scripts/deploy-webresource.ps1 -EnvironmentUrl https://org23b93544.crm2.dynamics.com/ -WebResourceName cr40f_TelaPagamentoFornecedores.html -SolutionUniqueName appbetinhos"
   },
   "dependencies": {

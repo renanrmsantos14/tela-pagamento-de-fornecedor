@@ -1,217 +1,254 @@
 {
   "communities": {
     "0": [
-      "app",
-      "app_alert",
-      "app_app",
-      "app_autosaveerroricon",
-      "app_badge",
-      "app_brand",
-      "app_dashboardbuckets",
-      "app_dashboardranking",
-      "app_drawer",
-      "app_favorecidocell",
-      "app_favorecidodrawer",
-      "app_favorecidosview",
-      "app_formatservicedate",
-      "app_linksdrawer",
-      "app_loadactiverepasseview",
-      "app_loadrepassecolumns",
-      "app_loadrepassedensity",
-      "app_loadrepasseviews",
-      "app_lotdetaildrawer",
-      "app_lotdrawer",
-      "app_lotsview",
-      "app_maskpix",
-      "app_monthrange",
-      "app_nav",
-      "app_orderrepassecolumns",
-      "app_overviewmetric",
-      "app_overviewqueuerow",
-      "app_overviewview",
-      "app_paymentsview",
-      "app_percentchange",
-      "app_previousrange",
-      "app_reasondrawer",
-      "app_repasse_columns",
-      "app_repassegrid",
-      "app_repasseinput",
-      "app_statustext",
-      "app_todateinput",
-      "app_viewcolumns",
-      "main"
-    ],
-    "1": [
-      "domain_payment",
-      "domain_payment_cancancel",
-      "domain_payment_canpay",
-      "domain_payment_canrevert",
       "domain_payment_createlotsnapshot",
-      "domain_payment_digits",
       "domain_payment_document_status",
-      "domain_payment_eligibleservices",
-      "domain_payment_fromcents",
-      "domain_payment_groupmonthly",
-      "domain_payment_iseligibleservice",
       "domain_payment_item_status",
       "domain_payment_lot_status",
-      "domain_payment_marginpercent",
-      "domain_payment_money",
-      "domain_payment_moneyinput",
-      "domain_payment_parsemoney",
       "domain_payment_payment_status",
-      "domain_payment_paymenttotals",
-      "domain_payment_profit",
-      "domain_payment_repeated",
-      "domain_payment_tocents",
-      "domain_payment_validatefavorecido",
-      "domain_payment_validcnpj",
-      "domain_payment_validcpf",
-      "lib_document",
-      "lib_document_buildpaymentpdf",
-      "lib_document_safe"
-    ],
-    "2": [
       "lib_dataverse",
       "lib_dataverse_buildstate",
       "lib_dataverse_choices",
       "lib_dataverse_dataverse",
-      "lib_dataverse_dataverseclient_reservationoperationalfields",
+      "lib_dataverse_dataverseclient_savedocumenttoonedrive",
       "lib_dataverse_dataverseclient_uploadpaymentproof",
+      "lib_dataverse_directwebresourceclienturl",
       "lib_dataverse_drivers",
       "lib_dataverse_errorlogrecord",
       "lib_dataverse_errormessage",
       "lib_dataverse_errorstack",
-      "lib_dataverse_escapeodata",
       "lib_dataverse_filetodataurl",
       "lib_dataverse_getxrm",
       "lib_dataverse_localhost",
       "lib_dataverse_localpreviewhost",
-      "lib_dataverse_normalizelabel",
       "lib_dataverse_parsesnapshot",
+      "lib_dataverse_readxrm",
       "lib_dataverse_reservationdetaillabels",
+      "lib_dataverse_reservationoperationalmetadatafields",
+      "lib_dataverse_resolvedataversecontext",
+      "lib_dataverse_runtimeconfig",
       "lib_dataverse_sanitizepathsegment",
       "lib_dataverse_seedfavorecidos",
       "lib_dataverse_seedlinks",
       "lib_dataverse_seedservices",
-      "lib_dataverse_selectableattributename",
       "lib_dataverse_tables"
     ],
-    "3": [
-      "lib_dataverse_clone",
-      "lib_dataverse_dataverseclient_addevent",
-      "lib_dataverse_dataverseclient_cancellot",
-      "lib_dataverse_dataverseclient_createfavorecido",
-      "lib_dataverse_dataverseclient_markpaid",
+    "1": [
+      "app",
+      "app_alert",
+      "app_autosaveerroricon",
+      "app_badge",
+      "app_brand",
+      "app_drawer",
+      "app_favorecidocell",
+      "app_favorecidosview",
+      "app_linksdrawer",
+      "app_lotdetaildrawer",
+      "app_lotsview",
+      "app_maskpix",
+      "app_nav",
+      "app_normalizefilterlabel",
+      "app_overviewmetric",
+      "app_overviewqueuerow",
+      "app_paymentsview",
+      "app_previousrange",
+      "app_reasondrawer",
+      "app_repasse_default_status_labels",
+      "app_serviceidentifierlink",
+      "app_statustext",
+      "app_todateinput",
+      "domain_payment_cancancel",
+      "domain_payment_canpay",
+      "domain_payment_canrevert"
+    ],
+    "2": [
+      "lib_dataverse_dataverseclient",
+      "lib_dataverse_dataverseclient_assignfavorecidotoservices",
+      "lib_dataverse_dataverseclient_available",
+      "lib_dataverse_dataverseclient_bindlookup",
+      "lib_dataverse_dataverseclient_clearfavorecidofromservices",
+      "lib_dataverse_dataverseclient_clearlookup",
+      "lib_dataverse_dataverseclient_consumefailure",
+      "lib_dataverse_dataverseclient_environmentlabel",
+      "lib_dataverse_dataverseclient_lookupschema",
       "lib_dataverse_dataverseclient_persistmock",
-      "lib_dataverse_dataverseclient_recordremoteevent",
-      "lib_dataverse_dataverseclient_registerdocumentresult",
       "lib_dataverse_dataverseclient_resetmock",
-      "lib_dataverse_dataverseclient_revertpaid",
       "lib_dataverse_dataverseclient_saveservicerepasse",
       "lib_dataverse_dataverseclient_setfavorecidostatus",
       "lib_dataverse_dataverseclient_setlinkstatus",
+      "lib_dataverse_dataverseclient_setmockfailure",
       "lib_dataverse_dataverseclient_setpreferredfavorecido",
       "lib_dataverse_dataverseclient_update",
-      "lib_dataverse_dataverseclient_updatedraftlot",
       "lib_dataverse_dataverseclient_updatefavorecido",
-      "lib_dataverse_dataverseclient_upsertlink",
-      "lib_dataverse_newid",
-      "lib_dataverse_now"
+      "lib_dataverse_dataverseclient_upsertlink"
+    ],
+    "3": [
+      "app_favorecidodrawer",
+      "app_repasseinput",
+      "domain_payment",
+      "domain_payment_digits",
+      "domain_payment_fromcents",
+      "domain_payment_iscompletedservice",
+      "domain_payment_iseligibleservice",
+      "domain_payment_marginpercent",
+      "domain_payment_moneyinput",
+      "domain_payment_parsemoney",
+      "domain_payment_profit",
+      "domain_payment_repassepercent",
+      "domain_payment_repeated",
+      "domain_payment_serviceloteligibilityreason",
+      "domain_payment_tocents",
+      "domain_payment_validatefavorecido",
+      "domain_payment_validcnpj",
+      "domain_payment_validcpf"
     ],
     "4": [
-      "lib_dataverse_dataverseclient",
-      "lib_dataverse_dataverseclient_available",
-      "lib_dataverse_dataverseclient_constructor",
-      "lib_dataverse_dataverseclient_environmentlabel",
-      "lib_dataverse_dataverseclient_flusherrorlogqueue",
-      "lib_dataverse_dataverseclient_installglobalerrorlogging",
-      "lib_dataverse_dataverseclient_loadmock",
-      "lib_dataverse_dataverseclient_logerror",
-      "lib_dataverse_dataverseclient_readerrorlogqueue",
-      "lib_dataverse_dataverseclient_setmockfailure",
-      "lib_dataverse_dataverseclient_writeerrorlogqueue"
-    ],
-    "5": [
-      "lib_dataverse_dataverseclient_bindlookup",
-      "lib_dataverse_dataverseclient_clearlookup",
+      "lib_dataverse_clone",
       "lib_dataverse_dataverseclient_create",
       "lib_dataverse_dataverseclient_createdraftlot",
+      "lib_dataverse_dataverseclient_createfavorecido",
       "lib_dataverse_dataverseclient_createremoteitem",
       "lib_dataverse_dataverseclient_createresolved",
-      "lib_dataverse_dataverseclient_linkcompositiontolot",
+      "lib_dataverse_dataverseclient_delete",
+      "lib_dataverse_dataverseclient_entity",
+      "lib_dataverse_dataverseclient_listall",
+      "lib_dataverse_dataverseclient_listdrivers",
+      "lib_dataverse_dataverseclient_listfavorecidos",
       "lib_dataverse_dataverseclient_listlinks",
-      "lib_dataverse_dataverseclient_lookupschema"
+      "lib_dataverse_dataverseclient_listlots",
+      "lib_dataverse_dataverseclient_request"
+    ],
+    "5": [
+      "app_dashboardbuckets",
+      "app_dashboardranking",
+      "app_lotdrawer",
+      "app_overviewview",
+      "app_percentchange",
+      "domain_payment_eligibleservices",
+      "domain_payment_groupmonthly",
+      "domain_payment_money",
+      "domain_payment_paymenttotals",
+      "lib_document",
+      "lib_document_buildpaymentpdf",
+      "lib_document_safe"
     ],
     "6": [
+      "lib_dataverse_dataverseclient_compositionreservationlookupvaluefield",
+      "lib_dataverse_dataverseclient_listfinanceservices",
+      "lib_dataverse_dataverseclient_listreservationstatuses",
+      "lib_dataverse_dataverseclient_listservices",
+      "lib_dataverse_dataverseclient_reservationoperationalfields",
+      "lib_dataverse_escapeodata",
+      "lib_dataverse_fieldvalue",
+      "lib_dataverse_normalizelabel",
+      "lib_dataverse_rawfieldvalue",
+      "lib_dataverse_selectableattributename"
+    ],
+    "7": [
       "searchableselect",
       "searchableselect_focusadjacentcontrol",
       "searchableselect_normalizedsearchmatches",
       "searchableselect_normalizesearchtext",
+      "searchableselect_searchablemultiselect",
       "searchableselect_searchableselect",
       "searchableselect_searchabletextmatches",
       "searchableselect_searchtokens",
       "searchableselect_shouldautofocussearch",
       "searchableselect_viewportmetrics"
     ],
-    "7": [
-      "lib_dataverse_dataverseclient_delete",
-      "lib_dataverse_dataverseclient_entity",
-      "lib_dataverse_dataverseclient_listall",
-      "lib_dataverse_dataverseclient_listdrivers",
-      "lib_dataverse_dataverseclient_listfavorecidos",
-      "lib_dataverse_dataverseclient_listlots",
-      "lib_dataverse_dataverseclient_request"
-    ],
     "8": [
+      "app_formatservicedate",
+      "app_loadactiverepasseview",
+      "app_loadrepassecolumns",
+      "app_loadrepassedensity",
+      "app_loadrepasseviews",
+      "app_orderrepassecolumns",
+      "app_repasse_columns",
+      "app_repassegrid",
+      "app_viewcolumns"
+    ],
+    "9": [
+      "lib_dataverse_dataverseclient_constructor",
+      "lib_dataverse_dataverseclient_flusherrorlogqueue",
+      "lib_dataverse_dataverseclient_installglobalerrorlogging",
+      "lib_dataverse_dataverseclient_loaddirectidentity",
+      "lib_dataverse_dataverseclient_loadmock",
+      "lib_dataverse_dataverseclient_logerror",
+      "lib_dataverse_dataverseclient_readerrorlogqueue",
+      "lib_dataverse_dataverseclient_writeerrorlogqueue"
+    ],
+    "10": [
       "lib_dataverse_cleanguid",
       "lib_dataverse_dataverseclient_getlotdetail",
       "lib_dataverse_dataverseclient_listlotevents",
       "lib_dataverse_dataverseclient_normalizeevent",
       "lib_dataverse_dataverseclient_normalizeitem",
-      "lib_dataverse_dataverseclient_normalizepayment"
+      "lib_dataverse_dataverseclient_normalizepayment",
+      "lib_dataverse_dataverseclient_reservationwebresourceurl"
     ],
-    "9": [
-      "lib_dataverse_dataverseclient_compositionreservationlookupvaluefield",
-      "lib_dataverse_dataverseclient_listfinanceservices",
-      "lib_dataverse_dataverseclient_listservices",
-      "lib_dataverse_fieldvalue"
+    "11": [
+      "lib_dataverse_dataverseclient_addevent",
+      "lib_dataverse_dataverseclient_cancellot",
+      "lib_dataverse_dataverseclient_markpaid",
+      "lib_dataverse_dataverseclient_recordremoteevent",
+      "lib_dataverse_dataverseclient_registerdocumentresult",
+      "lib_dataverse_dataverseclient_revertpaid",
+      "lib_dataverse_now"
     ],
-    "10": [
-      "lib_dataverse_dataverseclient_consumefailure",
-      "lib_dataverse_dataverseclient_savedocumenttoonedrive",
+    "12": [
+      "app_app",
+      "app_monthrange",
+      "build_info",
+      "main"
+    ],
+    "13": [
+      "lib_dataverse_dataverseclient_linkcompositiontolot",
       "lib_dataverse_dataverseclient_sendemailwithpdf",
-      "lib_dataverse_runtimeconfig"
+      "lib_dataverse_dataverseclient_updatedraftlot",
+      "lib_dataverse_newid"
     ]
   },
   "cohesion": {
-    "0": 0.07692307692307693,
-    "1": 0.12962962962962962,
-    "2": 0.11594202898550725,
-    "3": 0.30526315789473685,
-    "4": 0.34545454545454546,
-    "5": 0.3055555555555556,
-    "6": 0.4722222222222222,
-    "7": 0.5238095238095238,
-    "8": 0.5333333333333333,
-    "9": 0.5,
-    "10": 0.6666666666666666
+    "0": 0.09032258064516129,
+    "1": 0.10461538461538461,
+    "2": 0.2631578947368421,
+    "3": 0.24836601307189543,
+    "4": 0.3516483516483517,
+    "5": 0.2727272727272727,
+    "6": 0.24444444444444444,
+    "7": 0.4,
+    "8": 0.2777777777777778,
+    "9": 0.35714285714285715,
+    "10": 0.42857142857142855,
+    "11": 0.6190476190476191,
+    "12": 0.5,
+    "13": 0.5
   },
   "gods": [
     {
       "id": "lib_dataverse_dataverseclient",
       "label": "DataverseClient",
-      "degree": 57
+      "degree": 62
     },
     {
       "id": "lib_dataverse_clone",
       "label": "clone()",
-      "degree": 23
+      "degree": 25
     },
     {
       "id": "lib_dataverse_cleanguid",
       "label": "cleanGuid()",
-      "degree": 16
+      "degree": 20
+    },
+    {
+      "id": "app_repassegrid",
+      "label": "RepasseGrid()",
+      "degree": 13
+    },
+    {
+      "id": "domain_payment_paymenttotals",
+      "label": "paymentTotals()",
+      "degree": 11
     },
     {
       "id": "lib_dataverse_now",
@@ -219,47 +256,81 @@
       "degree": 11
     },
     {
-      "id": "app_repassegrid",
-      "label": "RepasseGrid()",
-      "degree": 9
-    },
-    {
-      "id": "searchableselect_searchableselect",
-      "label": "SearchableSelect()",
-      "degree": 7
-    },
-    {
-      "id": "lib_dataverse_newid",
-      "label": "newId()",
-      "degree": 7
-    },
-    {
-      "id": "lib_dataverse_buildstate",
-      "label": "buildState()",
-      "degree": 7
+      "id": "domain_payment_money",
+      "label": "money()",
+      "degree": 10
     },
     {
       "id": "domain_payment_tocents",
       "label": "toCents()",
-      "degree": 6
+      "degree": 8
     },
     {
-      "id": "lib_dataverse_escapeodata",
-      "label": "escapeOData()",
-      "degree": 6
+      "id": "domain_payment_validatefavorecido",
+      "label": "validateFavorecido()",
+      "degree": 8
+    },
+    {
+      "id": "lib_dataverse_buildstate",
+      "label": "buildState()",
+      "degree": 8
     }
   ],
   "surprises": [
     {
-      "source": "buildPaymentPdf()",
-      "target": "money()",
+      "source": "RepasseGrid()",
+      "target": "eligibleServices()",
       "source_files": [
-        "lib/document.js",
+        "App.jsx",
         "domain/payment.js"
       ],
       "confidence": "EXTRACTED",
       "relation": "calls",
-      "why": "connects across different repos/directories"
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "RepasseGrid()",
+      "target": "money()",
+      "source_files": [
+        "App.jsx",
+        "domain/payment.js"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "RepasseGrid()",
+      "target": "serviceLotEligibilityReason()",
+      "source_files": [
+        "App.jsx",
+        "domain/payment.js"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "LotsView()",
+      "target": "money()",
+      "source_files": [
+        "App.jsx",
+        "domain/payment.js"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "FavorecidoDrawer()",
+      "target": "validateFavorecido()",
+      "source_files": [
+        "App.jsx",
+        "domain/payment.js"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; peripheral node `FavorecidoDrawer()` unexpectedly reaches hub `validateFavorecido()`"
     }
   ],
   "tokens": {

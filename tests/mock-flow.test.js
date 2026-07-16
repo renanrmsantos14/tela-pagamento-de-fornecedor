@@ -10,7 +10,7 @@ async function client() {
   return import(`../src/lib/dataverse.js?mock=${Date.now()}-${Math.random()}`);
 }
 
-async function remoteClient({ direct = false } = {}) {
+async function remoteClient({ direct = false, metadataAvailable = true } = {}) {
   const previousWindow = globalThis.window;
   const previousFetch = globalThis.fetch;
   const requests = [];
@@ -27,6 +27,7 @@ async function remoteClient({ direct = false } = {}) {
   };
   const schemaNames = {
     cr40f_motorista: "cr40f_Motorista",
+    cr40f_motoristareferencia: "cr40f_MotoristaReferencia",
     cr40f_terceirofavorecido: "cr40f_TerceiroFavorecido",
     cr40f_pagamentoaterceiro: "cr40f_PagamentoATerceiro",
     cr40f_composicao: "cr40f_Composicao",
@@ -115,11 +116,13 @@ async function remoteClient({ direct = false } = {}) {
       if (
         logicalName === "cr40f_reservadeveculos" &&
         url.includes("/Attributes?$select=LogicalName,DisplayName,AttributeType")
-      )
+      ) {
+        if (!metadataAvailable)
+          return response({ error: { message: "Metadata indisponível" } }, 500);
         return response({
           value: [
             {
-              LogicalName: "cr40f_dataehorariodesaida",
+              LogicalName: "cr40f_dataehorriodesada",
               DisplayName: { UserLocalizedLabel: { Label: "Data e horário de saída" } },
               AttributeType: "DateTime",
             },
@@ -138,8 +141,24 @@ async function remoteClient({ direct = false } = {}) {
               DisplayName: { UserLocalizedLabel: { Label: "Motorista" } },
               AttributeType: "Lookup",
             },
+            {
+              LogicalName: "new_datadefinalizacao",
+              DisplayName: { UserLocalizedLabel: { Label: "Data de Finalização" } },
+              AttributeType: "DateTime",
+            },
+            {
+              LogicalName: "cr40f_obsdeoperao",
+              DisplayName: { UserLocalizedLabel: { Label: "Obs de Operação" } },
+              AttributeType: "Memo",
+            },
+            {
+              LogicalName: "new_observacaofinal",
+              DisplayName: { UserLocalizedLabel: { Label: "Observação Final" } },
+              AttributeType: "Memo",
+            },
           ],
         });
+      }
       if (
         logicalName === "cr40f_reservadeveculos" &&
         url.includes("PicklistAttributeMetadata")
@@ -149,20 +168,33 @@ async function remoteClient({ direct = false } = {}) {
             Options: [
               {
                 Value: 100000000,
+                Color: "#4F6BED",
                 Label: { UserLocalizedLabel: { Label: "Programado" } },
               },
               {
                 Value: 100000001,
+                Color: "#107C10",
                 Label: { UserLocalizedLabel: { Label: "Concluído" } },
               },
               {
                 Value: 100000002,
+                Color: "#D83B01",
                 Label: {
                   UserLocalizedLabel: { Label: "Cancelado com ressalvas" },
                 },
               },
             ],
           },
+        });
+      if (
+        attribute &&
+        logicalName === "cr40f_itempagamentoaterceiro" &&
+        attribute[1] === "cr40f_motorista"
+      )
+        return response({
+          LogicalName: attribute[1],
+          SchemaName: schemaNames[attribute[1]],
+          AttributeType: "String",
         });
       if (attribute)
         return schemaNames[attribute[1]]
@@ -220,8 +252,15 @@ async function remoteClient({ direct = false } = {}) {
             new_categoriadoitem: 100000000,
             "cr40f_status@OData.Community.Display.V1.FormattedValue":
               "Cancelado com ressalvas",
-            cr40f_dataehorariodesaida: "2026-07-15T12:00:00Z",
+            cr40f_dataehorriodesada: "2026-07-15T12:00:00Z",
+            "cr40f_dataehorriodesada@OData.Community.Display.V1.FormattedValue":
+              "15/07/2026 09:00",
+            new_datadefinalizacao: "2026-07-15T14:00:00Z",
+            "new_datadefinalizacao@OData.Community.Display.V1.FormattedValue":
+              "15/07/2026 11:00",
             cr40f_trajeto: "GRU - Centro",
+            cr40f_obsdeoperao: "Receber passageiro no desembarque.",
+            new_observacaofinal: "Serviço concluído.",
             cr40f_destino: "Centro",
             _cr40f_motorista_value: "drv-remote-001",
             "_cr40f_motorista_value@OData.Community.Display.V1.FormattedValue":
@@ -242,11 +281,11 @@ async function remoteClient({ direct = false } = {}) {
             _cr40f_composicao_value: "cmp-remote-001",
             _cr40f_pagamentoaterceiro_value: "lot-remote-001",
             _cr40f_reserva_value: "res-remote-001",
-            _cr40f_motorista_value: "drv-remote-001",
+            _cr40f_motoristareferencia_value: "drv-remote-001",
             cr40f_dataservico: "2026-07-15T12:00:00Z",
             cr40f_trajeto: "GRU - Centro",
             cr40f_valorcobrado: 1000,
-            cr40f_valorrepass: 600,
+            cr40f_valorrepasse: 600,
             cr40f_margem: 400,
             cr40f_snapshotfinanceiro: "{}",
           },
@@ -259,7 +298,8 @@ async function remoteClient({ direct = false } = {}) {
             cr40f_eventopagamentoaterceiroid: "evt-remote-001",
             _cr40f_pagamentoaterceiro_value: "lot-remote-001",
             cr40f_dataevento: "2026-07-15T12:01:00Z",
-            cr40f_operacao: "paid",
+            cr40f_name: "paid",
+            cr40f_operacao: 100000003,
             cr40f_resultado: "success",
             cr40f_estadonovo: "Pago",
             cr40f_mensagem: "Pagamento registrado.",
@@ -373,6 +413,8 @@ test("fluxo local: repasse, vínculo, rascunho, pagamento, documento e auditoria
   });
   const detail = await dataverse.getLotDetail(lot.id);
   assert.equal(detail.documentStatus, "sent");
+  assert.equal(detail.emailId, "");
+  assert.equal(typeof dataverse.sendEmailWithPdf, "undefined");
   assert.ok(detail.events.length >= 3);
   assert.equal(detail.items[0].valorCobrado > 0, true);
 });
@@ -413,8 +455,6 @@ test("falha documental mantém pagamento e reversão exige motivo", async () => 
       !row.pagamentoId &&
       row.favorecidoId === favorecido.id,
   );
-  assert.equal(detail.emailId, "");
-  assert.equal(typeof dataverse.sendEmailWithPdf, "undefined");
   const lot = await dataverse.createDraftLot({
     favorecido,
     services: [service],
@@ -431,6 +471,81 @@ test("falha documental mantém pagamento e reversão exige motivo", async () => 
   const reverted = await dataverse.revertPaid(lot.id, "PIX devolvido");
   assert.equal(reverted.paymentStatus, "open");
   assert.equal(reverted.documentStatus, "resend_required");
+});
+
+test("preenche favorecido vazio do mesmo motorista sem sobrescrever os já definidos", async () => {
+  const { dataverse } = await client();
+  dataverse.resetMock();
+  const [favorecido] = await dataverse.listFavorecidos();
+  const services = await dataverse.listFinanceServices();
+  const target = services.find((row) => !row.favorecidoId);
+  const emptySiblingIds = services
+    .filter(
+      (row) => row.motoristaId === target.motoristaId && !row.favorecidoId,
+    )
+    .map((row) => row.id);
+  await dataverse.setPreferredFavorecido(
+    target.id,
+    favorecido.id,
+    target.motoristaId,
+  );
+  await dataverse.assignFavorecidoToServices(
+    emptySiblingIds.filter((id) => id !== target.id),
+    favorecido.id,
+  );
+  const refreshed = await dataverse.listFinanceServices();
+  assert.equal(
+    refreshed
+      .filter((row) => emptySiblingIds.includes(row.id))
+      .every((row) => row.favorecidoId === favorecido.id),
+    true,
+  );
+});
+
+test("inativar vínculo limpa todas as linhas do motorista e reativar preenche novamente", async () => {
+  const { dataverse } = await client();
+  dataverse.resetMock();
+  const activeLink = (await dataverse.listLinks()).find(
+    (link) => link.status === "ativo",
+  );
+  const linkedServiceIds = (await dataverse.listFinanceServices())
+    .filter(
+      (service) =>
+        service.motoristaId === activeLink.motoristaId &&
+        service.favorecidoId === activeLink.favorecidoId,
+    )
+    .map((service) => service.id);
+
+  await dataverse.clearFavorecidoFromServices(
+    linkedServiceIds,
+    activeLink.favorecidoId,
+  );
+  await dataverse.setLinkStatus(activeLink.id, "inativo");
+
+  let refreshed = await dataverse.listFinanceServices();
+  assert.equal(
+    refreshed
+      .filter((service) => linkedServiceIds.includes(service.id))
+      .every((service) => !service.favorecidoId),
+    true,
+  );
+
+  await dataverse.upsertLink(
+    activeLink.motoristaId,
+    activeLink.favorecidoId,
+  );
+  await dataverse.assignFavorecidoToServices(
+    linkedServiceIds,
+    activeLink.favorecidoId,
+  );
+
+  refreshed = await dataverse.listFinanceServices();
+  assert.equal(
+    refreshed
+      .filter((service) => linkedServiceIds.includes(service.id))
+      .every((service) => service.favorecidoId === activeLink.favorecidoId),
+    true,
+  );
 });
 
 test("comprovante de pagamento pode ser enviado para o OneDrive no mock", async () => {
@@ -486,6 +601,13 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
     assert.equal(remoteServices[0].motorista, "Motorista remoto");
     assert.equal(remoteServices[0].cliente, "Cliente remoto");
     assert.equal(remoteServices[0].trajeto, "GRU - Centro");
+    assert.equal(remoteServices[0].dataServico, "2026-07-15T12:00:00Z");
+    assert.equal(remoteServices[0].dataFinalizacao, "2026-07-15T14:00:00Z");
+    assert.equal(
+      remoteServices[0].observacaoOperacao,
+      "Receber passageiro no desembarque.",
+    );
+    assert.equal(remoteServices[0].observacaoFinal, "Serviço concluído.");
     assert(
       remote.requests.some((request) =>
         request.url.includes("_cr40f_reserva_value"),
@@ -494,6 +616,16 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
     assert(
       remote.requests.some((request) =>
         request.url.includes("new_categoriadoitem eq 100000000"),
+      ),
+    );
+    assert(
+      remote.requests.some((request) =>
+        request.url.includes("new_datadefinalizacao"),
+      ),
+    );
+    assert(
+      remote.requests.some((request) =>
+        request.url.includes("cr40f_obsdeoperao"),
       ),
     );
     const preferred = await remote.dataverse.setPreferredFavorecido(
@@ -522,20 +654,45 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
       itemPayload["cr40f_Composicao@odata.bind"],
       "/cr40f_composicaodeprecoses(cmp-remote-001)",
     );
-    assert(
-      remote.requests.some(
-        (request) =>
-          request.options.method === "POST" &&
-          request.url.includes("cr40f_eventopagamentoaterceiros"),
-      ),
+    assert.equal(
+      itemPayload["cr40f_MotoristaReferencia@odata.bind"],
+      "/cr40f_funcionarioses(drv-remote-001)",
     );
+    assert.equal(itemPayload.cr40f_valorrepasse, 600);
+    const eventRequest = remote.requests.find(
+      (request) =>
+        request.options.method === "POST" &&
+        request.url.includes("cr40f_eventopagamentoaterceiros"),
+    );
+    const eventPayload = JSON.parse(eventRequest.options.body);
+    assert.equal(eventPayload.cr40f_name, "draft_created");
+    assert.equal(eventPayload.cr40f_operacao, 100000000);
+    assert.equal(typeof eventPayload.cr40f_operacao, "number");
     const lots = await remote.dataverse.listLots();
     assert.equal(lots[0].paymentStatus, "paid");
     assert.equal(lots[0].documentStatus, "sent");
     const detail = await remote.dataverse.getLotDetail("lot-remote-001");
     assert.equal(detail.items[0].itemStatus, "paid");
+    assert.equal(detail.items[0].motoristaId, "drv-remote-001");
     assert.equal(detail.events[0].operation, "paid");
     assert.equal(detail.favorecido.email, "favorecido@example.com");
+  } finally {
+    remote.restore();
+  }
+});
+
+test("mantém campos operacionais quando metadata da reserva falha", async () => {
+  const remote = await remoteClient({ metadataAvailable: false });
+  try {
+    const [service] = await remote.dataverse.listFinanceServices();
+    assert.equal(service.dataServico, "2026-07-15T12:00:00Z");
+    assert.equal(service.dataFinalizacao, "2026-07-15T14:00:00Z");
+    assert.equal(service.observacaoOperacao, "Receber passageiro no desembarque.");
+    assert(
+      remote.requests.some((request) =>
+        request.url.includes("cr40f_dataehorriodesada"),
+      ),
+    );
   } finally {
     remote.restore();
   }

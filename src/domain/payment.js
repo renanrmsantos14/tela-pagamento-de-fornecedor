@@ -50,6 +50,11 @@ export function marginPercent(service) {
   return revenue ? (toCents(profit(service)) / revenue) * 100 : 0;
 }
 
+export function repassePercent(service) {
+  const repasse = toCents(service.valorRepasse);
+  return repasse ? (toCents(profit(service)) / repasse) * 100 : 0;
+}
+
 export function paymentTotals(items) {
   const revenueCents = items.reduce(
     (total, item) => total + toCents(item.valorCobrado),
@@ -69,9 +74,23 @@ export function paymentTotals(items) {
   };
 }
 
+function isCompletedService(service) {
+  const sourceStatus =
+    service.reservationStatusLabel ||
+    (service.reservationStatus ? String(service.reservationStatus) : "") ||
+    service.statusLabel ||
+    service.status;
+  const normalized = String(sourceStatus || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+  return normalized === "concluido";
+}
+
 export function isEligibleService(service, favorecidoId, activeLinks = []) {
   if (
-    service.status !== "concluido" ||
+    !isCompletedService(service) ||
     toCents(service.valorCobrado) <= 0 ||
     toCents(service.valorRepasse) <= 0 ||
     service.pagamentoId
@@ -84,6 +103,31 @@ export function isEligibleService(service, favorecidoId, activeLinks = []) {
       link.motoristaId === service.motoristaId &&
       link.favorecidoId === favorecidoId,
   );
+}
+
+export function serviceLotEligibilityReason(
+  service,
+  favorecidoId = service.favorecidoId || "",
+  activeLinks = [],
+) {
+  if (!isCompletedService(service))
+    return "Status da CP não é Concluída (a CP precisa estar concluída)";
+  if (toCents(service.valorCobrado) <= 0)
+    return "Total CP não informado ou igual a R$ 0,00";
+  if (toCents(service.valorRepasse) <= 0)
+    return "Repasse ainda não lançado ou igual a R$ 0,00";
+  if (service.pagamentoId) return "Serviço já reservado em outro lote";
+  if (!favorecidoId) return "Nenhum favorecido vinculado ao serviço";
+  if (
+    !activeLinks.some(
+      (link) =>
+        link.status === "ativo" &&
+        link.motoristaId === service.motoristaId &&
+        link.favorecidoId === favorecidoId,
+    )
+  )
+    return "Não existe vínculo ativo entre motorista e favorecido";
+  return "";
 }
 
 export function eligibleServices(

@@ -9,6 +9,8 @@ import {
   marginPercent,
   paymentTotals,
   profit,
+  repassePercent,
+  serviceLotEligibilityReason,
   toCents,
   validateFavorecido,
 } from "../src/domain/payment.js";
@@ -50,6 +52,8 @@ test("calcula lucro e margem negativa sem bloquear", () => {
   assert.equal(profit(services[1]), -100);
   assert.equal(marginPercent(services[1]), -12.5);
 });
+test("calcula percentual do repasse sobre a diferença do Total CP", () =>
+  assert.equal(repassePercent({ valorCobrado: 1200, valorRepasse: 1000 }), 20));
 test("soma receita, repasse, lucro e percentual", () =>
   assert.deepEqual(paymentTotals(services.slice(0, 2)), {
     revenue: 1800,
@@ -60,6 +64,25 @@ test("soma receita, repasse, lucro e percentual", () =>
   }));
 test("só torna elegível serviço concluído com repasse e vínculo ativo", () =>
   assert.equal(eligibleServices(services, "f1", links).length, 2));
+test("explica motivo de inelegibilidade para lote", () => {
+  assert.equal(
+    serviceLotEligibilityReason(services[2], "f1", links),
+    "Repasse ainda não lançado ou igual a R$ 0,00",
+  );
+  assert.equal(
+    serviceLotEligibilityReason(services[0], "f2", links),
+    "Não existe vínculo ativo entre motorista e favorecido",
+  );
+});
+test("usa status concluído da reserva na elegibilidade", () => {
+  const service = {
+    ...services[0],
+    status: "pendente",
+    reservationStatus: "100000001",
+    reservationStatusLabel: "Concluído",
+  };
+  assert.equal(eligibleServices([service], "f1", links).length, 1);
+});
 test("snapshot inicia rascunho com pagamento aberto e documento pendente", () => {
   const lot = createLotSnapshot(
     { id: "f1", nome: "Terceiro" },

@@ -42,7 +42,43 @@ export const CHOICES = Object.freeze({
   documentSent: 100000002,
   documentFailed: 100000003,
   documentResendRequired: 100000004,
+  eventCreated: 100000000,
+  eventEmailSent: 100000001,
+  eventEmailResent: 100000002,
+  eventPaymentRegistered: 100000003,
+  eventProofAttached: 100000004,
+  eventNotificationFailed: 100000005,
+  eventDraftUpdated: 100000006,
+  eventCancelled: 100000007,
+  eventPaymentReverted: 100000008,
+  eventDocumentFailed: 100000009,
 });
+
+const EVENT_OPERATION_CHOICES = Object.freeze({
+  draft_created: CHOICES.eventCreated,
+  draft_updated: CHOICES.eventDraftUpdated,
+  cancelled: CHOICES.eventCancelled,
+  paid: CHOICES.eventPaymentRegistered,
+  paid_reverted: CHOICES.eventPaymentReverted,
+  document_sent: CHOICES.eventEmailSent,
+  document_failed: CHOICES.eventDocumentFailed,
+});
+const EVENT_CHOICE_OPERATIONS = Object.freeze({
+  [CHOICES.eventCreated]: "draft_created",
+  [CHOICES.eventEmailSent]: "document_sent",
+  [CHOICES.eventEmailResent]: "document_sent",
+  [CHOICES.eventPaymentRegistered]: "paid",
+  [CHOICES.eventProofAttached]: "proof_attached",
+  [CHOICES.eventNotificationFailed]: "document_failed",
+  [CHOICES.eventDraftUpdated]: "draft_updated",
+  [CHOICES.eventCancelled]: "cancelled",
+  [CHOICES.eventPaymentReverted]: "paid_reverted",
+  [CHOICES.eventDocumentFailed]: "document_failed",
+});
+const eventOperationChoice = (operation, version = 1) =>
+  operation === "document_sent" && Number(version) > 1
+    ? CHOICES.eventEmailResent
+    : EVENT_OPERATION_CHOICES[operation] || CHOICES.eventCreated;
 
 const cleanGuid = (value) => String(value || "").replace(/[{}]/g, "");
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -139,12 +175,22 @@ const reservationDetailLabels = Object.freeze({
   dataFinalizacao: [
     "horário de finalização",
     "data/hora de finalização",
+    "data de finalização",
     "finalização",
   ],
-  observacaoOperacao: ["observação de operação", "observações da operação"],
+  observacaoOperacao: [
+    "obs de operação",
+    "observação de operação",
+    "observações da operação",
+  ],
   tipoVeiculo: ["tipo de veículo", "tipo veículo"],
   veiculo: ["veículo"],
   observacaoFinal: ["observação final", "observações finais"],
+});
+const reservationOperationalMetadataFields = Object.freeze({
+  dataServico: "cr40f_dataehorriodesada",
+  dataFinalizacao: "new_datadefinalizacao",
+  observacaoOperacao: "cr40f_obsdeoperao",
 });
 const fieldValue = (row, logicalName) =>
   logicalName
@@ -152,6 +198,8 @@ const fieldValue = (row, logicalName) =>
       row[logicalName] ||
       ""
     : "";
+const rawFieldValue = (row, logicalName) =>
+  logicalName ? row[logicalName] || "" : "";
 const selectableAttributeName = (attribute) =>
   attribute?.AttributeType === "Lookup"
     ? `_${attribute.LogicalName}_value`
@@ -630,7 +678,7 @@ class DataverseClient {
           "GET",
           `/EntityDefinitions(LogicalName='${escapeOData(source)}')/Attributes(LogicalName='${escapeOData(candidate)}')?$select=LogicalName,SchemaName,AttributeType`,
         );
-        if (data?.SchemaName) {
+        if (data?.AttributeType === "Lookup" && data.SchemaName) {
           this.cache.set(key, data.SchemaName);
           return data.SchemaName;
         }
@@ -719,11 +767,11 @@ class DataverseClient {
         cleanGuid(row?._cr40f_reserva_value),
       compositionId: cleanGuid(row?._cr40f_composicao_value),
       reservationId: cleanGuid(row?._cr40f_reserva_value),
-      motoristaId: cleanGuid(row?._cr40f_motorista_value),
+      motoristaId: cleanGuid(row?._cr40f_motoristareferencia_value),
       dataServico: row?.cr40f_dataservico || "",
       trajeto: row?.cr40f_trajeto || "",
       valorCobrado: Number(row?.cr40f_valorcobrado || 0),
-      valorRepasse: Number(row?.cr40f_valorrepass || 0),
+      valorRepasse: Number(row?.cr40f_valorrepasse || 0),
       margem: Number(row?.cr40f_margem || 0),
       itemStatus:
         lot.paymentStatus === PAYMENT_STATUS.PAID
@@ -738,7 +786,10 @@ class DataverseClient {
     return {
       id: cleanGuid(row?.[entity.id]),
       paymentId: cleanGuid(row?._cr40f_pagamentoaterceiro_value),
-      operation: row?.cr40f_operacao || "",
+      operation:
+        row?.cr40f_name ||
+        EVENT_CHOICE_OPERATIONS[row?.cr40f_operacao] ||
+        String(row?.cr40f_operacao || ""),
       result: row?.cr40f_resultado || "success",
       previous: row?.cr40f_estadoanterior || "",
       next: row?.cr40f_estadonovo || "",
@@ -1018,7 +1069,11 @@ class DataverseClient {
     const attributes = response.value || [];
     const resolved = Object.fromEntries(
       Object.entries(reservationDetailLabels).map(([key, labels]) => {
-        const attribute = attributes.find((row) => {
+        const metadataAttribute = attributes.find(
+          (row) =>
+            row.LogicalName === reservationOperationalMetadataFields[key],
+        );
+        const displayNameAttribute = attributes.find((row) => {
           const label = normalizeLabel(
             row.DisplayName?.UserLocalizedLabel?.Label ||
               row.DisplayName?.LocalizedLabels?.[0]?.Label,
@@ -1027,7 +1082,13 @@ class DataverseClient {
             (candidate) => label === normalizeLabel(candidate),
           );
         });
-        return [key, selectableAttributeName(attribute)];
+        const attribute = metadataAttribute || displayNameAttribute;
+        return [
+          key,
+          selectableAttributeName(attribute) ||
+            reservationOperationalMetadataFields[key] ||
+            "",
+        ];
       }),
     );
     this.cache.set(cacheKey, resolved);
@@ -1042,6 +1103,7 @@ class DataverseClient {
           options.set(value, {
             value,
             label: service.reservationStatusLabel || service.statusLabel || value,
+            color: service.reservationStatusColor || "",
           });
       });
       return [...options.values()];
@@ -1060,6 +1122,7 @@ class DataverseClient {
           option.Label?.UserLocalizedLabel?.Label ||
           option.Label?.LocalizedLabels?.[0]?.Label ||
           String(option.Value),
+        color: option.Color || "",
       }));
     this.cache.set(cacheKey, options);
     return options;
@@ -1129,8 +1192,8 @@ class DataverseClient {
         compositionId: cleanGuid(composition.cr40f_composicaodeprecosid),
         reservationId,
         identificador: reservation.cr40f_id || composition.cr40f_id || "Sem ID",
-        dataServico: fieldValue(reservation, operationalFields.dataServico),
-        dataFinalizacao: fieldValue(
+        dataServico: rawFieldValue(reservation, operationalFields.dataServico),
+        dataFinalizacao: rawFieldValue(
           reservation,
           operationalFields.dataFinalizacao,
         ),
@@ -1217,6 +1280,60 @@ class DataverseClient {
     });
     return { favorecidoId };
   }
+  async assignFavorecidoToServices(serviceIds, favorecidoId) {
+    const ids = [...new Set(serviceIds.map(cleanGuid).filter(Boolean))];
+    if (!ids.length) return [];
+    if (this.mockMode) {
+      const assigned = [];
+      this.mock.services.forEach((service) => {
+        if (!ids.includes(service.id) || service.favorecidoId) return;
+        service.favorecidoId = favorecidoId;
+        assigned.push(clone(service));
+      });
+      this.persistMock();
+      return assigned;
+    }
+    const payload = await this.bindLookup(
+      TABLES.composition,
+      "cr40f_terceirofavorecido",
+      TABLES.favorecido,
+      favorecidoId,
+    );
+    await Promise.all(
+      ids.map((serviceId) =>
+        this.update(TABLES.composition, serviceId, payload),
+      ),
+    );
+    return ids.map((id) => ({ id, favorecidoId }));
+  }
+  async clearFavorecidoFromServices(serviceIds, favorecidoId = "") {
+    const ids = [...new Set(serviceIds.map(cleanGuid).filter(Boolean))];
+    if (!ids.length) return [];
+    if (this.mockMode) {
+      const cleared = [];
+      this.mock.services.forEach((service) => {
+        if (
+          !ids.includes(service.id) ||
+          (favorecidoId && service.favorecidoId !== favorecidoId)
+        )
+          return;
+        service.favorecidoId = "";
+        cleared.push(clone(service));
+      });
+      this.persistMock();
+      return cleared;
+    }
+    const payload = await this.clearLookup(
+      TABLES.composition,
+      "cr40f_terceirofavorecido",
+    );
+    await Promise.all(
+      ids.map((serviceId) =>
+        this.update(TABLES.composition, serviceId, payload),
+      ),
+    );
+    return ids.map((id) => ({ id, favorecidoId: "" }));
+  }
   addEvent(paymentId, operation, message, extra = {}) {
     const event = {
       id: newId("evt"),
@@ -1243,8 +1360,9 @@ class DataverseClient {
         TABLES.payment,
         paymentId,
       )),
+      cr40f_name: operation,
       cr40f_dataevento: now(),
-      cr40f_operacao: operation,
+      cr40f_operacao: eventOperationChoice(operation, extra.version),
       cr40f_resultado: extra.result || "success",
       cr40f_estadoanterior: extra.previous || "",
       cr40f_estadonovo: extra.next || "",
@@ -1262,7 +1380,7 @@ class DataverseClient {
       cr40f_dataservico: service.dataServico || null,
       cr40f_trajeto: service.trajeto || "",
       cr40f_valorcobrado: Number(service.valorCobrado || 0),
-      cr40f_valorrepass: Number(service.valorRepasse || 0),
+      cr40f_valorrepasse: Number(service.valorRepasse || 0),
       cr40f_margem:
         Number(service.valorCobrado || 0) - Number(service.valorRepasse || 0),
       cr40f_snapshotfinanceiro: JSON.stringify(service),
@@ -1870,11 +1988,11 @@ class DataverseClient {
     const [itemRows, eventRows] = await Promise.all([
       this.listAll(
         TABLES.item,
-        `?$select=${itemEntity.id},_cr40f_composicao_value,_cr40f_pagamentoaterceiro_value,_cr40f_reserva_value,_cr40f_motorista_value,cr40f_dataservico,cr40f_trajeto,cr40f_valorcobrado,cr40f_valorrepass,cr40f_margem,cr40f_snapshotfinanceiro&$filter=_cr40f_pagamentoaterceiro_value eq ${cleanGuid(lotId)}&$orderby=cr40f_dataservico asc&$top=5000`,
+        `?$select=${itemEntity.id},_cr40f_composicao_value,_cr40f_pagamentoaterceiro_value,_cr40f_reserva_value,_cr40f_motoristareferencia_value,cr40f_dataservico,cr40f_trajeto,cr40f_valorcobrado,cr40f_valorrepasse,cr40f_margem,cr40f_snapshotfinanceiro&$filter=_cr40f_pagamentoaterceiro_value eq ${cleanGuid(lotId)}&$orderby=cr40f_dataservico asc&$top=5000`,
       ),
       this.listAll(
         TABLES.event,
-        `?$select=${eventEntity.id},_cr40f_pagamentoaterceiro_value,cr40f_dataevento,cr40f_operacao,cr40f_resultado,cr40f_estadoanterior,cr40f_estadonovo,cr40f_motivo,cr40f_mensagem,cr40f_detalhetecnico,cr40f_versao,cr40f_url,cr40f_emailid&$filter=_cr40f_pagamentoaterceiro_value eq ${cleanGuid(lotId)}&$orderby=cr40f_dataevento desc&$top=5000`,
+        `?$select=${eventEntity.id},_cr40f_pagamentoaterceiro_value,cr40f_name,cr40f_dataevento,cr40f_operacao,cr40f_resultado,cr40f_estadoanterior,cr40f_estadonovo,cr40f_motivo,cr40f_mensagem,cr40f_detalhetecnico,cr40f_versao,cr40f_url,cr40f_emailid&$filter=_cr40f_pagamentoaterceiro_value eq ${cleanGuid(lotId)}&$orderby=cr40f_dataevento desc&$top=5000`,
       ),
     ]);
     const items = itemRows.map((row) =>
