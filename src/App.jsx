@@ -5,6 +5,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   Banknote,
+  Check,
   CheckCircle2,
   ChevronRight,
   CircleDollarSign,
@@ -15,6 +16,7 @@ import {
   FileText,
   Link2,
   LayoutDashboard,
+  Minus,
   Pencil,
   PanelLeftClose,
   PanelLeftOpen,
@@ -1558,6 +1560,7 @@ function RepasseGrid({
   const [columnSearch, setColumnSearch] = useState("");
   const [viewName, setViewName] = useState("");
   const [viewMessage, setViewMessage] = useState("");
+  const [showSelectAllPicker, setShowSelectAllPicker] = useState(false);
   const [draggedColumn, setDraggedColumn] = useState("");
   const [dropTarget, setDropTarget] = useState(null);
   const [resize, setResize] = useState(null);
@@ -1577,7 +1580,7 @@ function RepasseGrid({
     () => visibleColumns.map((column) => `${column.width}px`).join(" "),
     [visibleColumns],
   );
-  const gridTemplate = useMemo(() => `44px ${template}`, [template]);
+  const gridTemplate = useMemo(() => `52px ${template}`, [template]);
   const gridScrollRef = useRef(null);
   const missingInformationLogRef = useRef(new Set());
   const columnPickerRef = useRef(null);
@@ -1668,6 +1671,7 @@ function RepasseGrid({
     selectableLotServices.length > 0 &&
     selectableLotServices.every((service) => selectedIds.has(service.id));
   const selectAllRef = useRef(null);
+  const selectAllPickerRef = useRef(null);
   useEffect(() => {
     const eligibleIds = new Set(eligibleLotServices.map((service) => service.id));
     setSelectedIds((current) => {
@@ -1680,6 +1684,62 @@ function RepasseGrid({
     selectAllRef.current.indeterminate =
       selectedServices.length > 0 && !allSelectableServicesSelected;
   }, [selectedServices.length, allSelectableServicesSelected]);
+  const selectableFavorecidoGroups = useMemo(() => {
+    const groups = new Map();
+    eligibleLotServices.forEach((service) => {
+      const current = groups.get(service.favorecidoId) || [];
+      current.push(service);
+      groups.set(service.favorecidoId, current);
+    });
+    return [...groups.entries()]
+      .map(([favorecidoId, groupServices]) => ({
+        favorecidoId,
+        nome:
+          favorecidos.find((favorecido) => favorecido.id === favorecidoId)?.nome ||
+          "Favorecido não identificado",
+        services: groupServices,
+        total: groupServices.reduce(
+          (sum, service) => sum + Number(service.valorRepasse || 0),
+          0,
+        ),
+      }))
+      .sort((left, right) => left.nome.localeCompare(right.nome, "pt-BR"));
+  }, [eligibleLotServices, favorecidos]);
+  useEffect(() => {
+    if (!showSelectAllPicker) return undefined;
+    const previousFocus = document.activeElement;
+    selectAllPickerRef.current
+      ?.querySelector(".repasse-favorecido-option")
+      ?.focus();
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setShowSelectAllPicker(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = [
+        ...selectAllPickerRef.current.querySelectorAll(
+          'button:not(:disabled), [href], input:not(:disabled), [tabindex]:not([tabindex="-1"])',
+        ),
+      ];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previousFocus?.focus?.();
+    };
+  }, [showSelectAllPicker]);
   const pinnedStyles = useMemo(() => {
     let left = 44;
     const styles = new Map();
@@ -2004,14 +2064,32 @@ function RepasseGrid({
       else next.add(serviceId);
       return next;
     });
-  const toggleAllSelectableServices = () =>
+  const toggleServicesForFavorecido = (favorecidoId) => {
+    const groupIds = new Set(
+      eligibleLotServices
+        .filter((service) => service.favorecidoId === favorecidoId)
+        .map((service) => service.id),
+    );
     setSelectedIds((current) => {
-      if (allSelectableServicesSelected) {
-        const selectableIds = new Set(selectableLotServices.map((service) => service.id));
-        return new Set([...current].filter((id) => !selectableIds.has(id)));
-      }
-      return new Set(selectableLotServices.map((service) => service.id));
+      const allGroupSelected =
+        groupIds.size > 0 && [...groupIds].every((id) => current.has(id));
+      if (allGroupSelected)
+        return new Set([...current].filter((id) => !groupIds.has(id)));
+      return groupIds;
     });
+    setShowSelectAllPicker(false);
+  };
+  const requestToggleAllSelectableServices = () => {
+    if (
+      allSelectableServicesSelected ||
+      selectedFavorecidoId ||
+      selectableFavorecidoGroups.length <= 1
+    ) {
+      toggleServicesForFavorecido(selectableFavorecidoId);
+      return;
+    }
+    setShowSelectAllPicker(true);
+  };
 
   return (
     <section
@@ -2022,18 +2100,27 @@ function RepasseGrid({
           <strong>{services.length}</strong>
           <span>serviços concluídos</span>
           {pendingCount > 0 && <b>{pendingCount} pendente(s)</b>}
-          <small>Configuração salva automaticamente.</small>
+          {selectedServices.length > 0 ? (
+            <span className="repasse-selection-status" role="status">
+              <Check size={13} aria-hidden="true" />
+              {selectedServices.length} selecionado(s)
+            </span>
+          ) : (
+            <small>Selecione serviços prontos do mesmo favorecido.</small>
+          )}
         </div>
         <div className="repasse-grid-actions">
           <button
             className={`secondary-button repasse-select-all ${allSelectableServicesSelected ? "is-active" : ""}`}
             type="button"
             disabled={!selectableLotServices.length}
-            onClick={toggleAllSelectableServices}
+            onClick={requestToggleAllSelectableServices}
             aria-pressed={allSelectableServicesSelected}
             title={
               selectableFavorecidoId
-                ? "Seleciona todos os serviços prontos do mesmo favorecido"
+                ? selectableFavorecidoGroups.length > 1 && !selectedFavorecidoId
+                  ? "Escolha o favorecido dos serviços que deseja selecionar"
+                  : "Seleciona todos os serviços prontos do mesmo favorecido"
                 : "Nenhum serviço pronto para lote neste filtro"
             }
           >
@@ -2294,23 +2381,41 @@ function RepasseGrid({
             style={{ gridTemplateColumns: gridTemplate }}
           >
             <div className="repasse-grid-select-cell is-header">
-              <input
-                ref={selectAllRef}
-                type="checkbox"
-                checked={allSelectableServicesSelected}
-                disabled={!selectableLotServices.length}
-                onChange={toggleAllSelectableServices}
-                aria-label={
-                  allSelectableServicesSelected
-                    ? "Limpar seleção de serviços prontos"
-                    : "Selecionar todos os serviços prontos do favorecido"
-                }
+              <label
+                className="repasse-selection-control is-header-control"
                 title={
                   allSelectableServicesSelected
                     ? "Limpar seleção"
                     : "Selecionar todos prontos"
                 }
-              />
+              >
+                <input
+                  ref={selectAllRef}
+                  type="checkbox"
+                  checked={allSelectableServicesSelected}
+                  disabled={!selectableLotServices.length}
+                  onChange={requestToggleAllSelectableServices}
+                  aria-label={
+                    allSelectableServicesSelected
+                      ? "Limpar seleção de serviços prontos"
+                      : "Selecionar todos os serviços prontos do favorecido"
+                  }
+                />
+                <span
+                  className={`repasse-selection-box ${
+                    selectedServices.length > 0 && !allSelectableServicesSelected
+                      ? "is-indeterminate"
+                      : ""
+                  }`}
+                  aria-hidden="true"
+                >
+                  {allSelectableServicesSelected ? (
+                    <Check size={15} strokeWidth={3} />
+                  ) : selectedServices.length > 0 ? (
+                    <Minus size={15} strokeWidth={3} />
+                  ) : null}
+                </span>
+              </label>
             </div>
             {visibleColumns.map((column) => (
               <div
@@ -2426,14 +2531,21 @@ function RepasseGrid({
                 className="repasse-grid-select-cell"
                 title={selectionDisabled ? selectionLabel : undefined}
               >
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  disabled={selectionDisabled}
-                  onChange={() => toggleServiceSelection(service.id)}
-                  aria-label={selectionLabel}
+                <label
+                  className="repasse-selection-control"
                   title={selectionLabel}
-                />
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    disabled={selectionDisabled}
+                    onChange={() => toggleServiceSelection(service.id)}
+                    aria-label={selectionLabel}
+                  />
+                  <span className="repasse-selection-box" aria-hidden="true">
+                    {isSelected && <Check size={15} strokeWidth={3} />}
+                  </span>
+                </label>
               </div>
               {visibleColumns.map((column) => (
                 <div
@@ -2457,6 +2569,75 @@ function RepasseGrid({
           </div>
         </div>
       </div>
+      {showSelectAllPicker && (
+        <div className="repasse-favorecido-dialog-layer">
+          <button
+            className="repasse-favorecido-dialog-backdrop"
+            type="button"
+            aria-label="Fechar escolha de favorecido"
+            onClick={() => setShowSelectAllPicker(false)}
+          />
+          <div
+            className="repasse-favorecido-dialog"
+            ref={selectAllPickerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="repasse-favorecido-dialog-title"
+            aria-describedby="repasse-favorecido-dialog-description"
+          >
+            <header>
+              <div>
+                <span>Selecionar serviços prontos</span>
+                <h2 id="repasse-favorecido-dialog-title">
+                  Qual favorecido entra no lote?
+                </h2>
+                <p id="repasse-favorecido-dialog-description">
+                  Cada lote pode reunir serviços de apenas um favorecido.
+                </p>
+              </div>
+              <button
+                className="repasse-favorecido-dialog-close"
+                type="button"
+                aria-label="Fechar"
+                onClick={() => setShowSelectAllPicker(false)}
+              >
+                <X size={18} />
+              </button>
+            </header>
+            <div className="repasse-favorecido-options">
+              {selectableFavorecidoGroups.map((group) => (
+                <button
+                  className="repasse-favorecido-option"
+                  type="button"
+                  key={group.favorecidoId}
+                  onClick={() => toggleServicesForFavorecido(group.favorecidoId)}
+                >
+                  <span className="repasse-favorecido-option-icon">
+                    <UsersRound size={18} aria-hidden="true" />
+                  </span>
+                  <span className="repasse-favorecido-option-copy">
+                    <strong>{group.nome}</strong>
+                    <small>
+                      {group.services.length} serviço(s) pronto(s) ·{" "}
+                      {money(group.total)}
+                    </small>
+                  </span>
+                  <ChevronRight size={17} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+            <footer>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setShowSelectAllPicker(false)}
+              >
+                Cancelar
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

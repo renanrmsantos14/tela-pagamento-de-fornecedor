@@ -1,2 +1,2 @@
 // Gerado por scripts/update-app-version.mjs. Não editar manualmente.
-export const APP_VERSION_LABEL = "v1.0.22 16/07/2026";
+export const APP_VERSION_LABEL = "v1.0.24 16/07/2026";
