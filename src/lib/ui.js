@@ -25,3 +25,14 @@ export function scheduleAfterPaint(callback, scheduler = {}) {
     if (taskId !== null) clearTask(taskId);
   };
 }
+
+export function lotCreationDrawer(input) {
+  return {
+    type: "lotCreating",
+    serviceCount: input.services?.length || 0,
+  };
+}
+
+export function lotDetailLoadingDrawer(lot) {
+  return { type: "lotDetailLoading", lot };
+}

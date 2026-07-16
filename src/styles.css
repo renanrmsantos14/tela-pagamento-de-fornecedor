@@ -2322,6 +2322,26 @@ select:focus {
 .repasse-generate-lot:active:not(:disabled) {
   transform: scale(0.97);
 }
+.lot-drawer-loading {
+  min-height: 180px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+.lot-drawer-loading .spin {
+  color: var(--blue);
+}
+.lot-drawer-loading strong {
+  display: block;
+  color: var(--navy);
+}
+.lot-drawer-loading p {
+  margin-top: 4px;
+  font-size: var(--text-sm);
+}
 @media (prefers-reduced-motion: reduce) {
   .repasse-generate-lot {
     transition: opacity 120ms linear;

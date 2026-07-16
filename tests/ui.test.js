@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { scheduleAfterPaint } from "../src/lib/ui.js";
+import {
+  lotCreationDrawer,
+  lotDetailLoadingDrawer,
+  scheduleAfterPaint,
+} from "../src/lib/ui.js";
 
 test("agenda trabalho somente depois do frame e da tarefa seguinte", () => {
   const calls = [];
@@ -49,4 +53,19 @@ test("cancelamento impede trabalho agendado", () => {
 
   assert.equal(cancelledFrame, 7);
   assert.deepEqual(calls, []);
+});
+
+test("abre drawer de criação antes da confirmação remota do lote", () => {
+  assert.deepEqual(
+    lotCreationDrawer({ services: [{ id: "service-1" }, { id: "service-2" }] }),
+    { type: "lotCreating", serviceCount: 2 },
+  );
+});
+
+test("abre drawer de detalhe antes de carregar dados remotos", () => {
+  const lot = { id: "lot-1", identifier: "PT-2026-130222" };
+  assert.deepEqual(lotDetailLoadingDrawer(lot), {
+    type: "lotDetailLoading",
+    lot,
+  });
 });

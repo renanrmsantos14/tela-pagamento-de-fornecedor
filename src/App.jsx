@@ -36,7 +36,11 @@ import {
 } from "lucide-react";
 import { dataverse } from "./lib/dataverse";
 import { buildPaymentPdf } from "./lib/document";
-import { scheduleAfterPaint } from "./lib/ui";
+import {
+  lotCreationDrawer,
+  lotDetailLoadingDrawer,
+  scheduleAfterPaint,
+} from "./lib/ui";
 import SearchableSelect, { SearchableMultiSelect } from "./SearchableSelect";
 import {
   DOCUMENT_STATUS,
@@ -274,26 +278,28 @@ const viewColumns = (savedColumns) => {
   ]);
 };
 
-function Drawer({ title, subtitle, children, onClose, wide = false }) {
+function Drawer({ title, subtitle, children, onClose, wide = false, locked = false }) {
   return (
     <div className="drawer-layer">
       <button
         className="drawer-backdrop"
         aria-label="Fechar"
         onClick={onClose}
+        disabled={locked}
       />
       <section
         className={`drawer ${wide ? "wide" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        aria-busy={locked || undefined}
       >
         <header>
           <div>
             <span>{subtitle}</span>
             <h2>{title}</h2>
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Fechar">
+          <button className="icon-button" onClick={onClose} aria-label="Fechar" disabled={locked}>
             <X size={20} />
           </button>
         </header>
@@ -436,11 +442,15 @@ export default function App() {
     [services, driverIds, favorecidoIds, vehicleTypes, search],
   );
   const openLot = async (lot) => {
+    setLotDetail(null);
+    setDrawer(lotDetailLoadingDrawer(lot));
     try {
       const detail = await dataverse.getLotDetail(lot.id);
       setLotDetail(detail);
       setDrawer({ type: "lotDetail" });
     } catch (err) {
+      setLotDetail(null);
+      setDrawer(null);
       reportActionError("Abertura do lote", err);
     }
   };
@@ -604,14 +614,17 @@ export default function App() {
   }
   async function createLot(input) {
     setBusy("lot", true);
+    setDrawer(lotCreationDrawer(input));
     try {
       const created = await dataverse.createDraftLot(input);
       setPreselected(new Set());
       setNotice(`${created.identifier} reservado.`);
-      setDrawer(null);
-      await refresh();
-      await openLot(created);
+      setLotDetail(created);
+      setDrawer({ type: "lotDetail" });
+      void refresh();
     } catch (err) {
+      setLotDetail(null);
+      setDrawer(null);
       reportActionError("Criacao do lote", err);
     } finally {
       setBusy("lot", false);
@@ -625,10 +638,10 @@ export default function App() {
         serviceIds: input.services.map((service) => service.id),
         year: input.year,
       });
-      setDrawer(null);
       setNotice(`${updated.identifier} atualizado.`);
-      await refresh();
-      await openLot(updated);
+      setLotDetail(updated);
+      setDrawer({ type: "lotDetail" });
+      void refresh();
     } catch (err) {
       reportActionError("Atualizacao do lote", err);
     } finally {
@@ -1105,6 +1118,12 @@ export default function App() {
             })
           }
         />
+      )}
+      {drawer?.type === "lotDetailLoading" && (
+        <LotDetailLoadingDrawer lot={drawer.lot} />
+      )}
+      {drawer?.type === "lotCreating" && (
+        <LotCreationDrawer serviceCount={drawer.serviceCount} />
       )}
       {drawer?.type === "reason" && (
         <ReasonDrawer
@@ -3501,6 +3520,37 @@ function LotDrawer({
                   ? "Confirmar lote"
                   : "Criar lote"}
           </button>
+        </div>
+      </div>
+    </Drawer>
+  );
+}
+function LotCreationDrawer({ serviceCount }) {
+  return (
+    <Drawer title="Criando lote" subtitle="Reserva em andamento" onClose={() => {}} locked>
+      <div className="lot-drawer-loading" role="status">
+        <RefreshCw size={28} className="spin" aria-hidden="true" />
+        <div>
+          <strong>Reservando {serviceCount} serviço(s)</strong>
+          <p>O lote já está aberto. Aguarde a confirmação dos dados.</p>
+        </div>
+      </div>
+    </Drawer>
+  );
+}
+function LotDetailLoadingDrawer({ lot }) {
+  return (
+    <Drawer
+      title={lot.identifier || "Lote de pagamento"}
+      subtitle="Controle e auditoria"
+      onClose={() => {}}
+      locked
+    >
+      <div className="lot-drawer-loading" role="status">
+        <RefreshCw size={28} className="spin" aria-hidden="true" />
+        <div>
+          <strong>Carregando dados do lote</strong>
+          <p>O detalhe abre assim que os dados forem confirmados.</p>
         </div>
       </div>
     </Drawer>
