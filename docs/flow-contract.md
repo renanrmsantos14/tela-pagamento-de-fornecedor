@@ -29,5 +29,5 @@ window.__APP_FLOW_ENV = Object.freeze({
 `window.__PAYMENT_RUNTIME_CONFIG.oneDriveFlowUrl`, `__ONEDRIVE_FLOW_URL` e
 `__PAYMENT_FLOW_URL` permanecem como compatibilidade. Sem URL, o app interrompe
 o salvamento com erro explícito.
-O retorno do Flow precisa ser JSON com `webUrl`, `url` ou `link` e, opcionalmente,
+O retorno do Flow precisa ser JSON com `shareLink`, `webUrl`, `url` ou `link` e, opcionalmente,
 `name`.

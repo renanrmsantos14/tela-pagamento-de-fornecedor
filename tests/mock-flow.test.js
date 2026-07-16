@@ -102,7 +102,7 @@ async function remoteClient({
     if (url.includes("environmentvariablevalues"))
       return response({ value: [] });
     if (url === oneDriveFlowUrl && options.method === "POST")
-      return response({ webUrl: "https://onedrive.example/documento.pdf" });
+      return response({ shareLink: "https://onedrive.example/documento.pdf" });
     if (options.method === "POST") return response({});
     if (url.endsWith("/WhoAmI"))
       return response({
