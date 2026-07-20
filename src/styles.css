@@ -311,6 +311,15 @@ p {
   color: var(--muted);
   font-size: 13px;
 }
+.dashboard-data-notice {
+  margin: 2px 0 0;
+  padding: 7px 10px;
+  border-left: 3px solid var(--blue);
+  border-radius: 4px;
+  background: #fcfcfb;
+  color: var(--navy) !important;
+  font-weight: 800;
+}
 .primary-button,
 .secondary-button,
 .small-button,

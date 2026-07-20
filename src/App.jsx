@@ -1370,6 +1370,7 @@ function OverviewView({
         <div>
           <span>Financeiro operacional</span>
           <h1>Dashboard financeiro</h1>
+          <p className="dashboard-data-notice">Este sistema e seus dados financeiros iniciam em 01/07/2026.</p>
           <p>Resultado, exposição e pendências de fornecedores no mesmo recorte.</p>
         </div>
         <div className="dashboard-title-actions" role="group" aria-label="Ações do dashboard">
