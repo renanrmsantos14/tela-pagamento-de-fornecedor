@@ -164,6 +164,18 @@ const resolveDataverseContext = () => {
   };
 };
 const escapeOData = (value) => String(value).replace(/'/g, "''");
+const FINANCE_SERVICE_FILTER_BATCH_SIZE = 60;
+const oDataDateBoundary = (value, nextDay = false) => {
+  if (!value) return "";
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return "";
+  if (nextDay) date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString();
+};
+const chunk = (items, size) =>
+  Array.from({ length: Math.ceil(items.length / size) }, (_, index) =>
+    items.slice(index * size, (index + 1) * size),
+  );
 const normalizeLabel = (value) =>
   String(value || "")
     .normalize("NFD")
@@ -1221,16 +1233,48 @@ class DataverseClient {
       this.entity(TABLES.reservation),
     ]);
     const reservationFields = [...new Set(Object.values(operationalFields).filter(Boolean))];
-    const [compositionRows, reservationRows] = await Promise.all([
-      this.listAll(
-        TABLES.composition,
-        `?$select=cr40f_composicaodeprecosid,cr40f_id,${reservationLookupValueField},new_valortotal,new_status,cr40f_valorrepasseterceiro,_cr40f_terceirofavorecido_value,_cr40f_pagamentoaterceiro_value&$top=5000`,
-      ),
-      this.listAll(
-        TABLES.reservation,
-        `?$select=${reservationEntity.id},cr40f_id,cr40f_status,new_categoriadoitem${reservationFields.length ? `,${reservationFields.join(",")}` : ""}&$filter=new_categoriadoitem eq ${CHOICES.serviceItemCategory}&$top=5000`,
-      ),
-    ]);
+    const reservationFilters = [
+      `new_categoriadoitem eq ${CHOICES.serviceItemCategory}`,
+    ];
+    const from = oDataDateBoundary(filters.from);
+    const toExclusive = oDataDateBoundary(filters.to, true);
+    if (from && operationalFields.dataServico)
+      reservationFilters.push(`${operationalFields.dataServico} ge ${from}`);
+    if (toExclusive && operationalFields.dataServico)
+      reservationFilters.push(`${operationalFields.dataServico} lt ${toExclusive}`);
+    if (filters.motoristaId && operationalFields.motorista)
+      reservationFilters.push(
+        `${operationalFields.motorista} eq ${cleanGuid(filters.motoristaId)}`,
+      );
+    const reservationRows = await this.listAll(
+      TABLES.reservation,
+      `?$select=${reservationEntity.id},cr40f_id,cr40f_status,new_categoriadoitem${reservationFields.length ? `,${reservationFields.join(",")}` : ""}&$filter=${reservationFilters.join(" and ")}&$top=5000`,
+    );
+    if (!reservationRows.length) return [];
+    const reservationIds = reservationRows.map((row) =>
+      cleanGuid(row[reservationEntity.id]),
+    );
+    const compositionSelect =
+      `?$select=cr40f_composicaodeprecosid,cr40f_id,${reservationLookupValueField},new_valortotal,new_status,cr40f_valorrepasseterceiro,_cr40f_terceirofavorecido_value,_cr40f_pagamentoaterceiro_value`;
+    const hasScopedFilter = Boolean(from || toExclusive || filters.motoristaId);
+    const compositionRows = hasScopedFilter
+      ? (
+          await Promise.all(
+            chunk(reservationIds, FINANCE_SERVICE_FILTER_BATCH_SIZE).map(
+              (ids) =>
+                this.listAll(
+                  TABLES.composition,
+                  `${compositionSelect}&$filter=${ids
+                    .map((id) => `${reservationLookupValueField} eq ${id}`)
+                    .join(" or ")}&$top=5000`,
+                ),
+            ),
+          )
+        ).flat()
+      : await this.listAll(
+          TABLES.composition,
+          `${compositionSelect}&$top=5000`,
+        );
     const reservations = new Map(
       reservationRows.map((row) => [
         cleanGuid(row[reservationEntity.id]),

@@ -64,6 +64,11 @@ test("soma receita, repasse, lucro e percentual", () =>
   }));
 test("só torna elegível serviço concluído com repasse e vínculo ativo", () =>
   assert.equal(eligibleServices(services, "f1", links).length, 2));
+test("usa indice de vinculos ativos sem percorrer a lista por servico", () => {
+  const activeLinks = new Set(["m1:f1", "m2:f1"]);
+  assert.equal(eligibleServices(services, "f1", activeLinks).length, 2);
+  assert.equal(serviceLotEligibilityReason(services[0], "f1", activeLinks), "");
+});
 test("explica motivo de inelegibilidade para lote", () => {
   assert.equal(
     serviceLotEligibilityReason(services[2], "f1", links),

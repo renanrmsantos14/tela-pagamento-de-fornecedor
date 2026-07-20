@@ -97,6 +97,8 @@ export function isEligibleService(service, favorecidoId, activeLinks = []) {
   )
     return false;
   if (!favorecidoId) return true;
+  if (activeLinks instanceof Set)
+    return activeLinks.has(`${service.motoristaId}:${favorecidoId}`);
   return activeLinks.some(
     (link) =>
       link.status === "ativo" &&
@@ -118,6 +120,11 @@ export function serviceLotEligibilityReason(
     return "Repasse ainda não lançado ou igual a R$ 0,00";
   if (service.pagamentoId) return "Serviço já reservado em outro lote";
   if (!favorecidoId) return "Nenhum favorecido vinculado ao serviço";
+  if (activeLinks instanceof Set) {
+    if (!activeLinks.has(`${service.motoristaId}:${favorecidoId}`))
+      return "Não existe vínculo ativo entre motorista e favorecido";
+    return "";
+  }
   if (
     !activeLinks.some(
       (link) =>

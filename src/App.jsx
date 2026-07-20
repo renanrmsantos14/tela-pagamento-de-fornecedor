@@ -1,4 +1,15 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  defaultRangeExtractor,
+  useVirtualizer,
+} from "@tanstack/react-virtual";
 import {
   AlertTriangle,
   ArrowDown,
@@ -356,6 +367,8 @@ export default function App() {
   const [lastDocumentPdf, setLastDocumentPdf] = useState(null);
   const [preselected, setPreselected] = useState(new Set());
   const refreshInFlightRef = useRef(false);
+  const referenceDataLoadedRef = useRef(false);
+  const previousRangeKeyRef = useRef("");
   const busy = (key) => Boolean(saving[key]);
   const setBusy = (key, value) =>
     setSaving((current) => ({ ...current, [key]: value }));
@@ -371,30 +384,47 @@ export default function App() {
     void dataverse.logError(err, { action, phase: "ui.action" });
     setError(`${action} nao foi concluido. ${detail}`);
   };
-  async function refresh() {
+  async function refresh({
+    includeReferences = true,
+    includePrevious = tab === "overview",
+  } = {}) {
     if (refreshInFlightRef.current) return;
     refreshInFlightRef.current = true;
     setBusy("refresh", true);
     try {
-      const [serviceRows, previousServiceRows, favorecidoRows, driverRows, linkRows, lotRows, statusRows] =
+      const [serviceRows, previousServiceRows, referenceRows] =
         await Promise.all([
           dataverse.listFinanceServices(range),
-          dataverse.listFinanceServices(previousRange(range)),
-          dataverse.listFavorecidos(true),
-          dataverse.listDrivers(),
-          dataverse.listLinks(),
-          dataverse.listLots(),
-          dataverse.listReservationStatuses(),
+          includePrevious
+            ? dataverse.listFinanceServices(previousRange(range))
+            : Promise.resolve(null),
+          includeReferences
+            ? Promise.all([
+                dataverse.listFavorecidos(true),
+                dataverse.listDrivers(),
+                dataverse.listLinks(),
+                dataverse.listLots(),
+                dataverse.listReservationStatuses(),
+              ])
+            : Promise.resolve(null),
         ]);
+      const [favorecidoRows, driverRows, linkRows, lotRows, statusRows] =
+        referenceRows || [favorecidos, drivers, links, lots, reservationStatusOptions];
       setServices(
         applyActiveFavorecidoDefaults(serviceRows, linkRows, favorecidoRows),
       );
-      setPreviousServices(previousServiceRows);
-      setFavorecidos(favorecidoRows);
-      setDrivers(driverRows);
-      setLinks(linkRows);
-      setLots(lotRows);
-      setReservationStatusOptions(statusRows);
+      if (previousServiceRows) {
+        setPreviousServices(previousServiceRows);
+        previousRangeKeyRef.current = `${range.from}:${range.to}`;
+      }
+      if (referenceRows) {
+        setFavorecidos(favorecidoRows);
+        setDrivers(driverRows);
+        setLinks(linkRows);
+        setLots(lotRows);
+        setReservationStatusOptions(statusRows);
+        referenceDataLoadedRef.current = true;
+      }
     } catch (err) {
       reportActionError("Atualizacao dos dados", err);
     } finally {
@@ -403,8 +433,29 @@ export default function App() {
     }
   }
   useEffect(() => {
-    refresh();
+    refresh({
+      includeReferences: !referenceDataLoadedRef.current,
+      includePrevious: tab === "overview",
+    });
   }, [range.from, range.to]);
+  useEffect(() => {
+    const rangeKey = `${range.from}:${range.to}`;
+    if (
+      tab !== "overview" ||
+      previousRangeKeyRef.current === rangeKey ||
+      refreshInFlightRef.current
+    )
+      return;
+    setBusy("refresh", true);
+    dataverse
+      .listFinanceServices(previousRange(range))
+      .then((rows) => {
+        setPreviousServices(rows);
+        previousRangeKeyRef.current = rangeKey;
+      })
+      .catch((err) => reportActionError("Atualizacao do periodo anterior", err))
+      .finally(() => setBusy("refresh", false));
+  }, [tab, range.from, range.to]);
   useEffect(() => {
     if (!notice) return undefined;
     const timer = setTimeout(() => setNotice(""), 3200);
@@ -1541,6 +1592,14 @@ function PaymentsView({
       reservationStatusColor: colors.get(service.reservationStatus) || "",
     }));
   }, [filteredServices, reservationStatusOptions]);
+  const driverOptions = useMemo(
+    () => drivers.map((row) => ({ value: row.id, label: row.nome })),
+    [drivers],
+  );
+  const favorecidoOptions = useMemo(
+    () => favorecidos.map((row) => ({ value: row.id, label: row.nome })),
+    [favorecidos],
+  );
   return (
     <section className="page-section repasse-page">
       <div className="page-title">
@@ -1589,7 +1648,7 @@ function PaymentsView({
               value={driverIds}
               onChange={setDriverIds}
               aria-label="Filtrar lançamentos por motorista"
-              options={drivers.map((row) => ({ value: row.id, label: row.nome }))}
+              options={driverOptions}
               placeholder="Todos os motoristas"
             />
           </label>
@@ -1599,7 +1658,7 @@ function PaymentsView({
               value={favorecidoIds}
               onChange={setFavorecidoIds}
               aria-label="Filtrar lançamentos por favorecido"
-              options={favorecidos.map((row) => ({ value: row.id, label: row.nome }))}
+              options={favorecidoOptions}
               placeholder="Todos os favorecidos"
             />
           </label>
@@ -1675,6 +1734,7 @@ function RepasseGrid({
   const [resize, setResize] = useState(null);
   const [sort, setSort] = useState({ id: "dataServico", direction: "desc" });
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [activeRepasseRowId, setActiveRepasseRowId] = useState("");
   const orderedColumns = useMemo(() => orderRepasseColumns(columns), [columns]);
   const visibleColumns = useMemo(
     () => orderedColumns.filter((column) => column.visible),
@@ -1739,6 +1799,35 @@ function RepasseGrid({
       return sort.direction === "asc" ? result : -result;
     });
   }, [services, sort]);
+  const serviceIndexById = useMemo(
+    () => new Map(sortedServices.map((service, index) => [service.id, index])),
+    [sortedServices],
+  );
+  const activeRepasseRowIndex = activeRepasseRowId
+    ? serviceIndexById.get(activeRepasseRowId) ?? -1
+    : -1;
+  const virtualRangeExtractor = useCallback(
+    (range) => {
+      const indexes = defaultRangeExtractor(range);
+      if (
+        activeRepasseRowIndex >= 0 &&
+        !indexes.includes(activeRepasseRowIndex)
+      )
+        indexes.push(activeRepasseRowIndex);
+      return indexes.sort((left, right) => left - right);
+    },
+    [activeRepasseRowIndex],
+  );
+  const rowVirtualizer = useVirtualizer({
+    count: sortedServices.length,
+    getScrollElement: () => gridScrollRef.current,
+    estimateSize: () => (density === "compact" ? 44 : 58),
+    getItemKey: (index) => sortedServices[index]?.id || index,
+    overscan: 8,
+    rangeExtractor: virtualRangeExtractor,
+  });
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  useEffect(() => rowVirtualizer.measure(), [density, rowVirtualizer]);
   const activeFavorecidoIds = useMemo(
     () =>
       new Set(
@@ -1748,15 +1837,39 @@ function RepasseGrid({
       ),
     [favorecidos],
   );
+  const activeLinkKeys = useMemo(
+    () =>
+      new Set(
+        links
+          .filter((link) => link.status === "ativo")
+          .map((link) => `${link.motoristaId}:${link.favorecidoId}`),
+      ),
+    [links],
+  );
+  const linkedFavorecidosByMotorista = useMemo(() => {
+    const favorecidoById = new Map(
+      favorecidos.map((favorecido) => [favorecido.id, favorecido]),
+    );
+    const result = new Map();
+    links.forEach((link) => {
+      if (link.status !== "ativo") return;
+      const favorecido = favorecidoById.get(link.favorecidoId);
+      if (!favorecido || favorecido.status !== "ativo") return;
+      const current = result.get(link.motoristaId) || [];
+      current.push(favorecido);
+      result.set(link.motoristaId, current);
+    });
+    return result;
+  }, [favorecidos, links]);
   const eligibleLotServices = useMemo(
     () =>
       services.filter(
         (service) =>
           service.favorecidoId &&
           activeFavorecidoIds.has(service.favorecidoId) &&
-          eligibleServices([service], service.favorecidoId, links).length,
+          eligibleServices([service], service.favorecidoId, activeLinkKeys).length,
       ),
-    [services, links, activeFavorecidoIds],
+    [services, activeLinkKeys, activeFavorecidoIds],
   );
   const eligibleLotServiceIds = useMemo(
     () => new Set(eligibleLotServices.map((service) => service.id)),
@@ -2046,18 +2159,46 @@ function RepasseGrid({
     setActiveViewId("");
     setViewMessage(`View “${activeView.name}” excluída.`);
   };
-  const moveGridFocus = (event, trigger, columnId) => {
+  const serviceHasGridControl = (service, columnId) => {
+    if (columnId !== "favorecido") return true;
+    const linkedFavorecidos =
+      linkedFavorecidosByMotorista.get(service.motoristaId) || [];
+    return !linkedFavorecidos.some(
+      (favorecido) => favorecido.id === service.favorecidoId,
+    );
+  };
+  const focusVirtualGridControl = (index, columnId) => {
+    const service = sortedServices[index];
+    if (!service) return;
+    rowVirtualizer.scrollToIndex(index, { align: "auto" });
+    let attempts = 0;
+    const focus = () => {
+      const target = gridScrollRef.current?.querySelector(
+        `[data-repasse-row-id="${service.id}"][data-repasse-tab-stop="${columnId}"]`,
+      );
+      if (target) {
+        target.focus();
+        return;
+      }
+      attempts += 1;
+      if (attempts < 8) window.requestAnimationFrame(focus);
+    };
+    window.requestAnimationFrame(focus);
+  };
+  const moveGridFocus = (event, trigger, columnId, serviceId) => {
     if (event.key !== "Tab") return;
-    const controls = [
-      ...gridScrollRef.current.querySelectorAll(
-        `[data-repasse-tab-stop="${columnId}"]`,
-      ),
-    ].filter((control) => !control.disabled && control.offsetParent !== null);
-    const nextControl =
-      controls[controls.indexOf(trigger) + (event.shiftKey ? -1 : 1)];
-    if (!nextControl) return;
+    const currentIndex = serviceIndexById.get(serviceId);
+    const direction = event.shiftKey ? -1 : 1;
+    let nextIndex = Number(currentIndex) + direction;
+    while (
+      nextIndex >= 0 &&
+      nextIndex < sortedServices.length &&
+      !serviceHasGridControl(sortedServices[nextIndex], columnId)
+    )
+      nextIndex += direction;
+    if (nextIndex < 0 || nextIndex >= sortedServices.length) return;
     event.preventDefault();
-    nextControl.focus();
+    focusVirtualGridControl(nextIndex, columnId);
   };
   const cell = (service, column) => {
     if (column.id === "identificador")
@@ -2133,7 +2274,13 @@ function RepasseGrid({
           saving={busy(`repasse-${service.id}`) || busy(`link-${service.id}`)}
           onSave={onSave}
           onTabNavigate={(event, trigger) =>
-            moveGridFocus(event, trigger, "valorRepasse")
+            moveGridFocus(event, trigger, "valorRepasse", service.id)
+          }
+          onFocusRow={() => setActiveRepasseRowId(service.id)}
+          onBlurRow={() =>
+            setActiveRepasseRowId((current) =>
+              current === service.id ? "" : current,
+            )
           }
         />
       );
@@ -2141,13 +2288,14 @@ function RepasseGrid({
       return (
         <FavorecidoCell
           service={service}
-          favorecidos={favorecidos}
-          links={links}
+          linkedFavorecidos={
+            linkedFavorecidosByMotorista.get(service.motoristaId) || []
+          }
           saving={busy(`link-${service.id}`)}
           error={autosaveErrors[`link-${service.id}`]}
           onLink={onLink}
           onTabNavigate={(event, trigger) =>
-            moveGridFocus(event, trigger, "favorecido")
+            moveGridFocus(event, trigger, "favorecido", service.id)
           }
         />
       );
@@ -2591,7 +2739,12 @@ function RepasseGrid({
               </div>
             ))}
           </div>
-          {sortedServices.map((service) => {
+          <div
+            className="repasse-grid-virtual-body"
+            style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+          >
+          {virtualRows.map((virtualRow) => {
+            const service = sortedServices[virtualRow.index];
             const isEligibleForLot = eligibleLotServiceIds.has(service.id);
             const isOtherFavorecido =
               selectedFavorecidoId &&
@@ -2602,7 +2755,11 @@ function RepasseGrid({
               ? "Nenhum favorecido vinculado ao serviço"
               : !activeFavorecidoIds.has(service.favorecidoId)
                 ? "Favorecido vinculado está inativo"
-                : serviceLotEligibilityReason(service, service.favorecidoId, links);
+                : serviceLotEligibilityReason(
+                    service,
+                    service.favorecidoId,
+                    activeLinkKeys,
+                  );
             const selectionLabel = !isEligibleForLot
               ? `Não pode entrar no lote. Motivo: ${eligibilityReason}.`
               : isOtherFavorecido
@@ -2610,9 +2767,14 @@ function RepasseGrid({
                 : `Selecionar ${service.identificador} para gerar lote`;
             return (
             <div
-              className={`repasse-grid-row ${service.valorRepasse <= 0 ? "is-pending" : ""} ${isSelected ? "is-selected" : ""}`}
-              key={service.id}
-              style={{ gridTemplateColumns: gridTemplate }}
+              ref={rowVirtualizer.measureElement}
+              data-index={virtualRow.index}
+              className={`repasse-grid-row is-virtual ${service.valorRepasse <= 0 ? "is-pending" : ""} ${isSelected ? "is-selected" : ""}`}
+              key={virtualRow.key}
+              style={{
+                gridTemplateColumns: gridTemplate,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
             >
               <div
                 className="repasse-grid-select-cell"
@@ -2646,6 +2808,7 @@ function RepasseGrid({
             </div>
             );
           })}
+          </div>
           {!services.length && (
             <div className="empty-state">
               <FileText size={28} />
@@ -2774,7 +2937,14 @@ function GenerateLotButton({ selectedServices, drawerOpen, onGenerateLot }) {
     </button>
   );
 }
-function RepasseInput({ service, saving, onSave, onTabNavigate }) {
+function RepasseInput({
+  service,
+  saving,
+  onSave,
+  onTabNavigate,
+  onFocusRow,
+  onBlurRow,
+}) {
   const displayValue = (value) => (value > 0 ? moneyInput(value) : "");
   const [draft, setDraft] = useState(displayValue(service.valorRepasse));
   const [feedback, setFeedback] = useState(null);
@@ -2826,9 +2996,11 @@ function RepasseInput({ service, saving, onSave, onTabNavigate }) {
           setDraft(event.target.value);
           setFeedback(null);
         }}
-        onBlur={save}
+        onFocus={onFocusRow}
+        onBlur={() => void save().finally(onBlurRow)}
         onKeyDown={(event) => onTabNavigate?.(event, event.currentTarget)}
         data-repasse-tab-stop="valorRepasse"
+        data-repasse-row-id={service.id}
         aria-label={`Repasse de ${service.identificador}`}
       />
       <div className="repasse-meta">
@@ -2888,8 +3060,7 @@ function AutoSaveErrorIcon({ message, label, onRetry, canRetry = true }) {
 }
 function FavorecidoCell({
   service,
-  favorecidos,
-  links,
+  linkedFavorecidos,
   saving,
   error,
   onLink,
@@ -2897,16 +3068,6 @@ function FavorecidoCell({
 }) {
   const [editing, setEditing] = useState(false);
   useEffect(() => setEditing(false), [service.favorecidoId]);
-  const linkedFavorecidos = favorecidos.filter(
-    (favorecido) =>
-      favorecido.status === "ativo" &&
-      links.some(
-        (link) =>
-          link.status === "ativo" &&
-          link.motoristaId === service.motoristaId &&
-          link.favorecidoId === favorecido.id,
-      ),
-  );
   const selectedFavorecidoId = linkedFavorecidos.some(
     (favorecido) => favorecido.id === service.favorecidoId,
   )
@@ -2957,6 +3118,7 @@ function FavorecidoCell({
         aria-label={`Trocar favorecido de ${service.identificador}`}
         className="repasse-favorecido-select"
         tabStop="favorecido"
+        tabStopRowId={service.id}
         onTabNavigate={onTabNavigate}
         options={[
           { value: "", label: "Vincular favorecido" },

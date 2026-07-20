@@ -2639,6 +2639,19 @@ select:focus {
   width: max-content;
   min-width: 100%;
 }
+.repasse-grid-virtual-body {
+  position: relative;
+  width: 100%;
+  min-width: max-content;
+}
+.repasse-grid-row.is-virtual {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  content-visibility: visible;
+  contain-intrinsic-size: none;
+}
 .repasse-grid-head,
 .repasse-grid-row {
   display: grid;

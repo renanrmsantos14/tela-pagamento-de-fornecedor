@@ -112,6 +112,7 @@ export default function SearchableSelect({
   name,
   "aria-label": ariaLabel,
   tabStop,
+  tabStopRowId,
   onTabNavigate,
 }) {
   const rootRef = useRef(null);
@@ -505,6 +506,7 @@ export default function SearchableSelect({
         className="custom-select-trigger"
         data-searchable-select-trigger="true"
         data-repasse-tab-stop={tabStop}
+        data-repasse-row-id={tabStopRowId}
         aria-label={ariaLabel}
         aria-expanded={open}
         aria-controls={panelId}

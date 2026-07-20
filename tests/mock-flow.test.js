@@ -723,6 +723,48 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
   }
 });
 
+test("consulta remota limita reservas por periodo antes de buscar composicoes", async () => {
+  const remote = await remoteClient();
+  try {
+    const services = await remote.dataverse.listFinanceServices({
+      from: "2026-07-01",
+      to: "2026-07-31",
+      motoristaId: "drv-remote-001",
+    });
+    assert.equal(services.length, 1);
+    const reservationRequest = remote.requests.find((request) =>
+      request.url.includes("cr40f_reservadeveculoses"),
+    );
+    const compositionRequest = remote.requests.find((request) =>
+      request.url.includes("cr40f_composicaodeprecoses"),
+    );
+    const reservationUrl = decodeURIComponent(reservationRequest.url);
+    const compositionUrl = decodeURIComponent(compositionRequest.url);
+    assert.match(
+      reservationUrl,
+      /cr40f_dataehorriodesada ge 2026-07-01T00:00:00\.000Z/,
+    );
+    assert.match(
+      reservationUrl,
+      /cr40f_dataehorriodesada lt 2026-08-01T00:00:00\.000Z/,
+    );
+    assert.match(
+      reservationUrl,
+      /_cr40f_motorista_value eq drv-remote-001/,
+    );
+    assert.match(
+      reservationUrl,
+      /new_categoriadoitem eq 100000000/,
+    );
+    assert.match(
+      compositionUrl,
+      /_cr40f_reserva_value eq res-remote-001/,
+    );
+  } finally {
+    remote.restore();
+  }
+});
+
 test("mantém campos operacionais quando metadata da reserva falha", async () => {
   const remote = await remoteClient({ metadataAvailable: false });
   try {
