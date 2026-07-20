@@ -1558,6 +1558,19 @@ function PaymentsView({
     });
     return [...options.values()];
   }, [services]);
+  const thirdPartyDriverIds = useMemo(
+    () =>
+      new Set(
+        drivers
+          .filter(
+            (driver) =>
+              Number(driver.tipoVinculo) === 202410001 ||
+              normalizeFilterLabel(driver.tipoVinculo) === "terceiro",
+          )
+          .map((driver) => driver.id),
+      ),
+    [drivers],
+  );
   useEffect(() => {
     if (cpStatusDefaultApplied.current || !cpStatusOptions.length) return;
     cpStatusDefaultApplied.current = true;
@@ -1584,10 +1597,11 @@ function PaymentsView({
     () =>
       services.filter((row) =>
         !row.pagamentoId &&
+        thirdPartyDriverIds.has(row.motoristaId) &&
         (!cpStatusFilter.length || cpStatusFilter.includes(String(row.status))) &&
         (!statusFilter.length || statusFilter.includes(row.reservationStatus)),
       ),
-    [services, cpStatusFilter, statusFilter],
+    [services, thirdPartyDriverIds, cpStatusFilter, statusFilter],
   );
   const servicesWithStatusColor = useMemo(() => {
     const colors = new Map(

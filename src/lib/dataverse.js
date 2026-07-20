@@ -34,6 +34,7 @@ export const CHOICES = Object.freeze({
   completedComposition: 100000001,
   serviceItemCategory: 100000000,
   activeEmployee: 0,
+  thirdPartyEmployee: 202410001,
   activeFavorecido: 100000000,
   inactiveFavorecido: 100000001,
   activeLink: 100000000,
@@ -259,6 +260,7 @@ const drivers = [
   id: `mot-${String(index + 1).padStart(3, "0")}`,
   nome,
   status: "ativo",
+  tipoVinculo: CHOICES.thirdPartyEmployee,
 }));
 const seedFavorecidos = [
   {
@@ -326,7 +328,7 @@ function seedLinks() {
       favorecidoId: seedFavorecidos[(index + offset) % 4].id,
       status: "ativo",
       createdAt: now(),
-    })),
+  })),
   );
 }
 function seedServices() {
@@ -947,12 +949,13 @@ class DataverseClient {
     const entity = await this.entity(TABLES.employee);
     const rows = await this.listAll(
       TABLES.employee,
-      `?$select=${entity.id},${entity.primaryName},statecode&$filter=statecode eq ${CHOICES.activeEmployee}&$orderby=${entity.primaryName} asc`,
+      `?$select=${entity.id},${entity.primaryName},cr40f_tipodevinculo,statecode&$filter=statecode eq ${CHOICES.activeEmployee}&$orderby=${entity.primaryName} asc`,
     );
     return rows.map((row) => ({
       id: cleanGuid(row[entity.id]),
       nome: row[entity.primaryName],
       status: "ativo",
+      tipoVinculo: row.cr40f_tipodevinculo,
     }));
   }
   async listFavorecidos(includeInactive = false) {
