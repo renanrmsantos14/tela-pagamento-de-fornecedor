@@ -15,6 +15,12 @@ export const ITEM_STATUS = Object.freeze({
   PAID: "paid",
   CANCELLED: "cancelled",
 });
+export const LEGACY_PAID_CUTOFF = "2026-07-01";
+
+export function isLegacyPaidService(service) {
+  const serviceDate = String(service?.dataServico || "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(serviceDate) && serviceDate < LEGACY_PAID_CUTOFF;
+}
 
 export function toCents(value) {
   return Math.round(Number(value || 0) * 100);
@@ -90,6 +96,7 @@ function isCompletedService(service) {
 
 export function isEligibleService(service, favorecidoId, activeLinks = []) {
   if (
+    isLegacyPaidService(service) ||
     !isCompletedService(service) ||
     toCents(service.valorCobrado) <= 0 ||
     toCents(service.valorRepasse) <= 0 ||
@@ -112,6 +119,8 @@ export function serviceLotEligibilityReason(
   favorecidoId = service.favorecidoId || "",
   activeLinks = [],
 ) {
+  if (isLegacyPaidService(service))
+    return "Pagamento historico anterior a 01/07/2026";
   if (!isCompletedService(service))
     return "Status da CP não é Concluída (a CP precisa estar concluída)";
   if (toCents(service.valorCobrado) <= 0)

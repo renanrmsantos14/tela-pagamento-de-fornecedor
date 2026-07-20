@@ -61,6 +61,7 @@ import {
   canPay,
   canRevert,
   eligibleServices,
+  isLegacyPaidService,
   money,
   moneyInput,
   marginPercent,
@@ -366,7 +367,7 @@ export default function App() {
   const [lotDetail, setLotDetail] = useState(null);
   const [lastDocumentPdf, setLastDocumentPdf] = useState(null);
   const [preselected, setPreselected] = useState(new Set());
-  const refreshInFlightRef = useRef(false);
+  const refreshRequestIdRef = useRef(0);
   const referenceDataLoadedRef = useRef(false);
   const previousRangeKeyRef = useRef("");
   const busy = (key) => Boolean(saving[key]);
@@ -388,8 +389,7 @@ export default function App() {
     includeReferences = true,
     includePrevious = tab === "overview",
   } = {}) {
-    if (refreshInFlightRef.current) return;
-    refreshInFlightRef.current = true;
+    const refreshRequestId = ++refreshRequestIdRef.current;
     setBusy("refresh", true);
     try {
       const [serviceRows, previousServiceRows, referenceRows] =
@@ -410,6 +410,7 @@ export default function App() {
         ]);
       const [favorecidoRows, driverRows, linkRows, lotRows, statusRows] =
         referenceRows || [favorecidos, drivers, links, lots, reservationStatusOptions];
+      if (refreshRequestId !== refreshRequestIdRef.current) return;
       setServices(
         applyActiveFavorecidoDefaults(serviceRows, linkRows, favorecidoRows),
       );
@@ -426,10 +427,12 @@ export default function App() {
         referenceDataLoadedRef.current = true;
       }
     } catch (err) {
-      reportActionError("Atualizacao dos dados", err);
+      if (refreshRequestId === refreshRequestIdRef.current)
+        reportActionError("Atualizacao dos dados", err);
     } finally {
-      refreshInFlightRef.current = false;
-      setBusy("refresh", false);
+      if (refreshRequestId === refreshRequestIdRef.current) {
+        setBusy("refresh", false);
+      }
     }
   }
   useEffect(() => {
@@ -442,8 +445,7 @@ export default function App() {
     const rangeKey = `${range.from}:${range.to}`;
     if (
       tab !== "overview" ||
-      previousRangeKeyRef.current === rangeKey ||
-      refreshInFlightRef.current
+      previousRangeKeyRef.current === rangeKey
     )
       return;
     setBusy("refresh", true);
@@ -487,6 +489,8 @@ export default function App() {
     () =>
       services.filter(
         (service) =>
+          (!range.from || service.dataServico.slice(0, 10) >= range.from) &&
+          (!range.to || service.dataServico.slice(0, 10) <= range.to) &&
           (!driverIds.length || driverIds.includes(service.motoristaId)) &&
           (!favorecidoIds.length || favorecidoIds.includes(service.favorecidoId)) &&
           (!vehicleTypes.length || vehicleTypes.includes(service.tipoVeiculo)) &&
@@ -495,7 +499,7 @@ export default function App() {
               .toLowerCase()
               .includes(search.toLowerCase())),
       ),
-    [services, driverIds, favorecidoIds, vehicleTypes, search],
+    [services, range.from, range.to, driverIds, favorecidoIds, vehicleTypes, search],
   );
   const openLot = async (lot) => {
     setLotDetail(null);
@@ -1286,7 +1290,7 @@ function OverviewView({
   const totals = paymentTotals(completedServices);
   const previousTotals = paymentTotals(previousCompletedServices);
   const pendingRepasse = completedServices.filter(
-    (service) => Number(service.valorRepasse || 0) <= 0,
+    (service) => !isLegacyPaidService(service) && Number(service.valorRepasse || 0) <= 0,
   );
   const readyServices = eligibleServices(completedServices, "", links).filter(
     (service) =>
@@ -1316,13 +1320,14 @@ function OverviewView({
   );
   const missingLink = completedServices.filter(
     (service) =>
-      !service.favorecidoId ||
-      !links.some(
-        (link) =>
-          link.status === "ativo" &&
-          link.motoristaId === service.motoristaId &&
-          link.favorecidoId === service.favorecidoId,
-      ),
+      !isLegacyPaidService(service) &&
+      (!service.favorecidoId ||
+        !links.some(
+          (link) =>
+            link.status === "ativo" &&
+            link.motoristaId === service.motoristaId &&
+            link.favorecidoId === service.favorecidoId,
+        )),
   );
   const openExposure = openLots.reduce(
     (total, lot) => total + Number(lot.repasse || 0),
@@ -1757,7 +1762,10 @@ function RepasseGrid({
   const previousColumnPositionsRef = useRef(new Map());
   const savedViewRef = useRef(null);
   const pendingCount = useMemo(
-    () => services.filter((service) => service.valorRepasse <= 0).length,
+    () =>
+      services.filter(
+        (service) => !isLegacyPaidService(service) && service.valorRepasse <= 0,
+      ).length,
     [services],
   );
   const pickerColumns = useMemo(() => {
@@ -2769,7 +2777,7 @@ function RepasseGrid({
             <div
               ref={rowVirtualizer.measureElement}
               data-index={virtualRow.index}
-              className={`repasse-grid-row is-virtual ${service.valorRepasse <= 0 ? "is-pending" : ""} ${isSelected ? "is-selected" : ""}`}
+              className={`repasse-grid-row is-virtual ${!isLegacyPaidService(service) && service.valorRepasse <= 0 ? "is-pending" : ""} ${isSelected ? "is-selected" : ""}`}
               key={virtualRow.key}
               style={{
                 gridTemplateColumns: gridTemplate,
@@ -2985,7 +2993,7 @@ function RepasseInput({
     }
   };
   const status = saving ? { type: "saving" } : feedback;
-  const pending = !status && !changed && value <= 0;
+  const pending = !isLegacyPaidService(service) && !status && !changed && value <= 0;
   return (
     <div className="grid-money-input">
       <input
