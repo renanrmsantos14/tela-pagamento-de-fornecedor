@@ -81,6 +81,19 @@ const monthRange = () => {
     to: end.toISOString().slice(0, 10),
   };
 };
+const APP_TABS = new Set(["overview", "payments", "lots", "favorecidos"]);
+const tabFromLocation = () => {
+  if (typeof window === "undefined") return "overview";
+  const tab = new URLSearchParams(window.location.search).get("tab");
+  return APP_TABS.has(tab) ? tab : "overview";
+};
+const syncTabLocation = (tab, method) => {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  if (url.searchParams.get("tab") === tab) return;
+  url.searchParams.set("tab", tab);
+  window.history[method](window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+};
 const toDateInput = (date) => date.toISOString().slice(0, 10);
 const previousRange = (range) => {
   const from = new Date(`${range.from}T12:00:00`);
@@ -392,7 +405,7 @@ export default function App() {
   const [links, setLinks] = useState([]);
   const [lots, setLots] = useState([]);
   const [reservationStatusOptions, setReservationStatusOptions] = useState([]);
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState(tabFromLocation);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [range, setRange] = useState(monthRange);
   const [search, setSearch] = useState("");
@@ -425,6 +438,17 @@ export default function App() {
     void dataverse.logError(err, { action, phase: "ui.action" });
     setError(`${action} nao foi concluido. ${detail}`);
   };
+  const navigateToTab = useCallback((nextTab) => {
+    const next = APP_TABS.has(nextTab) ? nextTab : "overview";
+    setTab(next);
+    syncTabLocation(next, "pushState");
+  }, []);
+  useEffect(() => {
+    syncTabLocation(tabFromLocation(), "replaceState");
+    const onPopState = () => setTab(tabFromLocation());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
   async function refresh({
     includeReferences = true,
     includePrevious = tab === "overview",
@@ -869,7 +893,7 @@ export default function App() {
           {sidebarExpanded ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
         </button>
         <Brand />
-        <Nav tab={tab} onChange={setTab} />
+        <Nav tab={tab} onChange={navigateToTab} />
         <div className="sidebar-foot">
           <span
             className="connection-dot mock"
@@ -947,7 +971,7 @@ export default function App() {
               vehicleTypes={vehicleTypes}
               setVehicleTypes={setVehicleTypes}
               vehicleTypeOptions={vehicleTypeOptions}
-              onNavigate={setTab}
+              onNavigate={navigateToTab}
               onNewLot={() => setDrawer({ type: "lot" })}
               onNewFavorecido={() => setDrawer({ type: "favorecido" })}
             />
@@ -1045,28 +1069,28 @@ export default function App() {
       <nav className="bottom-nav" aria-label="Navegação principal">
         <button
           className={tab === "overview" ? "active" : ""}
-          onClick={() => setTab("overview")}
+          onClick={() => navigateToTab("overview")}
         >
           <LayoutDashboard size={18} />
           <span>Visão geral</span>
         </button>
         <button
           className={tab === "payments" ? "active" : ""}
-          onClick={() => setTab("payments")}
+          onClick={() => navigateToTab("payments")}
         >
           <CircleDollarSign size={18} />
           <span>Repasses</span>
         </button>
         <button
           className={tab === "lots" ? "active" : ""}
-          onClick={() => setTab("lots")}
+          onClick={() => navigateToTab("lots")}
         >
           <ClipboardList size={18} />
           <span>Lotes</span>
         </button>
         <button
           className={tab === "favorecidos" ? "active" : ""}
-          onClick={() => setTab("favorecidos")}
+          onClick={() => navigateToTab("favorecidos")}
         >
           <UsersRound size={18} />
           <span>Terceiros</span>
