@@ -397,6 +397,11 @@ function ServiceIdentifierLink({ identifier, reservationId }) {
     </a>
   );
 }
+
+function TabPage({ className = "", children }) {
+  return <section className={`page-section tab-page ${className}`.trim()}>{children}</section>;
+}
+
 export default function App() {
   const [services, setServices] = useState([]);
   const [previousServices, setPreviousServices] = useState([]);
@@ -1429,7 +1434,7 @@ function OverviewView({
   const periodLabel = `${dateFormatter.format(new Date(`${range.from}T12:00:00`))} – ${dateFormatter.format(new Date(`${range.to}T12:00:00`))}`;
 
   return (
-    <section className="page-section overview-page">
+    <TabPage className="overview-page">
       <div className="page-title">
         <div>
           <span>Financeiro operacional</span>
@@ -1532,7 +1537,7 @@ function OverviewView({
           <button className="dashboard-lot-action" onClick={onNewLot}><Plus size={16} /><span><strong>Montar lote</strong><small>Reserve serviços elegíveis para pagamento.</small></span><ChevronRight size={16} /></button>
         </section>
       </div>
-    </section>
+    </TabPage>
   );
 }
 
@@ -1683,7 +1688,7 @@ function AllServicesView({ services, favorecidos, loading }) {
     setViews((current) => [...current, view]); setActiveViewId(view.id); setViewName("");
   };
   return (
-    <section className="page-section all-services-page">
+    <TabPage className="all-services-page">
       <div className="page-title">
         <div>
           <span>Consulta operacional</span>
@@ -1739,7 +1744,7 @@ function AllServicesView({ services, favorecidos, loading }) {
           </div>
         </div>
       </section>
-    </section>
+    </TabPage>
   );
 }
 function PaymentsView({
@@ -1855,7 +1860,7 @@ function PaymentsView({
     }
   };
   return (
-    <section className="page-section repasse-page">
+    <TabPage className="repasse-page">
       <div className="page-title">
         <div>
           <span>Financeiro / operação</span>
@@ -1963,7 +1968,7 @@ function PaymentsView({
         lotDrawerOpen={lotDrawerOpen}
         onGenerateLot={onGenerateLot}
       />
-    </section>
+    </TabPage>
   );
 }
 function RepasseGrid({
@@ -3405,7 +3410,7 @@ function FavorecidoCell({
 
 function LotsView({ lots, busy, onNew, onOpen }) {
   return (
-    <section className="page-section">
+    <TabPage>
       <div className="page-title">
         <div>
           <span>Rastreabilidade</span>
@@ -3461,7 +3466,7 @@ function LotsView({ lots, busy, onNew, onOpen }) {
           <div className="operations-empty">Nenhum lote criado neste ambiente.</div>
         )}
       </section>
-    </section>
+    </TabPage>
   );
 }
 
@@ -3476,7 +3481,7 @@ function FavorecidosView({
   onStatus,
 }) {
   return (
-    <section className="page-section">
+    <TabPage>
       <div className="page-title">
         <div>
           <span>Cadastros financeiros</span>
@@ -3555,7 +3560,7 @@ function FavorecidosView({
           );
         })}
       </section>
-    </section>
+    </TabPage>
   );
 }
 

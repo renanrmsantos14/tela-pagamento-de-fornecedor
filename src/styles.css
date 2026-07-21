@@ -13,7 +13,7 @@
   --text: #0f172a;
   --line-strong: #c8c8c8;
   --accent: #2159d2;
-  --content-page-padding: 10px 16px 10px;
+  --content-page-padding: 4px 20px 20px;
   --field-control-height: 34px;
   --radius-xs: 6px;
   --radius-sm: 8px;
@@ -280,6 +280,10 @@ p {
   min-width: 0;
   display: grid;
   gap: 10px;
+}
+.tab-page {
+  width: 100%;
+  margin-inline: auto;
 }
 .page-title {
   min-width: 0;
@@ -3450,7 +3454,7 @@ select:focus {
   }
 }
 @media (min-width: 1600px) {
-  .content-wrap:has(.repasse-grid-shell) {
+  .content-wrap:has(.tab-page) {
     width: 100%;
     max-width: none;
   }
@@ -3977,10 +3981,9 @@ textarea:focus-visible {
     flex-direction: column;
     overflow: hidden;
   }
-  .content-wrap:has(.all-services-page) .desktop-actions,
-  .content-wrap:has(.repasse-page) .desktop-actions {
-    min-height: 34px;
-    margin-bottom: 6px;
+  .content-wrap:has(.tab-page) .desktop-actions {
+    min-height: 24px;
+    margin-bottom: 2px;
   }
   .all-services-page,
   .repasse-page {
