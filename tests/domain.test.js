@@ -89,13 +89,13 @@ test("usa status concluído da reserva na elegibilidade", () => {
   };
   assert.equal(eligibleServices([service], "f1", links).length, 1);
 });
-test("considera como pago o historico anterior a 01/07/2026", () => {
-  const service = { ...services[2], dataServico: "2026-06-30T23:59:59Z" };
+test("considera como pago o historico anterior a 01/06/2026", () => {
+  const service = { ...services[2], dataServico: "2026-05-31T23:59:59Z" };
   assert.equal(isLegacyPaidService(service), true);
   assert.equal(eligibleServices([service], "", links).length, 0);
   assert.equal(
     serviceLotEligibilityReason(service, "", links),
-    "Pagamento historico anterior a 01/07/2026",
+    "Pagamento historico anterior a 01/06/2026",
   );
 });
 test("snapshot inicia rascunho com pagamento aberto e documento pendente", () => {

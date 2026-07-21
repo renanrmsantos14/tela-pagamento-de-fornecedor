@@ -346,6 +346,7 @@ function ServiceIdentifierLink({ identifier, reservationId }) {
 }
 export default function App() {
   const [services, setServices] = useState([]);
+  const [allServices, setAllServices] = useState([]);
   const [previousServices, setPreviousServices] = useState([]);
   const [favorecidos, setFavorecidos] = useState([]);
   const [drivers, setDrivers] = useState([]);
@@ -458,6 +459,25 @@ export default function App() {
       .catch((err) => reportActionError("Atualizacao do periodo anterior", err))
       .finally(() => setBusy("refresh", false));
   }, [tab, range.from, range.to]);
+  useEffect(() => {
+    if (tab !== "allServices") return undefined;
+    let active = true;
+    setBusy("all-services", true);
+    dataverse
+      .listFinanceServices()
+      .then((rows) => {
+        if (active) setAllServices(rows);
+      })
+      .catch((err) => {
+        if (active) reportActionError("Carregamento de todos os serviços", err);
+      })
+      .finally(() => {
+        if (active) setBusy("all-services", false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [tab]);
   useEffect(() => {
     if (!notice) return undefined;
     const timer = setTimeout(() => setNotice(""), 3200);
@@ -946,6 +966,13 @@ export default function App() {
               }}
             />
           )}
+          {tab === "allServices" && (
+            <AllServicesView
+              services={allServices}
+              favorecidos={favorecidos}
+              loading={busy("all-services")}
+            />
+          )}
           {tab === "lots" && (
             <LotsView
               lots={resolvedLots}
@@ -1016,6 +1043,13 @@ export default function App() {
         >
           <CircleDollarSign size={18} />
           <span>Repasses</span>
+        </button>
+        <button
+          className={tab === "allServices" ? "active" : ""}
+          onClick={() => setTab("allServices")}
+        >
+          <TableProperties size={18} />
+          <span>Serviços</span>
         </button>
         <button
           className={tab === "lots" ? "active" : ""}
@@ -1230,6 +1264,14 @@ function Nav({ tab, onChange }) {
         <span>Lançar repasses</span>
       </button>
       <button
+        className={tab === "allServices" ? "active" : ""}
+        onClick={() => onChange("allServices")}
+        title="Todos os serviços"
+      >
+        <TableProperties size={17} />
+        <span>Todos os serviços</span>
+      </button>
+      <button
         className={tab === "lots" ? "active" : ""}
         onClick={() => onChange("lots")}
         title="Lotes de pagamento"
@@ -1370,7 +1412,7 @@ function OverviewView({
         <div>
           <span>Financeiro operacional</span>
           <h1>Dashboard financeiro</h1>
-          <p className="dashboard-data-notice">Este sistema e seus dados financeiros iniciam em 01/07/2026.</p>
+          <p className="dashboard-data-notice">Este sistema e seus dados financeiros iniciam em 01/06/2026.</p>
           <p>Resultado, exposição e pendências de fornecedores no mesmo recorte.</p>
         </div>
         <div className="dashboard-title-actions" role="group" aria-label="Ações do dashboard">
@@ -1515,6 +1557,124 @@ function OverviewQueueRow({ tone, title, description, action, onClick }) {
         <ChevronRight size={14} />
       </button>
     </article>
+  );
+}
+function AllServicesView({ services, favorecidos, loading }) {
+  const [query, setQuery] = useState("");
+  const [range, setRange] = useState({ from: "", to: "" });
+  const [driverIds, setDriverIds] = useState([]);
+  const [favorecidoIds, setFavorecidoIds] = useState([]);
+  const [vehicleTypes, setVehicleTypes] = useState([]);
+  const [cpStatuses, setCpStatuses] = useState([]);
+  const [reservationStatuses, setReservationStatuses] = useState([]);
+  const [lotStates, setLotStates] = useState([]);
+  const [repasseStates, setRepasseStates] = useState([]);
+  const scrollRef = useRef(null);
+  const favorecidoById = useMemo(
+    () => new Map(favorecidos.map((favorecido) => [favorecido.id, favorecido.nome])),
+    [favorecidos],
+  );
+  const serviceOptions = (key, label) =>
+    [...new Map(services.map((service) => [String(service[key] || ""), label(service)])).entries()]
+      .filter(([value]) => value)
+      .map(([value, optionLabel]) => ({ value, label: optionLabel }))
+      .sort((left, right) => left.label.localeCompare(right.label, "pt-BR"));
+  const driverOptions = useMemo(
+    () => serviceOptions("motoristaId", (service) => service.motorista),
+    [services],
+  );
+  const vehicleOptions = useMemo(
+    () => serviceOptions("tipoVeiculo", (service) => service.tipoVeiculo),
+    [services],
+  );
+  const cpStatusOptions = useMemo(
+    () => serviceOptions("status", (service) => service.statusLabel || service.status),
+    [services],
+  );
+  const reservationStatusOptions = useMemo(
+    () =>
+      serviceOptions(
+        "reservationStatus",
+        (service) => service.reservationStatusLabel || service.reservationStatus,
+      ),
+    [services],
+  );
+  const rows = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return [...services]
+      .filter((service) =>
+        (!range.from || service.dataServico.slice(0, 10) >= range.from) &&
+        (!range.to || service.dataServico.slice(0, 10) <= range.to) &&
+        (!driverIds.length || driverIds.includes(service.motoristaId)) &&
+        (!favorecidoIds.length || favorecidoIds.includes(service.favorecidoId)) &&
+        (!vehicleTypes.length || vehicleTypes.includes(service.tipoVeiculo)) &&
+        (!cpStatuses.length || cpStatuses.includes(String(service.status))) &&
+        (!reservationStatuses.length || reservationStatuses.includes(String(service.reservationStatus))) &&
+        (!lotStates.length || lotStates.some((state) => (state === "inLot" ? Boolean(service.pagamentoId) : !service.pagamentoId))) &&
+        (!repasseStates.length || repasseStates.some((state) => (state === "pending" ? Number(service.valorRepasse || 0) <= 0 : Number(service.valorRepasse || 0) > 0))) &&
+        (!normalizedQuery ||
+          `${service.identificador} ${service.motorista} ${service.trajeto} ${service.cliente}`
+            .toLowerCase()
+            .includes(normalizedQuery)),
+      )
+      .sort((left, right) =>
+        new Date(right.dataServico || 0).getTime() - new Date(left.dataServico || 0).getTime(),
+      );
+  }, [services, query, range, driverIds, favorecidoIds, vehicleTypes, cpStatuses, reservationStatuses, lotStates, repasseStates]);
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 58,
+    overscan: 12,
+  });
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  return (
+    <section className="page-section all-services-page">
+      <div className="page-title">
+        <div>
+          <span>Consulta operacional</span>
+          <h1>Todos os serviços</h1>
+          <p>Histórico completo, com serviços pendentes, pagos e já incluídos em lote.</p>
+        </div>
+      </div>
+      <section className="surface all-services-surface">
+        <div className="all-services-toolbar">
+          <div className="search-box">
+            <Search size={17} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Buscar serviço, motorista, trajeto ou cliente"
+            />
+          </div>
+          <strong>{loading ? "Carregando..." : `${rows.length} serviço(s)`}</strong>
+        </div>
+        <div className="all-services-filter-grid">
+          <label className="field"><span>De</span><input type="date" value={range.from} onChange={(event) => setRange((current) => ({ ...current, from: event.target.value }))} /></label>
+          <label className="field"><span>Até</span><input type="date" value={range.to} onChange={(event) => setRange((current) => ({ ...current, to: event.target.value }))} /></label>
+          <label className="field"><span>Motorista</span><SearchableMultiSelect value={driverIds} onChange={setDriverIds} options={driverOptions} placeholder="Todos" /></label>
+          <label className="field"><span>Favorecido</span><SearchableMultiSelect value={favorecidoIds} onChange={setFavorecidoIds} options={favorecidos.map((row) => ({ value: row.id, label: row.nome }))} placeholder="Todos" /></label>
+          <label className="field"><span>Veículo</span><SearchableMultiSelect value={vehicleTypes} onChange={setVehicleTypes} options={vehicleOptions} placeholder="Todos" /></label>
+          <label className="field"><span>Status CP</span><SearchableMultiSelect value={cpStatuses} onChange={setCpStatuses} options={cpStatusOptions} placeholder="Todos" /></label>
+          <label className="field"><span>Status reserva</span><SearchableMultiSelect value={reservationStatuses} onChange={setReservationStatuses} options={reservationStatusOptions} placeholder="Todos" /></label>
+          <label className="field"><span>Lote</span><SearchableMultiSelect value={lotStates} onChange={setLotStates} options={[{ value: "inLot", label: "Em lote" }, { value: "outsideLot", label: "Fora de lote" }]} placeholder="Todos" /></label>
+          <label className="field"><span>Repasse</span><SearchableMultiSelect value={repasseStates} onChange={setRepasseStates} options={[{ value: "pending", label: "Pendente" }, { value: "informed", label: "Informado" }]} placeholder="Todos" /></label>
+        </div>
+        <div className="all-services-grid-scroll" ref={scrollRef}>
+          <div className="all-services-grid" role="table">
+            <div className="all-services-grid-head" role="row"><span>Serviço</span><span>Data</span><span>Motorista</span><span>Cliente / trajeto</span><span>Total CP</span><span>Repasse</span><span>Favorecido</span><span>Status</span><span>Lote</span></div>
+            <div className="all-services-virtual-body" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+              {virtualRows.map((virtualRow) => {
+                const service = rows[virtualRow.index];
+                return <div className="all-services-grid-row" role="row" key={virtualRow.key} style={{ transform: `translateY(${virtualRow.start}px)` }}>
+                  <span><ServiceIdentifierLink identifier={service.identificador} reservationId={service.reservationId} /></span><span>{formatServiceDate(service.dataServico, "Não informado")}</span><span>{service.motorista || "Não informado"}</span><span>{service.cliente || "Não informado"}<small>{service.trajeto || "Sem trajeto"}</small></span><strong>{money(service.valorCobrado)}</strong><strong>{money(service.valorRepasse)}</strong><span>{favorecidoById.get(service.favorecidoId) || "Não informado"}</span><span>{service.reservationStatusLabel || service.statusLabel || service.status || "Não informado"}</span><span>{service.pagamentoId ? "Em lote" : "Fora de lote"}</span>
+                </div>;
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
   );
 }
 function PaymentsView({
