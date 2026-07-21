@@ -1253,6 +1253,24 @@ select:focus {
   font-size: var(--text-sm);
   white-space: nowrap;
 }
+.all-services-layout-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.all-services-grid-head > button {
+  min-width: 0;
+  padding: 11px 12px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+}
+.all-services-grid-head > button:hover { background: #f4f4f3; }
 .all-services-filter-grid {
   padding: 8px 14px 10px;
   display: grid;
@@ -1304,7 +1322,6 @@ select:focus {
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
-.all-services-grid-head > span { padding: 11px 12px; }
 .all-services-virtual-body { position: relative; min-width: max-content; }
 .all-services-grid-row {
   position: absolute;
@@ -1321,12 +1338,13 @@ select:focus {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.all-services-grid-row > strong:nth-child(5),
-.all-services-grid-row > strong:nth-child(6) {
+.all-services-grid-row > .is-currency {
   color: var(--navy);
   font-weight: 800;
   white-space: nowrap;
 }
+.all-services-grid.is-compact .all-services-grid-row { min-height: 44px; }
+.all-services-grid.is-compact .all-services-grid-row > span { padding-block: 5px; }
 .all-services-grid-row small {
   display: block;
   margin-top: 3px;

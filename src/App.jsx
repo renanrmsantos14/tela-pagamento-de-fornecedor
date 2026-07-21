@@ -244,6 +244,46 @@ const REPASSE_COLUMNS_STORAGE_KEY = "betinhos_repasses_columns_v3";
 const REPASSE_DENSITY_STORAGE_KEY = "betinhos_repasses_density_v1";
 const REPASSE_VIEWS_STORAGE_KEY = "betinhos_repasses_views_v1";
 const REPASSE_ACTIVE_VIEW_STORAGE_KEY = "betinhos_repasses_active_view_v1";
+const ALL_SERVICES_COLUMNS = [
+  { id: "identificador", label: "Serviço", width: 145 },
+  { id: "dataServico", label: "Data", width: 145 },
+  { id: "motorista", label: "Motorista", width: 180 },
+  { id: "clienteTrajeto", label: "Cliente / trajeto", width: 250 },
+  { id: "valorCobrado", label: "Total CP", width: 125 },
+  { id: "valorRepasse", label: "Repasse", width: 125 },
+  { id: "favorecido", label: "Favorecido", width: 190 },
+  { id: "status", label: "Status", width: 170 },
+  { id: "lote", label: "Lote", width: 115 },
+];
+const ALL_SERVICES_COLUMNS_STORAGE_KEY = "betinhos_todos_servicos_columns_v1";
+const ALL_SERVICES_DENSITY_STORAGE_KEY = "betinhos_todos_servicos_density_v1";
+const ALL_SERVICES_VIEWS_STORAGE_KEY = "betinhos_todos_servicos_views_v1";
+const ALL_SERVICES_ACTIVE_VIEW_STORAGE_KEY = "betinhos_todos_servicos_active_view_v1";
+const loadTableColumns = (key, defaults) => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(key));
+    if (Array.isArray(saved) && saved.length) {
+      const definition = new Map(defaults.map((column) => [column.id, column]));
+      const restored = saved.filter((column) => definition.has(column.id)).map((column) => ({
+        ...definition.get(column.id), width: Math.max(110, Number(column.width) || definition.get(column.id).width), visible: column.visible !== false,
+      }));
+      const ids = new Set(restored.map((column) => column.id));
+      return [...restored, ...defaults.filter((column) => !ids.has(column.id)).map((column) => ({ ...column, visible: true }))];
+    }
+  } catch { /* Usa configuração padrão. */ }
+  return defaults.map((column) => ({ ...column, visible: true }));
+};
+const loadTableViews = (key) => {
+  try { const views = JSON.parse(localStorage.getItem(key)); return Array.isArray(views) ? views : []; } catch { return []; }
+};
+const restoreTableColumns = (savedColumns, defaults) => {
+  const definition = new Map(defaults.map((column) => [column.id, column]));
+  const restored = (savedColumns || []).filter((column) => definition.has(column.id)).map((column) => ({
+    ...definition.get(column.id), width: Math.max(110, Number(column.width) || definition.get(column.id).width), visible: column.visible !== false,
+  }));
+  const ids = new Set(restored.map((column) => column.id));
+  return [...restored, ...defaults.filter((column) => !ids.has(column.id)).map((column) => ({ ...column, visible: true }))];
+};
 const loadRepasseColumns = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(REPASSE_COLUMNS_STORAGE_KEY));
@@ -1561,6 +1601,13 @@ function OverviewQueueRow({ tone, title, description, action, onClick }) {
 }
 function AllServicesView({ services, favorecidos, loading }) {
   const [query, setQuery] = useState("");
+  const [columns, setColumns] = useState(() => loadTableColumns(ALL_SERVICES_COLUMNS_STORAGE_KEY, ALL_SERVICES_COLUMNS));
+  const [density, setDensity] = useState(() => localStorage.getItem(ALL_SERVICES_DENSITY_STORAGE_KEY) === "compact" ? "compact" : "comfortable");
+  const [views, setViews] = useState(() => loadTableViews(ALL_SERVICES_VIEWS_STORAGE_KEY));
+  const [activeViewId, setActiveViewId] = useState(() => localStorage.getItem(ALL_SERVICES_ACTIVE_VIEW_STORAGE_KEY) || "");
+  const [showColumns, setShowColumns] = useState(false);
+  const [showViews, setShowViews] = useState(false);
+  const [viewName, setViewName] = useState("");
   const [range, setRange] = useState({ from: "", to: "" });
   const [driverIds, setDriverIds] = useState([]);
   const [favorecidoIds, setFavorecidoIds] = useState([]);
@@ -1570,6 +1617,9 @@ function AllServicesView({ services, favorecidos, loading }) {
   const [lotStates, setLotStates] = useState([]);
   const [repasseStates, setRepasseStates] = useState([]);
   const scrollRef = useRef(null);
+  const visibleColumns = useMemo(() => columns.filter((column) => column.visible), [columns]);
+  const gridTemplate = useMemo(() => visibleColumns.map((column) => `${column.width}px`).join(" "), [visibleColumns]);
+  const activeView = views.find((view) => view.id === activeViewId);
   const favorecidoById = useMemo(
     () => new Map(favorecidos.map((favorecido) => [favorecido.id, favorecido.nome])),
     [favorecidos],
@@ -1628,6 +1678,28 @@ function AllServicesView({ services, favorecidos, loading }) {
     overscan: 12,
   });
   const virtualRows = rowVirtualizer.getVirtualItems();
+  useEffect(() => { localStorage.setItem(ALL_SERVICES_COLUMNS_STORAGE_KEY, JSON.stringify(columns)); }, [columns]);
+  useEffect(() => { localStorage.setItem(ALL_SERVICES_DENSITY_STORAGE_KEY, density); }, [density]);
+  useEffect(() => { localStorage.setItem(ALL_SERVICES_VIEWS_STORAGE_KEY, JSON.stringify(views)); }, [views]);
+  useEffect(() => { localStorage.setItem(ALL_SERVICES_ACTIVE_VIEW_STORAGE_KEY, activeViewId); }, [activeViewId]);
+  const columnValue = (service, column) => {
+    if (column.id === "identificador") return <ServiceIdentifierLink identifier={service.identificador} reservationId={service.reservationId} />;
+    if (column.id === "dataServico") return formatServiceDate(service.dataServico, "Não informado");
+    if (column.id === "clienteTrajeto") return <>{service.cliente || "Não informado"}<small>{service.trajeto || "Sem trajeto"}</small></>;
+    if (column.id === "valorCobrado" || column.id === "valorRepasse") return money(service[column.id]);
+    if (column.id === "favorecido") return favorecidoById.get(service.favorecidoId) || "Não informado";
+    if (column.id === "status") return service.reservationStatusLabel || service.statusLabel || service.status || "Não informado";
+    if (column.id === "lote") return service.pagamentoId ? "Em lote" : "Fora de lote";
+    return service[column.id] || "Não informado";
+  };
+  const currentView = () => ({ columns: columns.map(({ id, width, visible }) => ({ id, width, visible })), density });
+  const applyView = (view) => { setColumns(restoreTableColumns(view.columns, ALL_SERVICES_COLUMNS)); setDensity(view.density === "compact" ? "compact" : "comfortable"); setActiveViewId(view.id); setShowViews(false); };
+  const saveView = () => {
+    const name = viewName.trim();
+    if (!name || views.some((view) => view.name.toLowerCase() === name.toLowerCase())) return;
+    const view = { id: `all-services-view-${Date.now()}`, name, ...currentView() };
+    setViews((current) => [...current, view]); setActiveViewId(view.id); setViewName("");
+  };
   return (
     <section className="page-section all-services-page">
       <div className="page-title">
@@ -1648,6 +1720,17 @@ function AllServicesView({ services, favorecidos, loading }) {
             />
           </div>
           <strong>{loading ? "Carregando..." : `${rows.length} serviço(s)`}</strong>
+          <div className="all-services-layout-actions">
+            <div className="saved-view-wrap">
+              <button className={`secondary-button ${activeView ? "is-active" : ""}`} onClick={() => setShowViews((value) => !value)}><TableProperties size={16} />{activeView ? activeView.name : "Views"}</button>
+              {showViews && <div className="saved-view-menu" role="dialog"><div className="saved-view-list">{views.map((view) => <button className={view.id === activeViewId ? "is-selected" : ""} key={view.id} onClick={() => applyView(view)}><span>{view.name}</span>{view.id === activeViewId && <CheckCircle2 size={14} />}</button>)}</div><div className="saved-view-create"><span>Salvar layout como nova view</span><div><input value={viewName} onChange={(event) => setViewName(event.target.value)} placeholder="Nome da nova view" /><button className="primary-button" onClick={saveView}><Save size={15} />Criar</button></div></div></div>}
+            </div>
+            <button className={`secondary-button density-button ${density === "compact" ? "is-active" : ""}`} onClick={() => setDensity((current) => current === "compact" ? "comfortable" : "compact")}><Rows3 size={16} />{density === "compact" ? "Compacta" : "Compactar"}</button>
+            <div className="column-picker-wrap">
+              <button className="secondary-button" onClick={() => setShowColumns((value) => !value)}><Columns3 size={16} />Colunas</button>
+              {showColumns && <div className="column-picker" role="dialog"><div className="column-picker-head"><strong>Exibir colunas</strong><button className="text-button" onClick={() => setColumns(ALL_SERVICES_COLUMNS.map((column) => ({ ...column, visible: true })))}>Restaurar</button></div>{columns.map((column, index) => <div className="column-picker-row" key={column.id}><label><input type="checkbox" checked={column.visible} onChange={() => setColumns((current) => current.map((item) => item.id === column.id ? { ...item, visible: !item.visible } : item))} /><span>{column.label}</span></label><button className="column-pin" disabled={index === 0} onClick={() => setColumns((current) => { const next = [...current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })} title="Mover coluna para a esquerda"><ArrowUp size={14} /></button><button className="column-pin" disabled={index === columns.length - 1} onClick={() => setColumns((current) => { const next = [...current]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next; })} title="Mover coluna para a direita"><ArrowDown size={14} /></button></div>)}</div>}
+            </div>
+          </div>
         </div>
         <div className="all-services-filter-grid">
           <label className="field"><span>De</span><input type="date" value={range.from} onChange={(event) => setRange((current) => ({ ...current, from: event.target.value }))} /></label>
@@ -1661,13 +1744,13 @@ function AllServicesView({ services, favorecidos, loading }) {
           <label className="field"><span>Repasse</span><SearchableMultiSelect value={repasseStates} onChange={setRepasseStates} options={[{ value: "pending", label: "Pendente" }, { value: "informed", label: "Informado" }]} placeholder="Todos" /></label>
         </div>
         <div className="all-services-grid-scroll" ref={scrollRef}>
-          <div className="all-services-grid" role="table">
-            <div className="all-services-grid-head" role="row"><span>Serviço</span><span>Data</span><span>Motorista</span><span>Cliente / trajeto</span><span>Total CP</span><span>Repasse</span><span>Favorecido</span><span>Status</span><span>Lote</span></div>
+          <div className={`all-services-grid ${density === "compact" ? "is-compact" : ""}`} role="table" style={{ gridTemplateColumns: gridTemplate }}>
+            <div className="all-services-grid-head" role="row" style={{ gridTemplateColumns: gridTemplate }}>{visibleColumns.map((column) => <button key={column.id} onClick={() => setColumns((current) => current.map((item) => item.id === column.id ? { ...item, width: Math.max(110, item.width - 10) } : item))} title="Reduzir largura da coluna">{column.label}</button>)}</div>
             <div className="all-services-virtual-body" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
               {virtualRows.map((virtualRow) => {
                 const service = rows[virtualRow.index];
-                return <div className="all-services-grid-row" role="row" key={virtualRow.key} style={{ transform: `translateY(${virtualRow.start}px)` }}>
-                  <span><ServiceIdentifierLink identifier={service.identificador} reservationId={service.reservationId} /></span><span>{formatServiceDate(service.dataServico, "Não informado")}</span><span>{service.motorista || "Não informado"}</span><span>{service.cliente || "Não informado"}<small>{service.trajeto || "Sem trajeto"}</small></span><strong>{money(service.valorCobrado)}</strong><strong>{money(service.valorRepasse)}</strong><span>{favorecidoById.get(service.favorecidoId) || "Não informado"}</span><span>{service.reservationStatusLabel || service.statusLabel || service.status || "Não informado"}</span><span>{service.pagamentoId ? "Em lote" : "Fora de lote"}</span>
+                return <div className="all-services-grid-row" role="row" key={virtualRow.key} style={{ transform: `translateY(${virtualRow.start}px)`, gridTemplateColumns: gridTemplate }}>
+                  {visibleColumns.map((column) => <span key={column.id} className={column.id === "valorCobrado" || column.id === "valorRepasse" ? "is-currency" : ""}>{columnValue(service, column)}</span>)}
                 </div>;
               })}
             </div>
