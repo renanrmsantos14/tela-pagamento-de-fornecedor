@@ -1847,6 +1847,13 @@ function PaymentsView({
     () => favorecidos.map((row) => ({ value: row.id, label: row.nome })),
     [favorecidos],
   );
+  const setRepasseFilterMode = (value) => {
+    setRepasseFilter(value);
+    if (value === "all") {
+      setCpStatusFilter([]);
+      setStatusFilter([]);
+    }
+  };
   return (
     <section className="page-section repasse-page">
       <div className="page-title">
@@ -1854,6 +1861,10 @@ function PaymentsView({
           <span>Financeiro / operação</span>
           <h1>Lançar repasses</h1>
           <p>Confira o serviço e registre somente o valor a repassar.</p>
+        </div>
+        <div className="repasse-filter-actions" role="group" aria-label="Filtro de repasse">
+          <button type="button" className={repasseFilter === "pending" ? "is-active" : ""} onClick={() => setRepasseFilterMode("pending")} aria-pressed={repasseFilter === "pending"} title="Mostrar somente serviços sem valor de repasse">Valor pendente</button>
+          <button type="button" className={repasseFilter === "all" ? "is-active" : ""} onClick={() => setRepasseFilterMode("all")} aria-pressed={repasseFilter === "all"} title="Mostrar todos os serviços fora de lote">Todos</button>
         </div>
       </div>
       <section className="surface filter-surface">
@@ -1951,14 +1962,6 @@ function PaymentsView({
         links={links}
         lotDrawerOpen={lotDrawerOpen}
         onGenerateLot={onGenerateLot}
-        repasseFilter={repasseFilter}
-        onRepasseFilterChange={(value) => {
-          setRepasseFilter(value);
-          if (value === "all") {
-            setCpStatusFilter([]);
-            setStatusFilter([]);
-          }
-        }}
       />
     </section>
   );
@@ -1973,8 +1976,6 @@ function RepasseGrid({
   links,
   lotDrawerOpen,
   onGenerateLot,
-  repasseFilter,
-  onRepasseFilterChange,
 }) {
   const [columns, setColumns] = useState(loadRepasseColumns);
   const [density, setDensity] = useState(loadRepasseDensity);
@@ -2627,10 +2628,6 @@ function RepasseGrid({
           )}
         </div>
         <div className="repasse-grid-actions">
-          <div className="repasse-filter-toggle" role="group" aria-label="Filtro de repasse">
-            <button type="button" className={repasseFilter === "pending" ? "is-active" : ""} onClick={() => onRepasseFilterChange("pending")} aria-pressed={repasseFilter === "pending"} aria-label="Mostrar somente serviços sem valor de repasse" title="Mostrar somente serviços sem valor de repasse"><span>Valor pendente</span><Check className="repasse-filter-check" size={13} strokeWidth={3} aria-hidden="true" /></button>
-            <button type="button" className={repasseFilter === "all" ? "is-active" : ""} onClick={() => onRepasseFilterChange("all")} aria-pressed={repasseFilter === "all"} aria-label="Mostrar todos os serviços fora de lote" title="Mostrar todos os serviços fora de lote"><span>Todos</span><Check className="repasse-filter-check" size={13} strokeWidth={3} aria-hidden="true" /></button>
-          </div>
           <GenerateLotButton
             selectedServices={selectedServices}
             drawerOpen={lotDrawerOpen}
