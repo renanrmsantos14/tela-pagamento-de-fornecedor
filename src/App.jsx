@@ -1832,10 +1832,10 @@ function PaymentsView({
           <p>Confira o serviço e registre somente o valor a repassar.</p>
         </div>
         <div className="repasse-filter-control">
-          <span>Exibir</span>
+          <span>Visão da lista</span>
           <div className="repasse-filter-toggle" role="group" aria-label="Filtro de repasse">
-            <button type="button" className={repasseFilter === "pending" ? "is-active" : ""} onClick={() => setRepasseFilter("pending")} aria-pressed={repasseFilter === "pending"}>Valor pendente</button>
-            <button type="button" className={repasseFilter === "all" ? "is-active" : ""} onClick={() => { setRepasseFilter("all"); setCpStatusFilter([]); setStatusFilter([]); }} aria-pressed={repasseFilter === "all"}>Todos</button>
+            <button type="button" className={repasseFilter === "pending" ? "is-active" : ""} onClick={() => setRepasseFilter("pending")} aria-pressed={repasseFilter === "pending"} aria-label="Mostrar somente serviços sem valor de repasse" title="Mostrar somente serviços sem valor de repasse"><span>Valor pendente</span><Check className="repasse-filter-check" size={13} strokeWidth={3} aria-hidden="true" /></button>
+            <button type="button" className={repasseFilter === "all" ? "is-active" : ""} onClick={() => { setRepasseFilter("all"); setCpStatusFilter([]); setStatusFilter([]); }} aria-pressed={repasseFilter === "all"} aria-label="Mostrar todos os serviços fora de lote" title="Mostrar todos os serviços fora de lote"><span>Todos</span><Check className="repasse-filter-check" size={13} strokeWidth={3} aria-hidden="true" /></button>
           </div>
         </div>
       </div>
