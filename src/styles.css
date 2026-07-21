@@ -4020,13 +4020,16 @@ textarea:focus-visible {
 .repasse-filter-actions {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  flex-wrap: nowrap;
+  gap: 4px;
+  white-space: nowrap;
 }
 .repasse-filter-actions button {
   position: relative;
-  min-height: 32px;
-  padding: 0 7px;
+  min-height: 34px;
+  padding: 0 10px;
   border: 0;
+  border-radius: 8px;
   color: #6b7b91;
   background: transparent;
   font-size: var(--text-xs);
@@ -4037,9 +4040,9 @@ textarea:focus-visible {
 .repasse-filter-actions button::after {
   content: "";
   position: absolute;
-  right: 7px;
+  right: 10px;
   bottom: 3px;
-  left: 7px;
+  left: 10px;
   height: 2px;
   border-radius: 999px;
   background: currentColor;
@@ -4049,6 +4052,8 @@ textarea:focus-visible {
 }
 .repasse-filter-actions button.is-active {
   color: var(--navy);
+  background: var(--blue-soft);
+  box-shadow: inset 0 0 0 1px rgba(33, 89, 210, 0.16);
 }
 .repasse-filter-actions button.is-active::after {
   opacity: 1;
