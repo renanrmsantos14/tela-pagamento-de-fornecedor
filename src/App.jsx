@@ -1831,6 +1831,13 @@ function PaymentsView({
           <h1>Lançar repasses</h1>
           <p>Confira o serviço e registre somente o valor a repassar.</p>
         </div>
+        <div className="repasse-filter-control">
+          <span>Exibir</span>
+          <div className="repasse-filter-toggle" role="group" aria-label="Filtro de repasse">
+            <button type="button" className={repasseFilter === "pending" ? "is-active" : ""} onClick={() => setRepasseFilter("pending")} aria-pressed={repasseFilter === "pending"}>Valor pendente</button>
+            <button type="button" className={repasseFilter === "all" ? "is-active" : ""} onClick={() => { setRepasseFilter("all"); setCpStatusFilter([]); setStatusFilter([]); }} aria-pressed={repasseFilter === "all"}>Todos</button>
+          </div>
+        </div>
       </div>
       <section className="surface filter-surface">
         <div className="search-box">
@@ -1840,10 +1847,6 @@ function PaymentsView({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-        </div>
-        <div className="repasse-filter-toggle" role="group" aria-label="Filtro de repasse">
-          <button className={repasseFilter === "pending" ? "is-active" : ""} onClick={() => setRepasseFilter("pending")} aria-pressed={repasseFilter === "pending"}>Valor pendente</button>
-          <button className={repasseFilter === "all" ? "is-active" : ""} onClick={() => { setRepasseFilter("all"); setCpStatusFilter([]); setStatusFilter([]); }} aria-pressed={repasseFilter === "all"}>Todos</button>
         </div>
         <div className="finance-filter-grid">
           <label className="field">

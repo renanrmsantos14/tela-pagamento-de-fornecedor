@@ -4014,6 +4014,20 @@ textarea:focus-visible {
 .repasse-page .page-title {
   min-height: 56px;
 }
+.repasse-filter-control {
+  min-width: max-content;
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+}
+.repasse-filter-control > span {
+  color: #65748a;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
 .repasse-page .filter-surface {
   padding: 10px;
   gap: 8px;
@@ -4022,22 +4036,37 @@ textarea:focus-visible {
   width: fit-content;
   display: inline-grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  overflow: hidden;
+  gap: 2px;
+  padding: 3px;
   border: 1px solid #c7d4e6;
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fcfcfb;
+  box-shadow: 0 1px 2px rgba(17, 42, 78, 0.05);
 }
 .repasse-filter-toggle button {
-  min-height: 34px;
+  min-height: 32px;
   padding: 0 12px;
   color: #526b8d;
   background: transparent;
+  border-radius: 7px;
   font-size: var(--text-xs);
   font-weight: 800;
-  transition: color 150ms var(--ease-out), background-color 150ms var(--ease-out);
+  line-height: 1;
+  transition: color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
 }
-.repasse-filter-toggle button + button { border-left: 1px solid #c7d4e6; }
-.repasse-filter-toggle button.is-active { color: #fff; background: var(--navy); }
+.repasse-filter-toggle button.is-active {
+  color: #fff;
+  background: var(--navy);
+  box-shadow: 0 1px 2px rgba(17, 42, 78, 0.22);
+}
+.repasse-filter-toggle button:focus-visible {
+  outline: 2px solid #2f7fe8;
+  outline-offset: 1px;
+}
+.repasse-filter-toggle button:active { transform: scale(0.98); }
+@media (hover: hover) {
+  .repasse-filter-toggle button:not(.is-active):hover { background: #eef4fb; }
+}
 .repasse-page .finance-filter-grid {
   grid-template-columns: 0.66fr 0.66fr 1.08fr 1.08fr 1fr 0.96fr 1.02fr;
   gap: 6px;
