@@ -386,7 +386,6 @@ function ServiceIdentifierLink({ identifier, reservationId }) {
 }
 export default function App() {
   const [services, setServices] = useState([]);
-  const [allServices, setAllServices] = useState([]);
   const [previousServices, setPreviousServices] = useState([]);
   const [favorecidos, setFavorecidos] = useState([]);
   const [drivers, setDrivers] = useState([]);
@@ -499,25 +498,6 @@ export default function App() {
       .catch((err) => reportActionError("Atualizacao do periodo anterior", err))
       .finally(() => setBusy("refresh", false));
   }, [tab, range.from, range.to]);
-  useEffect(() => {
-    if (tab !== "allServices") return undefined;
-    let active = true;
-    setBusy("all-services", true);
-    dataverse
-      .listFinanceServices()
-      .then((rows) => {
-        if (active) setAllServices(rows);
-      })
-      .catch((err) => {
-        if (active) reportActionError("Carregamento de todos os serviços", err);
-      })
-      .finally(() => {
-        if (active) setBusy("all-services", false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [tab]);
   useEffect(() => {
     if (!notice) return undefined;
     const timer = setTimeout(() => setNotice(""), 3200);
@@ -1006,13 +986,6 @@ export default function App() {
               }}
             />
           )}
-          {tab === "allServices" && (
-            <AllServicesView
-              services={allServices}
-              favorecidos={favorecidos}
-              loading={busy("all-services")}
-            />
-          )}
           {tab === "lots" && (
             <LotsView
               lots={resolvedLots}
@@ -1083,13 +1056,6 @@ export default function App() {
         >
           <CircleDollarSign size={18} />
           <span>Repasses</span>
-        </button>
-        <button
-          className={tab === "allServices" ? "active" : ""}
-          onClick={() => setTab("allServices")}
-        >
-          <TableProperties size={18} />
-          <span>Serviços</span>
         </button>
         <button
           className={tab === "lots" ? "active" : ""}
@@ -1302,14 +1268,6 @@ function Nav({ tab, onChange }) {
       >
         <CircleDollarSign size={17} />
         <span>Lançar repasses</span>
-      </button>
-      <button
-        className={tab === "allServices" ? "active" : ""}
-        onClick={() => onChange("allServices")}
-        title="Todos os serviços"
-      >
-        <TableProperties size={17} />
-        <span>Todos os serviços</span>
       </button>
       <button
         className={tab === "lots" ? "active" : ""}
@@ -1787,6 +1745,7 @@ function PaymentsView({
 }) {
   const [statusFilter, setStatusFilter] = useState([]);
   const [cpStatusFilter, setCpStatusFilter] = useState([]);
+  const [repasseFilter, setRepasseFilter] = useState("pending");
   const statusDefaultApplied = useRef(false);
   const cpStatusDefaultApplied = useRef(false);
   const cpStatusOptions = useMemo(() => {
@@ -1840,11 +1799,12 @@ function PaymentsView({
     () =>
       services.filter((row) =>
         !row.pagamentoId &&
+        (repasseFilter === "all" || (!isLegacyPaidService(row) && Number(row.valorRepasse || 0) <= 0)) &&
         thirdPartyDriverIds.has(row.motoristaId) &&
         (!cpStatusFilter.length || cpStatusFilter.includes(String(row.status))) &&
         (!statusFilter.length || statusFilter.includes(row.reservationStatus)),
       ),
-    [services, thirdPartyDriverIds, cpStatusFilter, statusFilter],
+    [services, thirdPartyDriverIds, cpStatusFilter, statusFilter, repasseFilter],
   );
   const servicesWithStatusColor = useMemo(() => {
     const colors = new Map(
@@ -1880,6 +1840,10 @@ function PaymentsView({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
+        </div>
+        <div className="repasse-filter-toggle" role="group" aria-label="Filtro de repasse">
+          <button className={repasseFilter === "pending" ? "is-active" : ""} onClick={() => setRepasseFilter("pending")} aria-pressed={repasseFilter === "pending"}>Valor pendente</button>
+          <button className={repasseFilter === "all" ? "is-active" : ""} onClick={() => { setRepasseFilter("all"); setCpStatusFilter([]); setStatusFilter([]); }} aria-pressed={repasseFilter === "all"}>Todos</button>
         </div>
         <div className="finance-filter-grid">
           <label className="field">
