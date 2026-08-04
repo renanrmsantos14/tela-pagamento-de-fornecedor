@@ -34,7 +34,7 @@ export const CHOICES = Object.freeze({
   completedComposition: 100000001,
   serviceItemCategory: 100000000,
   activeEmployee: 0,
-  thirdPartyEmployee: 202410001,
+  thirdPartyEmployee: 1,
   activeFavorecido: 100000000,
   inactiveFavorecido: 100000001,
   activeLink: 100000000,

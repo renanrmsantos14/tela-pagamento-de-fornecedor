@@ -45,7 +45,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { dataverse } from "./lib/dataverse";
+import { CHOICES, dataverse } from "./lib/dataverse";
 import { buildPaymentPdf } from "./lib/document";
 import {
   lotCreationDrawer,
@@ -1795,7 +1795,7 @@ function PaymentsView({
         drivers
           .filter(
             (driver) =>
-              Number(driver.tipoVinculo) === 202410001 ||
+              Number(driver.tipoVinculo) === CHOICES.thirdPartyEmployee ||
               normalizeFilterLabel(driver.tipoVinculo) === "terceiro",
           )
           .map((driver) => driver.id),
