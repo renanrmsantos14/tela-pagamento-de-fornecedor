@@ -2420,7 +2420,7 @@ select:focus {
   font-size: var(--text-sm);
   font-weight: 700;
 }
-.repasse-grid-summary strong {
+.repasse-grid-summary > strong {
   padding: 4px 8px;
   border-radius: 7px;
   color: #fff;
