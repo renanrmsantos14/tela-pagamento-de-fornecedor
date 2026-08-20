@@ -68,6 +68,7 @@ import {
   parseMoney,
   paymentTotals,
   repassePercent,
+  serviceLotWarnings,
   serviceLotEligibilityReason,
   validateFavorecido,
 } from "./domain/payment";
@@ -752,9 +753,17 @@ export default function App() {
       setDrawer({ type: "lotDetail" });
       void refresh();
     } catch (err) {
-      setLotDetail(null);
-      setDrawer(null);
-      reportActionError("Criacao do lote", err);
+      setPreselected(new Set(input.services.map((service) => service.id)));
+      setDrawer({
+        type: "lot",
+        favorecidoId: input.favorecido.id,
+      });
+      const retryError = new Error(
+        `${err?.message || "Falha inesperada."} Revise os serviços e tente novamente.`,
+      );
+      retryError.name = err?.name || "Error";
+      retryError.stack = err?.stack || retryError.stack;
+      reportActionError("Criacao do lote", retryError);
     } finally {
       setBusy("lot", false);
     }
@@ -2145,6 +2154,14 @@ function RepasseGrid({
     () => eligibleLotServices.filter((service) => selectedIds.has(service.id)),
     [eligibleLotServices, selectedIds],
   );
+  const selectedTotals = useMemo(
+    () => paymentTotals(selectedServices),
+    [selectedServices],
+  );
+  const selectedWarningServices = useMemo(
+    () => selectedServices.filter((service) => serviceLotWarnings(service).length),
+    [selectedServices],
+  );
   const selectedFavorecidoId = selectedServices[0]?.favorecidoId || "";
   const selectableFavorecidoId =
     selectedFavorecidoId || eligibleLotServices[0]?.favorecidoId || "";
@@ -2624,10 +2641,20 @@ function RepasseGrid({
           <span>serviços concluídos</span>
           {pendingCount > 0 && <b>{pendingCount} pendente(s)</b>}
           {selectedServices.length > 0 ? (
-            <span className="repasse-selection-status" role="status">
-              <Check size={13} aria-hidden="true" />
-              {selectedServices.length} selecionado(s)
-            </span>
+            <>
+              <span className="repasse-selection-status" role="status">
+                <Check size={13} aria-hidden="true" />
+                {selectedServices.length} selecionado(s)
+              </span>
+              <small className="repasse-selection-total">
+                Repasse: <strong>{money(selectedTotals.repasse)}</strong>
+              </small>
+              {selectedWarningServices.length > 0 && (
+                <small className="repasse-selection-warning">
+                  {selectedWarningServices.length} com prejuízo/CP zerada
+                </small>
+              )}
+            </>
           ) : (
             <small>Selecione serviços prontos do mesmo favorecido.</small>
           )}
@@ -3017,6 +3044,7 @@ function RepasseGrid({
               service.favorecidoId !== selectedFavorecidoId;
             const isSelected = selectedIds.has(service.id);
             const selectionDisabled = !isEligibleForLot || isOtherFavorecido;
+            const financialWarnings = serviceLotWarnings(service);
             const eligibilityReason = !service.favorecidoId
               ? "Nenhum favorecido vinculado ao serviço"
               : !activeFavorecidoIds.has(service.favorecidoId)
@@ -3030,18 +3058,22 @@ function RepasseGrid({
               ? `Não pode entrar no lote. Motivo: ${eligibilityReason}.`
               : isOtherFavorecido
                 ? "Um lote só pode conter serviços do mesmo favorecido"
-                : `Selecionar ${service.identificador} para gerar lote`;
+                : financialWarnings.length
+                  ? `Selecionar ${service.identificador}. Atenção: ${financialWarnings
+                      .map((warning) => warning.message)
+                      .join("; ")}.`
+                  : `Selecionar ${service.identificador} para gerar lote`;
             return (
-            <div
-              ref={rowVirtualizer.measureElement}
-              data-index={virtualRow.index}
-              className={`repasse-grid-row is-virtual ${!isLegacyPaidService(service) && service.valorRepasse <= 0 ? "is-pending" : ""} ${isSelected ? "is-selected" : ""}`}
-              key={virtualRow.key}
-              style={{
-                gridTemplateColumns: gridTemplate,
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-            >
+              <div
+                ref={rowVirtualizer.measureElement}
+                data-index={virtualRow.index}
+                className={`repasse-grid-row is-virtual ${!isLegacyPaidService(service) && service.valorRepasse <= 0 ? "is-pending" : ""} ${financialWarnings.length ? "has-financial-warning" : ""} ${isSelected ? "is-selected" : ""}`}
+                key={virtualRow.key}
+                style={{
+                  gridTemplateColumns: gridTemplate,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
               <div
                 className="repasse-grid-select-cell"
                 title={selectionDisabled ? selectionLabel : undefined}
@@ -3071,7 +3103,7 @@ function RepasseGrid({
                   {cell(service, column)}
                 </div>
               ))}
-            </div>
+              </div>
             );
           })}
           </div>
@@ -3821,6 +3853,13 @@ function LotDrawer({
   );
   const chosen = available.filter((row) => selected.includes(row.id));
   const totals = paymentTotals(chosen);
+  const warningServices = chosen.filter((row) => serviceLotWarnings(row).length);
+  const zeroCpCount = warningServices.filter((row) =>
+    serviceLotWarnings(row).some((warning) => warning.code === "ZERO_CP"),
+  ).length;
+  const negativeMarginCount = warningServices.filter((row) =>
+    serviceLotWarnings(row).some((warning) => warning.code === "NEGATIVE_MARGIN"),
+  ).length;
   const favorecido = favorecidos.find((row) => row.id === favorecidoId);
   return (
     <Drawer
@@ -3891,10 +3930,12 @@ function LotDrawer({
             <strong>{money(totals.margin)}</strong>
           </div>
         </div>
-        {totals.margin < 0 && (
+        {warningServices.length > 0 && (
           <div className="inline-alert warning-alert">
             <AlertTriangle size={16} />
-            Este lote possui lucro negativo, mas pode ser criado.
+            {zeroCpCount > 0 && `${zeroCpCount} serviço(s) com Total CP zerado. `}
+            {negativeMarginCount > 0 && `${negativeMarginCount} serviço(s) com prejuízo. `}
+            O repasse será mantido e o lote pode ser criado após esta revisão.
           </div>
         )}
         <div className="selection-list">

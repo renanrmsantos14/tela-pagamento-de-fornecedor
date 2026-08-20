@@ -12,6 +12,7 @@ import {
   profit,
   repassePercent,
   serviceLotEligibilityReason,
+  serviceLotWarnings,
   toCents,
   validateFavorecido,
 } from "../src/domain/payment.js";
@@ -65,6 +66,27 @@ test("soma receita, repasse, lucro e percentual", () =>
   }));
 test("só torna elegível serviço concluído com repasse e vínculo ativo", () =>
   assert.equal(eligibleServices(services, "f1", links).length, 2));
+test("permite CP zerada com repasse e sinaliza prejuízo", () => {
+  const service = {
+    ...services[0],
+    id: "zero-cp",
+    valorCobrado: 0,
+    valorRepasse: 50,
+  };
+  assert.equal(eligibleServices([service], "f1", links).length, 1);
+  assert.deepEqual(
+    serviceLotWarnings(service).map((warning) => warning.code),
+    ["ZERO_CP", "NEGATIVE_MARGIN"],
+  );
+  assert.equal(serviceLotEligibilityReason(service, "f1", links), "");
+});
+test("mantém serviço com margem negativa elegível e sinalizado", () => {
+  assert.equal(eligibleServices([services[1]], "f1", links).length, 1);
+  assert.deepEqual(
+    serviceLotWarnings(services[1]).map((warning) => warning.code),
+    ["NEGATIVE_MARGIN"],
+  );
+});
 test("usa indice de vinculos ativos sem percorrer a lista por servico", () => {
   const activeLinks = new Set(["m1:f1", "m2:f1"]);
   assert.equal(eligibleServices(services, "f1", activeLinks).length, 2);

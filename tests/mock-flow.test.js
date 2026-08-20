@@ -53,9 +53,9 @@ async function remoteClient({
     cr40f_anoreferencia: 2026,
     cr40f_identificadorlote: "PT-2026-REMOTE",
     cr40f_quantidadeservicos: 1,
-    cr40f_totalcobradocliente: 1000,
+    cr40f_totalcobradocliente: 500,
     cr40f_totalrepasse: 600,
-    cr40f_margemtotal: 400,
+    cr40f_margemtotal: -100,
     cr40f_snapshotfavorecido: JSON.stringify({
       id: "fav-remote-001",
       nome: "Favorecido remoto",
@@ -254,7 +254,7 @@ async function remoteClient({
             cr40f_composicaodeprecosid: "cmp-remote-001",
             cr40f_id: "CMP-REMOTE-001",
             _cr40f_reserva_value: "res-remote-001",
-            new_valortotal: 1000,
+            new_valortotal: 500,
             new_status: 100000001,
             "new_status@OData.Community.Display.V1.FormattedValue": "Concluído",
             cr40f_valorrepasseterceiro: 600,
@@ -274,10 +274,10 @@ async function remoteClient({
           {
             cr40f_reservadeveculosid: "res-remote-001",
             cr40f_id: "RES-REMOTE-001",
-            cr40f_status: 100000002,
+            cr40f_status: 100000001,
             new_categoriadoitem: 100000000,
             "cr40f_status@OData.Community.Display.V1.FormattedValue":
-              "Cancelado com ressalvas",
+              "Concluído",
             cr40f_dataehorriodesada: "2026-07-15T12:00:00Z",
             "cr40f_dataehorriodesada@OData.Community.Display.V1.FormattedValue":
               "15/07/2026 09:00",
@@ -310,9 +310,9 @@ async function remoteClient({
             _cr40f_motoristareferencia_value: "drv-remote-001",
             cr40f_dataservico: "2026-07-15T12:00:00Z",
             cr40f_trajeto: "GRU - Centro",
-            cr40f_valorcobrado: 1000,
+            cr40f_valorcobrado: 500,
             cr40f_valorrepasse: 600,
-            cr40f_margem: 400,
+            cr40f_margem: -100,
             cr40f_snapshotfinanceiro: "{}",
           },
         ],
@@ -468,6 +468,7 @@ test("cancelamento exige motivo e libera serviços", async () => {
       row.status === "concluido" &&
       row.valorRepasse > 0 &&
       !row.pagamentoId &&
+      row.dataServico >= "2026-06-01" &&
       row.favorecidoId === favorecido.id,
   );
   const lot = await dataverse.createDraftLot({
@@ -493,6 +494,7 @@ test("falha documental mantém pagamento e reversão exige motivo", async () => 
       row.status === "concluido" &&
       row.valorRepasse > 0 &&
       !row.pagamentoId &&
+      row.dataServico >= "2026-06-01" &&
       row.favorecidoId === favorecido.id,
   );
   const lot = await dataverse.createDraftLot({
@@ -627,10 +629,10 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
     assert.equal(remoteServices[0].identificador, "RES-REMOTE-001");
     assert.equal(remoteServices[0].itemCategory, 100000000);
     assert.equal(remoteServices[0].status, "concluido");
-    assert.equal(remoteServices[0].reservationStatus, "100000002");
+    assert.equal(remoteServices[0].reservationStatus, "100000001");
     assert.equal(
       remoteServices[0].reservationStatusLabel,
-      "Cancelado com ressalvas",
+      "Concluído",
     );
     assert.deepEqual(
       reservationStatuses.map((option) => option.label),
@@ -699,6 +701,8 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
       "/cr40f_funcionarioses(drv-remote-001)",
     );
     assert.equal(itemPayload.cr40f_valorrepasse, 600);
+    assert.equal(itemPayload.cr40f_valorcobrado, 500);
+    assert.equal(itemPayload.cr40f_margem, -100);
     const eventRequest = remote.requests.find(
       (request) =>
         request.options.method === "POST" &&

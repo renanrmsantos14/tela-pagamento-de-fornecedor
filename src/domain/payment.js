@@ -98,7 +98,6 @@ export function isEligibleService(service, favorecidoId, activeLinks = []) {
   if (
     isLegacyPaidService(service) ||
     !isCompletedService(service) ||
-    toCents(service.valorCobrado) <= 0 ||
     toCents(service.valorRepasse) <= 0 ||
     service.pagamentoId
   )
@@ -123,8 +122,6 @@ export function serviceLotEligibilityReason(
     return "Pagamento historico anterior a 01/06/2026";
   if (!isCompletedService(service))
     return "Status da CP não é Concluída (a CP precisa estar concluída)";
-  if (toCents(service.valorCobrado) <= 0)
-    return "Total CP não informado ou igual a R$ 0,00";
   if (toCents(service.valorRepasse) <= 0)
     return "Repasse ainda não lançado ou igual a R$ 0,00";
   if (service.pagamentoId) return "Serviço já reservado em outro lote";
@@ -144,6 +141,21 @@ export function serviceLotEligibilityReason(
   )
     return "Não existe vínculo ativo entre motorista e favorecido";
   return "";
+}
+
+export function serviceLotWarnings(service) {
+  const warnings = [];
+  if (toCents(service.valorCobrado) <= 0)
+    warnings.push({
+      code: "ZERO_CP",
+      message: "Total CP zerado; repasse será pago como prejuízo",
+    });
+  if (toCents(profit(service)) < 0)
+    warnings.push({
+      code: "NEGATIVE_MARGIN",
+      message: "Serviço com prejuízo",
+    });
+  return warnings;
 }
 
 export function eligibleServices(

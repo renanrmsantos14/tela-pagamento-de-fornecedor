@@ -137,7 +137,7 @@
     SchemaName: schemaName,
     DisplayName: label(displayName),
     Description: label(displayName),
-    MinValue: -100000000000,
+    MinValue: -1000000000,
     MaxValue: 100000000000,
     Precision: 2,
     PrecisionSource: 1,
@@ -403,6 +403,8 @@
     `/EntityDefinitions(LogicalName='${escapeOData(logicalName)}')`;
   const metadataAttributePath = (entity, attribute) =>
     `${metadataPath(entity)}/Attributes(LogicalName='${escapeOData(attribute)}')`;
+  const moneyMetadataPath = (entity, attribute) =>
+    `${metadataAttributePath(entity, attribute)}/Microsoft.Dynamics.CRM.MoneyAttributeMetadata`;
 
   const request = async (method, path, body) => {
     const response = await fetch(`${apiRoot}${path}`, {
@@ -468,6 +470,11 @@
     );
     return data.value?.[0] || null;
   };
+
+  const getMoneyAttribute = (entity, logicalName) =>
+    getOrNull(
+      `${moneyMetadataPath(entity, logicalName)}?$select=LogicalName,MinValue,MaxValue`,
+    );
 
   const getPicklistAttribute = (entity, logicalName) =>
     getOrNull(
@@ -547,6 +554,56 @@
     log("coluna criada", `${entity}.${logicalName}`);
     return created;
   };
+
+  const ensureMoneyRange = async ({ entity, attribute, minValue }) => {
+    const metadata = await getMoneyAttribute(entity, attribute);
+    if (!metadata) {
+      throw new Error(
+        `Metadata Money não encontrada para ${entity}.${attribute}; nenhuma alteração foi feita.`,
+      );
+    }
+    const currentMin = Number(metadata.MinValue);
+    const currentMax = Number(metadata.MaxValue);
+    if (!Number.isFinite(currentMin) || !Number.isFinite(currentMax)) {
+      throw new Error(
+        `MinValue/MaxValue inválidos em ${entity}.${attribute}; nenhuma alteração foi feita.`,
+      );
+    }
+    if (currentMin === minValue) {
+      log(
+        "faixa Money já configurada",
+        `${entity}.${attribute} (${currentMin} a ${currentMax})`,
+      );
+      return;
+    }
+    if (currentMin > minValue) {
+      log(
+        "ajustando MinValue Money",
+        `${entity}.${attribute}: ${currentMin} -> ${minValue}; MaxValue preservado em ${currentMax}`,
+      );
+      await request("PATCH", metadataAttributePath(entity, attribute), {
+        "@odata.type": "Microsoft.Dynamics.CRM.MoneyAttributeMetadata",
+        MinValue: minValue,
+      });
+      return;
+    }
+    throw new Error(
+      `MinValue atual de ${entity}.${attribute} (${currentMin}) já é menor que o alvo ${minValue}; revisão manual necessária para não restringir a faixa.`,
+    );
+  };
+
+  const moneyRangeUpdates = [
+    {
+      entity: "cr40f_pagamentoaterceiro",
+      attribute: "cr40f_margemtotal",
+      minValue: -1000000000,
+    },
+    {
+      entity: "cr40f_itempagamentoaterceiro",
+      attribute: "cr40f_margem",
+      minValue: -1000000000,
+    },
+  ];
 
   const ensureChoiceOptions = async (entity, column, options) => {
     const attribute = await getPicklistAttribute(entity, column);
@@ -716,6 +773,10 @@
 
     for (const definition of lookups) {
       await ensureLookup(definition);
+    }
+
+    for (const update of moneyRangeUpdates) {
+      await ensureMoneyRange(update);
     }
 
     await request("POST", "/PublishAllXml");

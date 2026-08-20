@@ -4,6 +4,7 @@ import {
   LOT_STATUS,
   PAYMENT_STATUS,
   createLotSnapshot,
+  isEligibleService,
   paymentTotals,
   validateFavorecido,
 } from "../domain/payment.js";
@@ -1552,20 +1553,14 @@ class DataverseClient {
       throw new Error(
         "Um ou mais serviÃ§os selecionados foram alterados. Atualize a lista e tente novamente.",
       );
-    const invalid = actual.filter(
-      (service) =>
-        service.pagamentoId ||
-        service.valorRepasse <= 0 ||
-        !links.some(
-          (link) =>
-            link.status === "ativo" &&
-            link.motoristaId === service.motoristaId &&
-            link.favorecidoId === input.favorecido.id,
-        ),
+    const invalid = actual.filter((service) =>
+      !isEligibleService(service, input.favorecido.id, links),
     );
     if (invalid.length)
       throw new Error(
-        `Há ${invalid.length} serviço(s) indisponível(is) para este favorecido.`,
+        `Há ${invalid.length} serviço(s) indisponível(is) para este favorecido: ${invalid
+          .map((service) => service.identificador || service.id)
+          .join(", ")}.`,
       );
     const snapshot = createLotSnapshot(input.favorecido, actual, input.year);
     const identifier = `PT-${input.year}-${String(Date.now()).slice(-6)}`;
@@ -1639,6 +1634,16 @@ class DataverseClient {
         { next: "Rascunho", version: 1 },
       );
     } catch (error) {
+      void this.logError(error, {
+        action: "Criacao do lote",
+        phase: "lot.reserve",
+        payload: {
+          paymentId,
+          identifier,
+          serviceIds: actual.map((service) => service.id),
+          totals: paymentTotals(actual),
+        },
+      });
       await Promise.all(
         linkedServices.map(async (service) => {
           try {
