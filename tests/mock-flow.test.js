@@ -686,6 +686,15 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
       services: [{ id: "cmp-remote-001" }],
     });
     assert.equal(created.id, "lot-remote-001");
+    assert(
+      remote.requests.some(
+        (request) =>
+          request.url.includes("cr40f_composicaodeprecoses") &&
+          decodeURIComponent(request.url).includes(
+            "cr40f_composicaodeprecosid eq cmp-remote-001",
+          ),
+      ),
+    );
     const itemRequest = remote.requests.find(
       (request) =>
         request.options.method === "POST" &&
@@ -722,6 +731,40 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
     assert.equal(detail.items[0].motorista, "Motorista remoto");
     assert.equal(detail.events[0].operation, "paid");
     assert.equal(detail.favorecido.email, "favorecido@example.com");
+  } finally {
+    remote.restore();
+  }
+});
+
+test("revalidação direcionada identifica composição sem serviço relacionado", async () => {
+  const remote = await remoteClient();
+  try {
+    await assert.rejects(
+      remote.dataverse.createDraftLot({
+        year: 2026,
+        favorecido: {
+          id: "fav-remote-001",
+          nome: "Favorecido remoto",
+          email: "favorecido@example.com",
+        },
+        services: [{ id: "cmp-without-service" }],
+      }),
+      (error) => {
+        assert.equal(error.code, "LOT_SERVICE_NOT_FOUND");
+        assert.deepEqual(error.missingServiceIds, ["cmp-without-service"]);
+        assert.match(error.message, /não encontrado/);
+        return true;
+      },
+    );
+    assert(
+      remote.requests.some(
+        (request) =>
+          request.url.includes("cr40f_composicaodeprecoses") &&
+          decodeURIComponent(request.url).includes(
+            "cr40f_composicaodeprecosid eq cmp-without-service",
+          ),
+      ),
+    );
   } finally {
     remote.restore();
   }

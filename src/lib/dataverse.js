@@ -5,6 +5,7 @@ import {
   PAYMENT_STATUS,
   createLotSnapshot,
   isEligibleService,
+  serviceLotEligibilityReason,
   paymentTotals,
   validateFavorecido,
 } from "../domain/payment.js";
@@ -666,12 +667,15 @@ class DataverseClient {
     }
     if (!response.ok) {
       const error = new Error(
-        data?.error?.message ||
-          data?.Message ||
-          data?.raw ||
-          `${response.status} ${response.statusText}`,
+        response.status === 412
+          ? "Serviço foi alterado por outro processo durante a reserva. Atualize a lista e tente novamente."
+          : data?.error?.message ||
+              data?.Message ||
+              data?.raw ||
+              `${response.status} ${response.statusText}`,
       );
       error.status = response.status;
+      if (response.status === 412) error.code = "DATAVERSE_CONFLICT";
       void this.logError(error, { action: method, phase: path });
       throw error;
     }
@@ -1226,6 +1230,8 @@ class DataverseClient {
         this.mock.services.filter(
           (row) =>
             row.itemCategory === CHOICES.serviceItemCategory &&
+            (!filters.compositionIds?.length ||
+              filters.compositionIds.map(cleanGuid).includes(cleanGuid(row.id))) &&
             (!filters.from || row.dataServico >= filters.from) &&
             (!filters.to || row.dataServico.slice(0, 10) <= filters.to) &&
             (!filters.motoristaId || row.motoristaId === filters.motoristaId),
@@ -1237,6 +1243,9 @@ class DataverseClient {
       this.entity(TABLES.reservation),
     ]);
     const reservationFields = [...new Set(Object.values(operationalFields).filter(Boolean))];
+    const compositionIds = [
+      ...new Set((filters.compositionIds || []).map(cleanGuid).filter(Boolean)),
+    ];
     const reservationFilters = [
       `new_categoriadoitem eq ${CHOICES.serviceItemCategory}`,
     ];
@@ -1250,35 +1259,77 @@ class DataverseClient {
       reservationFilters.push(
         `${operationalFields.motorista} eq ${cleanGuid(filters.motoristaId)}`,
       );
-    const reservationRows = await this.listAll(
-      TABLES.reservation,
-      `?$select=${reservationEntity.id},cr40f_id,cr40f_status,new_categoriadoitem${reservationFields.length ? `,${reservationFields.join(",")}` : ""}&$filter=${reservationFilters.join(" and ")}&$top=5000`,
-    );
-    if (!reservationRows.length) return [];
-    const reservationIds = reservationRows.map((row) =>
-      cleanGuid(row[reservationEntity.id]),
-    );
     const compositionSelect =
       `?$select=cr40f_composicaodeprecosid,cr40f_id,${reservationLookupValueField},new_valortotal,new_status,cr40f_valorrepasseterceiro,_cr40f_terceirofavorecido_value,_cr40f_pagamentoaterceiro_value`;
-    const hasScopedFilter = Boolean(from || toExclusive || filters.motoristaId);
-    const compositionRows = hasScopedFilter
-      ? (
-          await Promise.all(
-            chunk(reservationIds, FINANCE_SERVICE_FILTER_BATCH_SIZE).map(
-              (ids) =>
-                this.listAll(
-                  TABLES.composition,
-                  `${compositionSelect}&$filter=${ids
-                    .map((id) => `${reservationLookupValueField} eq ${id}`)
-                    .join(" or ")}&$top=5000`,
-                ),
-            ),
-          )
-        ).flat()
-      : await this.listAll(
-          TABLES.composition,
-          `${compositionSelect}&$top=5000`,
-        );
+    let compositionRows;
+    let reservationRows;
+    if (compositionIds.length) {
+      compositionRows = (
+        await Promise.all(
+          chunk(compositionIds, FINANCE_SERVICE_FILTER_BATCH_SIZE).map(
+            (ids) =>
+              this.listAll(
+                TABLES.composition,
+                `${compositionSelect}&$filter=${ids
+                  .map((id) => `cr40f_composicaodeprecosid eq ${id}`)
+                  .join(" or ")}&$top=5000`,
+              ),
+          ),
+        )
+      ).flat();
+      const reservationIds = [
+        ...new Set(
+          compositionRows
+            .map((row) => cleanGuid(row[reservationLookupValueField]))
+            .filter(Boolean),
+        ),
+      ];
+      reservationRows = (
+        await Promise.all(
+          chunk(reservationIds, FINANCE_SERVICE_FILTER_BATCH_SIZE).map(
+            (ids) =>
+              this.listAll(
+                TABLES.reservation,
+                `?$select=${reservationEntity.id},cr40f_id,cr40f_status,new_categoriadoitem${reservationFields.length ? `,${reservationFields.join(",")}` : ""}&$filter=${[
+                  ...reservationFilters,
+                  `(${ids
+                    .map((id) => `${reservationEntity.id} eq ${id}`)
+                    .join(" or ")})`,
+                ].join(" and ")}&$top=5000`,
+              ),
+          ),
+        )
+      ).flat();
+    } else {
+      reservationRows = await this.listAll(
+        TABLES.reservation,
+        `?$select=${reservationEntity.id},cr40f_id,cr40f_status,new_categoriadoitem${reservationFields.length ? `,${reservationFields.join(",")}` : ""}&$filter=${reservationFilters.join(" and ")}&$top=5000`,
+      );
+      if (!reservationRows.length) return [];
+      const reservationIds = reservationRows.map((row) =>
+        cleanGuid(row[reservationEntity.id]),
+      );
+      const hasScopedFilter = Boolean(from || toExclusive || filters.motoristaId);
+      compositionRows = hasScopedFilter
+        ? (
+            await Promise.all(
+              chunk(reservationIds, FINANCE_SERVICE_FILTER_BATCH_SIZE).map(
+                (ids) =>
+                  this.listAll(
+                    TABLES.composition,
+                    `${compositionSelect}&$filter=${ids
+                      .map((id) => `${reservationLookupValueField} eq ${id}`)
+                      .join(" or ")}&$top=5000`,
+                  ),
+              ),
+            )
+          ).flat()
+        : await this.listAll(
+            TABLES.composition,
+            `${compositionSelect}&$top=5000`,
+          );
+    }
+    if (!reservationRows.length) return [];
     const reservations = new Map(
       reservationRows.map((row) => [
         cleanGuid(row[reservationEntity.id]),
@@ -1546,22 +1597,62 @@ class DataverseClient {
     const services = input.services || [];
     if (!services.length) throw new Error("Selecione pelo menos um serviço.");
     const links = await this.listLinks();
-    const actual = (await this.listFinanceServices()).filter((row) =>
-      services.some((item) => item.id === row.id),
-    );
-    if (actual.length !== services.length)
-      throw new Error(
-        "Um ou mais serviÃ§os selecionados foram alterados. Atualize a lista e tente novamente.",
+    const requestedIds = [
+      ...new Set(services.map((service) => cleanGuid(service.id)).filter(Boolean)),
+    ];
+    const actual = await this.listFinanceServices({ compositionIds: requestedIds });
+    const foundIds = new Set(actual.map((service) => cleanGuid(service.id)));
+    const missingIds = requestedIds.filter((id) => !foundIds.has(id));
+    if (missingIds.length) {
+      const error = new Error(
+        `Serviço(s) não encontrado(s) ou removido(s): ${missingIds.join(", ")}. Atualize a lista e tente novamente.`,
       );
+      error.code = "LOT_SERVICE_NOT_FOUND";
+      error.requestedServiceIds = requestedIds;
+      error.foundServiceIds = [...foundIds];
+      error.missingServiceIds = missingIds;
+      void this.logError(error, {
+        action: "Criacao do lote",
+        phase: "lot.revalidate",
+        payload: {
+          requestedServiceIds: requestedIds,
+          foundServiceIds: [...foundIds],
+          missingServiceIds: missingIds,
+        },
+      });
+      throw error;
+    }
     const invalid = actual.filter((service) =>
       !isEligibleService(service, input.favorecido.id, links),
     );
-    if (invalid.length)
-      throw new Error(
-        `Há ${invalid.length} serviço(s) indisponível(is) para este favorecido: ${invalid
-          .map((service) => service.identificador || service.id)
-          .join(", ")}.`,
+    if (invalid.length) {
+      const reasons = invalid.map((service) => ({
+        id: service.id,
+        identificador: service.identificador || service.id,
+        reason: serviceLotEligibilityReason(
+          service,
+          input.favorecido.id,
+          links,
+        ),
+      }));
+      const error = new Error(
+        `Serviço(s) indisponível(is): ${reasons
+          .map((item) => `${item.identificador} — ${item.reason}`)
+          .join("; ")}.`,
       );
+      error.code = "LOT_SERVICE_INELIGIBLE";
+      error.invalidServices = reasons;
+      void this.logError(error, {
+        action: "Criacao do lote",
+        phase: "lot.revalidate",
+        payload: {
+          requestedServiceIds: requestedIds,
+          foundServiceIds: actual.map((service) => service.id),
+          invalidServices: reasons,
+        },
+      });
+      throw error;
+    }
     const snapshot = createLotSnapshot(input.favorecido, actual, input.year);
     const identifier = `PT-${input.year}-${String(Date.now()).slice(-6)}`;
     if (this.mockMode) {

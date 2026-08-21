@@ -1,0 +1,162 @@
+{
+  "automation/enviar-documento-lote.json": {
+    "mtime": 1784221158.8638318,
+    "ast_hash": "19032cc9ac591668087a39cb5e245215",
+    "semantic_hash": ""
+  },
+  "package.json": {
+    "mtime": 1787316263.7291322,
+    "ast_hash": "689235f104c2523a03f1aa85ea96cdc4",
+    "semantic_hash": ""
+  },
+  "scripts/build-webresource.mjs": {
+    "mtime": 1784120937.312279,
+    "ast_hash": "1394b98690ba558ea685c02981f7c390",
+    "semantic_hash": ""
+  },
+  "scripts/deploy-webresource.ps1": {
+    "mtime": 1784060189.1650414,
+    "ast_hash": "39bfa7881eab8ad5a5cb9bd82ba92439",
+    "semantic_hash": ""
+  },
+  "scripts/dev-with-port.mjs": {
+    "mtime": 1784057082.928597,
+    "ast_hash": "6e3efcb3e1cdb290b98945de66af989c",
+    "semantic_hash": ""
+  },
+  "scripts/provision-dataverse.console.js": {
+    "mtime": 1787245340.2525547,
+    "ast_hash": "f798e13c390b62f1c19507012cc377cf",
+    "semantic_hash": ""
+  },
+  "scripts/provision-flow.ps1": {
+    "mtime": 1784221744.2692182,
+    "ast_hash": "cdd5898dfd8f0a8c6fb1dc35e5cb019b",
+    "semantic_hash": ""
+  },
+  "scripts/update-app-version.mjs": {
+    "mtime": 1784207397.9274175,
+    "ast_hash": "da8a3f4fe862139b6e940e4e28c9dc2d",
+    "semantic_hash": ""
+  },
+  "src/App.jsx": {
+    "mtime": 1787245295.2872968,
+    "ast_hash": "a13d456ade009600308b35abcade3b68",
+    "semantic_hash": ""
+  },
+  "src/SearchableSelect.jsx": {
+    "mtime": 1784565368.8206673,
+    "ast_hash": "5a78e26f0674e1d800917d933a79f89c",
+    "semantic_hash": ""
+  },
+  "src/build-info.js": {
+    "mtime": 1787316263.7451427,
+    "ast_hash": "84ad0922c77220eec92e9df57f983d8e",
+    "semantic_hash": ""
+  },
+  "src/domain/payment.js": {
+    "mtime": 1787244884.6147833,
+    "ast_hash": "82b711f45fee426746269163c2d1e7c3",
+    "semantic_hash": ""
+  },
+  "src/lib/dataverse.js": {
+    "mtime": 1787316093.4933999,
+    "ast_hash": "5215fe2a2f9881d03868ae727f7dff69",
+    "semantic_hash": ""
+  },
+  "src/lib/document.js": {
+    "mtime": 1784218708.3132002,
+    "ast_hash": "f3d132e70a52e7318b7878318c370567",
+    "semantic_hash": ""
+  },
+  "src/lib/ui.js": {
+    "mtime": 1784228210.756198,
+    "ast_hash": "f4c94735019b0a81b36089f05f18f46a",
+    "semantic_hash": ""
+  },
+  "src/main.jsx": {
+    "mtime": 1784207252.483344,
+    "ast_hash": "52a74e4ccd5496ae16accc5210990334",
+    "semantic_hash": ""
+  },
+  "tests/domain.test.js": {
+    "mtime": 1787245099.239705,
+    "ast_hash": "015ef9102c27abf62dbe830c94d31994",
+    "semantic_hash": ""
+  },
+  "tests/mock-flow.test.js": {
+    "mtime": 1787316118.8785563,
+    "ast_hash": "9e0501c857b807af848c4ec8126eac1c",
+    "semantic_hash": ""
+  },
+  "tests/ui.test.js": {
+    "mtime": 1784228187.5996702,
+    "ast_hash": "15c7841bf721238e15c30717fc15c157",
+    "semantic_hash": ""
+  },
+  "vite.config.js": {
+    "mtime": 1784120822.9256985,
+    "ast_hash": "6fcaec4cf3486a02568280ecdd74574d",
+    "semantic_hash": ""
+  },
+  "cr40f_pagamentofornecedores.html": {
+    "mtime": 1784059150.9589353,
+    "ast_hash": "61df6399e069d7fe6b9994b4d7bb593a",
+    "semantic_hash": ""
+  },
+  "docs/dataverse-schema.md": {
+    "mtime": 1784212263.1385844,
+    "ast_hash": "566c35f017aefa6ac88f6cd806773a30",
+    "semantic_hash": ""
+  },
+  "docs/flow-contract.md": {
+    "mtime": 1784221864.956964,
+    "ast_hash": "764b4ac0753d7417fde4a212b6660f18",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-07-16-abertura-gerar-lote.md": {
+    "mtime": 1784227715.8993223,
+    "ast_hash": "58bac8ff6bcb980e5c96a7719feb0afe",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-16-abertura-gerar-lote-design.md": {
+    "mtime": 1784227504.3597846,
+    "ast_hash": "c89d22928a944cd3d4bd5d9536af86dc",
+    "semantic_hash": ""
+  },
+  "implementation_plan.md": {
+    "mtime": 1784221016.030696,
+    "ast_hash": "f5d70e19c9d829df1791d6b14c7fdadf",
+    "semantic_hash": ""
+  },
+  "index.html": {
+    "mtime": 1784057082.9255877,
+    "ast_hash": "da15bef6aaa67076578d67e260cb86d4",
+    "semantic_hash": ""
+  },
+  "task.md": {
+    "mtime": 1784222002.9455023,
+    "ast_hash": "af675cc30353a4c5b3cb0bbfba226df2",
+    "semantic_hash": ""
+  },
+  "src/assets/logo-betinhos-b.png": {
+    "mtime": 1764071784.2389493,
+    "ast_hash": "0fb821aa945a9f66577cff5ed43f5c7f",
+    "semantic_hash": ""
+  },
+  "skill-observations/cross-cutting-principles.md": {
+    "mtime": 1787244813.8325832,
+    "ast_hash": "6c61a479fa2cb4b8a1df6f1195e71fa7",
+    "semantic_hash": ""
+  },
+  "skill-observations/last-review-date.txt": {
+    "mtime": 1787244815.1249058,
+    "ast_hash": "dd34e94b95abf02e177b48f0366099d9",
+    "semantic_hash": ""
+  },
+  "skill-observations/log.md": {
+    "mtime": 1787244812.735964,
+    "ast_hash": "3ea854568e6c89720a58237fa69513e5",
+    "semantic_hash": ""
+  }
+}
