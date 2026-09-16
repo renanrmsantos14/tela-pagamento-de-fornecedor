@@ -6,6 +6,7 @@ import {
   PAYMENT_STATUS,
   createLotSnapshot,
   eligibleServices,
+  isCpCompleted,
   isLegacyPaidService,
   marginPercent,
   paymentTotals,
@@ -64,8 +65,19 @@ test("soma receita, repasse, lucro e percentual", () =>
     marginPercent: 16.666666666666664,
     count: 2,
   }));
-test("só torna elegível serviço concluído com repasse e vínculo ativo", () =>
+test("torna elegível serviço com repasse e vínculo ativo", () =>
   assert.equal(eligibleServices(services, "f1", links).length, 2));
+test("permite CP pendente e sinaliza seu status", () => {
+  const service = { ...services[0], status: "pendente", statusLabel: "Pendente" };
+  assert.equal(eligibleServices([service], "f1", links).length, 1);
+  assert.equal(serviceLotEligibilityReason(service, "f1", links), "");
+  assert.deepEqual(serviceLotWarnings(service).map((warning) => warning.code), ["CP_NOT_COMPLETED"]);
+});
+test("reconhece CP Concluída sem aviso", () => {
+  const service = { ...services[0], statusLabel: "Concluída" };
+  assert.equal(isCpCompleted(service), true);
+  assert.deepEqual(serviceLotWarnings(service), []);
+});
 test("permite CP zerada com repasse e sinaliza prejuízo", () => {
   const service = {
     ...services[0],
@@ -102,7 +114,7 @@ test("explica motivo de inelegibilidade para lote", () => {
     "Não existe vínculo ativo entre motorista e favorecido",
   );
 });
-test("usa status concluído da reserva na elegibilidade", () => {
+test("status da reserva não altera elegibilidade ou aviso da CP", () => {
   const service = {
     ...services[0],
     status: "pendente",
@@ -110,6 +122,7 @@ test("usa status concluído da reserva na elegibilidade", () => {
     reservationStatusLabel: "Concluído",
   };
   assert.equal(eligibleServices([service], "f1", links).length, 1);
+  assert.deepEqual(serviceLotWarnings(service).map((warning) => warning.code), ["CP_NOT_COMPLETED"]);
 });
 test("considera como pago o historico anterior a 01/06/2026", () => {
   const service = { ...services[2], dataServico: "2026-05-31T23:59:59Z" };

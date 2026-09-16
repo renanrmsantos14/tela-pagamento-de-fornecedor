@@ -26,6 +26,7 @@ export const TABLES = Object.freeze({
   employee: "cr40f_funcionarios",
   composition: "cr40f_composicaodeprecos",
   reservation: "cr40f_reservadeveculos",
+  servicePassenger: "cr40f_servicosporpassageiro",
   favorecido: "cr40f_terceirofavorecido",
   link: "cr40f_vinculomotoristafavorecido",
   payment: "cr40f_pagamentoaterceiro",
@@ -220,6 +221,10 @@ const fieldValue = (row, logicalName) =>
       row[logicalName] ||
       ""
     : "";
+const shortPassengerName = (name) => {
+  const parts = String(name || "").trim().split(/\s+/u).filter(Boolean);
+  return parts.length > 1 ? `${parts[0]} ${parts.at(-1)}` : parts[0] || "";
+};
 const rawFieldValue = (row, logicalName) =>
   logicalName ? row[logicalName] || "" : "";
 const selectableAttributeName = (attribute) =>
@@ -1330,6 +1335,27 @@ class DataverseClient {
           );
     }
     if (!reservationRows.length) return [];
+    const passengerRows = (
+      await Promise.all(
+        chunk(reservationRows.map((row) => cleanGuid(row[reservationEntity.id])).filter(Boolean), FINANCE_SERVICE_FILTER_BATCH_SIZE).map(
+          (ids) => this.listAll(
+            TABLES.servicePassenger,
+            `?$select=_cr40f_geral_value,_cr40f_bancodedados_value&$filter=${ids.map((id) => `_cr40f_geral_value eq ${id}`).join(" or ")}&$top=5000`,
+          ),
+        ),
+      )
+    ).flat();
+    const passengersByReservation = new Map();
+    passengerRows.forEach((row) => {
+      const reservationId = cleanGuid(row._cr40f_geral_value);
+      const passengerId = cleanGuid(row._cr40f_bancodedados_value);
+      const name = shortPassengerName(
+        row["_cr40f_bancodedados_value@OData.Community.Display.V1.FormattedValue"],
+      );
+      if (!reservationId || !passengerId || !name) return;
+      if (!passengersByReservation.has(reservationId)) passengersByReservation.set(reservationId, new Map());
+      passengersByReservation.get(reservationId).set(passengerId, name);
+    });
     const reservations = new Map(
       reservationRows.map((row) => [
         cleanGuid(row[reservationEntity.id]),
@@ -1358,6 +1384,7 @@ class DataverseClient {
           operationalFields.dataFinalizacao,
         ),
         cliente: fieldValue(reservation, operationalFields.cliente),
+        nomePassageiro: [...(passengersByReservation.get(reservationId)?.values() || [])].join(" - "),
         trajeto: fieldValue(reservation, operationalFields.trajeto),
         motorista: fieldValue(reservation, operationalFields.motorista),
         motoristaId: cleanGuid(
@@ -2106,12 +2133,15 @@ class DataverseClient {
     } catch {
       data = null;
     }
-    if (!response.ok)
-      throw new Error(
+    if (!response.ok) {
+      const flowError = data?.error;
+      const detail =
         data?.message ||
-          data?.error ||
-          `Flow OneDrive retornou ${response.status}.`,
-      );
+        (typeof flowError === "string" ? flowError : flowError?.message) ||
+        (typeof flowError === "object" ? flowError?.code : "") ||
+        `Flow OneDrive retornou ${response.status}.`;
+      throw new Error(`Flow OneDrive (HTTP ${response.status}): ${detail}`);
+    }
     if (!data || (!data.shareLink && !data.webUrl && !data.url && !data.link))
       throw new Error("Flow OneDrive nao retornou URL do documento.");
     return { ...data, url: data.shareLink || data.webUrl || data.url || data.link };
@@ -2165,12 +2195,18 @@ class DataverseClient {
     } catch {
       data = null;
     }
-    if (!response.ok || data?.ok === false)
-      throw new Error(
+    if (!response.ok || data?.ok === false) {
+      const flowError = data?.error;
+      const detail =
         data?.message ||
-          data?.error ||
-          `Flow de e-mail retornou ${response.status}.`,
+        (typeof flowError === "string" ? flowError : flowError?.message) ||
+        (typeof flowError === "object" ? flowError?.code : "") ||
+        `Flow de e-mail retornou ${response.status}.`;
+      const runId = data?.emailId || data?.runId;
+      throw new Error(
+        `Flow de e-mail (HTTP ${response.status}): ${detail}${runId ? ` Execução: ${runId}.` : ""}`,
       );
+    }
     const emailId = String(data?.emailId || data?.runId || "").trim();
     if (!emailId) throw new Error("Flow de e-mail não retornou emailId.");
     return { ...data, ok: true, emailId, recipient };

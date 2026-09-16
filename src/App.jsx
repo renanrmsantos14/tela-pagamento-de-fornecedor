@@ -61,6 +61,7 @@ import {
   canPay,
   canRevert,
   eligibleServices,
+  isCpCompleted,
   isLegacyPaidService,
   money,
   moneyInput,
@@ -250,6 +251,7 @@ const REPASSE_COLUMNS = [
   { id: "tipoVeiculo", label: "Tipo de veículo", width: 155 },
   { id: "veiculo", label: "Veículo", width: 175 },
   { id: "cliente", label: "Cliente", width: 180 },
+  { id: "nomePassageiro", label: "Nome do passageiro", width: 190 },
   { id: "observacaoOperacao", label: "Observação operacional", width: 260 },
   { id: "observacaoFinal", label: "Observação final", width: 240 },
   { id: "favorecido", label: "Favorecido", width: 180 },
@@ -1785,7 +1787,6 @@ function PaymentsView({
   const [cpStatusFilter, setCpStatusFilter] = useState([]);
   const [repasseFilter, setRepasseFilter] = useState("pending");
   const statusDefaultApplied = useRef(false);
-  const cpStatusDefaultApplied = useRef(false);
   const cpStatusOptions = useMemo(() => {
     const options = new Map();
     services.forEach((service) => {
@@ -1811,15 +1812,6 @@ function PaymentsView({
       ),
     [drivers],
   );
-  useEffect(() => {
-    if (cpStatusDefaultApplied.current || !cpStatusOptions.length) return;
-    cpStatusDefaultApplied.current = true;
-    setCpStatusFilter(
-      cpStatusOptions
-        .filter((option) => normalizeFilterLabel(option.label) === "concluido")
-        .map((option) => option.value),
-    );
-  }, [cpStatusOptions]);
   useEffect(() => {
     if (statusDefaultApplied.current || !reservationStatusOptions.length) return;
     statusDefaultApplied.current = true;
@@ -2001,6 +1993,7 @@ function RepasseGrid({
   const [viewName, setViewName] = useState("");
   const [viewMessage, setViewMessage] = useState("");
   const [showSelectAllPicker, setShowSelectAllPicker] = useState(false);
+  const [pendingCpSelection, setPendingCpSelection] = useState(null);
   const [draggedColumn, setDraggedColumn] = useState("");
   const [dropTarget, setDropTarget] = useState(null);
   const [resize, setResize] = useState(null);
@@ -2177,6 +2170,7 @@ function RepasseGrid({
     selectableLotServices.every((service) => selectedIds.has(service.id));
   const selectAllRef = useRef(null);
   const selectAllPickerRef = useRef(null);
+  const pendingCpDialogRef = useRef(null);
   useEffect(() => {
     const eligibleIds = new Set(eligibleLotServices.map((service) => service.id));
     setSelectedIds((current) => {
@@ -2245,6 +2239,33 @@ function RepasseGrid({
       previousFocus?.focus?.();
     };
   }, [showSelectAllPicker]);
+  useEffect(() => {
+    if (!pendingCpSelection) return undefined;
+    const previousFocus = document.activeElement;
+    pendingCpDialogRef.current?.querySelector(".primary-button")?.focus();
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setPendingCpSelection(null);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const buttons = [...pendingCpDialogRef.current.querySelectorAll("button")];
+      const first = buttons[0];
+      const last = buttons[buttons.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previousFocus?.focus?.();
+    };
+  }, [pendingCpSelection]);
   const pinnedStyles = useMemo(() => {
     let left = 44;
     const styles = new Map();
@@ -2266,6 +2287,32 @@ function RepasseGrid({
     document.addEventListener("pointerdown", closeMenus);
     return () => document.removeEventListener("pointerdown", closeMenus);
   }, [showPicker, showViews]);
+
+  useLayoutEffect(() => {
+    if (!showPicker) return undefined;
+    const picker = columnPickerRef.current?.querySelector(".column-picker");
+    const updateHeight = () => {
+      if (!picker) return;
+      if (window.matchMedia("(max-width: 820px)").matches) {
+        picker.classList.remove("is-above");
+        picker.style.maxHeight = "";
+        return;
+      }
+      const anchor = columnPickerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - anchor.bottom - 19;
+      const spaceAbove = anchor.top - 19;
+      const showAbove = spaceBelow < 220 && spaceAbove > spaceBelow;
+      picker.classList.toggle("is-above", showAbove);
+      picker.style.maxHeight = `${Math.max(0, showAbove ? spaceAbove : spaceBelow)}px`;
+    };
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    window.addEventListener("scroll", updateHeight, true);
+    return () => {
+      window.removeEventListener("resize", updateHeight);
+      window.removeEventListener("scroll", updateHeight, true);
+    };
+  }, [showPicker]);
 
   useLayoutEffect(() => {
     const previousPositions = previousColumnPositionsRef.current;
@@ -2597,26 +2644,36 @@ function RepasseGrid({
     );
   };
 
-  const toggleServiceSelection = (serviceId) =>
+  const requestSelection = (ids, replace = false) => {
+    const pending = eligibleLotServices.filter(
+      (service) => ids.includes(service.id) && (replace || !selectedIds.has(service.id)) && !isCpCompleted(service),
+    );
+    if (pending.length) {
+      setPendingCpSelection({ ids, replace, pending });
+      return;
+    }
+    applySelection(ids, replace);
+  };
+  const applySelection = (ids, replace = false) =>
     setSelectedIds((current) => {
+      if (replace) return new Set(ids);
       const next = new Set(current);
-      if (next.has(serviceId)) next.delete(serviceId);
-      else next.add(serviceId);
+      ids.forEach((id) => {
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+      });
       return next;
     });
+  const toggleServiceSelection = (serviceId) => requestSelection([serviceId]);
   const toggleServicesForFavorecido = (favorecidoId) => {
     const groupIds = new Set(
       eligibleLotServices
         .filter((service) => service.favorecidoId === favorecidoId)
         .map((service) => service.id),
     );
-    setSelectedIds((current) => {
-      const allGroupSelected =
-        groupIds.size > 0 && [...groupIds].every((id) => current.has(id));
-      if (allGroupSelected)
-        return new Set([...current].filter((id) => !groupIds.has(id)));
-      return groupIds;
-    });
+    const ids = [...groupIds];
+    const allGroupSelected = ids.length > 0 && ids.every((id) => selectedIds.has(id));
+    requestSelection(allGroupSelected ? [] : ids, true);
     setShowSelectAllPicker(false);
   };
   const requestToggleAllSelectableServices = () => {
@@ -2651,7 +2708,7 @@ function RepasseGrid({
               </small>
               {selectedWarningServices.length > 0 && (
                 <small className="repasse-selection-warning">
-                  {selectedWarningServices.length} com prejuízo/CP zerada
+                  {selectedWarningServices.length} com aviso financeiro/CP
                 </small>
               )}
             </>
@@ -2914,7 +2971,7 @@ function RepasseGrid({
                 title={
                   allSelectableServicesSelected
                     ? "Limpar seleção"
-                    : "Selecionar todos prontos"
+                    : "Selecionar todos elegíveis"
                 }
               >
                 <input
@@ -2926,7 +2983,7 @@ function RepasseGrid({
                   aria-label={
                     allSelectableServicesSelected
                       ? "Limpar seleção de serviços prontos"
-                      : "Selecionar todos os serviços prontos do favorecido"
+                      : "Selecionar todos os serviços elegíveis do favorecido"
                   }
                 />
                 <span
@@ -3056,9 +3113,9 @@ function RepasseGrid({
                   );
             const selectionLabel = !isEligibleForLot
               ? `Não pode entrar no lote. Motivo: ${eligibilityReason}.`
-              : isOtherFavorecido
-                ? "Um lote só pode conter serviços do mesmo favorecido"
-                : financialWarnings.length
+                : isOtherFavorecido
+                  ? "Um lote só pode conter serviços do mesmo favorecido"
+                  : financialWarnings.length
                   ? `Selecionar ${service.identificador}. Atenção: ${financialWarnings
                       .map((warning) => warning.message)
                       .join("; ")}.`
@@ -3182,6 +3239,33 @@ function RepasseGrid({
               >
                 Cancelar
               </button>
+            </footer>
+          </div>
+        </div>
+      )}
+      {pendingCpSelection && (
+        <div className="repasse-favorecido-dialog-layer">
+          <button className="repasse-favorecido-dialog-backdrop" type="button" aria-label="Cancelar seleção" onClick={() => setPendingCpSelection(null)} />
+          <div className="repasse-favorecido-dialog" ref={pendingCpDialogRef} role="dialog" aria-modal="true" aria-labelledby="pending-cp-title" aria-describedby="pending-cp-description">
+            <header>
+              <div>
+                <span>Atenção ao status da CP</span>
+                <h2 id="pending-cp-title">Confirmar seleção?</h2>
+                <p id="pending-cp-description">{pendingCpSelection.pending.length} serviço(s) têm CP não concluída. É possível incluí-los no lote mesmo assim. Confira os status antes de continuar.</p>
+              </div>
+              <button className="repasse-favorecido-dialog-close" type="button" aria-label="Fechar" onClick={() => setPendingCpSelection(null)}><X size={18} /></button>
+            </header>
+            <ul className="repasse-pending-cp-list">
+              {pendingCpSelection.pending.map((service) => (
+                <li key={service.id}><strong>{service.identificador || service.id}</strong><span>CP: {service.statusLabel || service.status || "Não informado"}</span></li>
+              ))}
+            </ul>
+            <footer>
+              <button className="secondary-button" type="button" onClick={() => setPendingCpSelection(null)}>Cancelar</button>
+              <button className="primary-button" type="button" onClick={() => {
+                applySelection(pendingCpSelection.ids, pendingCpSelection.replace);
+                setPendingCpSelection(null);
+              }}>Confirmar seleção</button>
             </footer>
           </div>
         </div>
@@ -3835,6 +3919,7 @@ function LotDrawer({
       : selectable;
   }, [services, favorecidoId, links, from, to, existingLot?.id, isReview, preselected]);
   const [selected, setSelected] = useState([]);
+  const [showCpConfirmation, setShowCpConfirmation] = useState(false);
   useEffect(
     () =>
       setSelected(
@@ -3854,6 +3939,7 @@ function LotDrawer({
   const chosen = available.filter((row) => selected.includes(row.id));
   const totals = paymentTotals(chosen);
   const warningServices = chosen.filter((row) => serviceLotWarnings(row).length);
+  const pendingCpServices = chosen.filter((row) => !isCpCompleted(row));
   const zeroCpCount = warningServices.filter((row) =>
     serviceLotWarnings(row).some((warning) => warning.code === "ZERO_CP"),
   ).length;
@@ -3933,6 +4019,7 @@ function LotDrawer({
         {warningServices.length > 0 && (
           <div className="inline-alert warning-alert">
             <AlertTriangle size={16} />
+            {pendingCpServices.length > 0 && `${pendingCpServices.length} serviço(s) com CP não concluída. `}
             {zeroCpCount > 0 && `${zeroCpCount} serviço(s) com Total CP zerado. `}
             {negativeMarginCount > 0 && `${negativeMarginCount} serviço(s) com prejuízo. `}
             O repasse será mantido e o lote pode ser criado após esta revisão.
@@ -3977,13 +4064,13 @@ function LotDrawer({
           <button
             className="primary-button"
             disabled={!favorecido || !chosen.length || saving}
-            onClick={() =>
-              onSave({
-                favorecido,
-                services: chosen,
-                year: Number(from.slice(0, 4)),
-              })
-            }
+            onClick={() => {
+              if (!isReview && pendingCpServices.length && !showCpConfirmation) {
+                setShowCpConfirmation(true);
+                return;
+              }
+              onSave({ favorecido, services: chosen, year: Number(from.slice(0, 4)) });
+            }}
           >
             <ClipboardList size={16} />
             {saving
@@ -3995,6 +4082,16 @@ function LotDrawer({
                   : "Criar lote"}
           </button>
         </div>
+        {showCpConfirmation && (
+          <div className="repasse-favorecido-dialog-layer">
+            <button className="repasse-favorecido-dialog-backdrop" type="button" aria-label="Cancelar criação do lote" onClick={() => setShowCpConfirmation(false)} />
+            <div className="repasse-favorecido-dialog" role="dialog" aria-modal="true" aria-labelledby="lot-pending-cp-title">
+              <header><div><span>Atenção ao status da CP</span><h2 id="lot-pending-cp-title">Confirmar lote com CP não concluída?</h2><p>Estes serviços serão incluídos mesmo com CP pendente.</p></div></header>
+              <ul className="repasse-pending-cp-list">{pendingCpServices.map((service) => <li key={service.id}><strong>{service.identificador || service.id}</strong><span>CP: {service.statusLabel || service.status || "Não informado"}</span></li>)}</ul>
+              <footer><button className="secondary-button" type="button" onClick={() => setShowCpConfirmation(false)}>Cancelar</button><button className="primary-button" type="button" disabled={saving} onClick={() => { setShowCpConfirmation(false); onSave({ favorecido, services: chosen, year: Number(from.slice(0, 4)) }); }}>Confirmar lote</button></footer>
+            </div>
+          </div>
+        )}
       </div>
     </Drawer>
   );

@@ -15,6 +15,8 @@ async function remoteClient({
   metadataAvailable = true,
   oneDriveFlowUrl = "",
   documentEmailFlowUrl = "",
+  documentEmailFlowResponse = { ok: true, emailId: "flow-run-email-001" },
+  documentEmailFlowStatus = 200,
 } = {}) {
   const previousWindow = globalThis.window;
   const previousFetch = globalThis.fetch;
@@ -26,6 +28,7 @@ async function remoteClient({
       "cr40f_vinculomotoristafavorecidos",
     cr40f_composicaodeprecos: "cr40f_composicaodeprecoses",
     cr40f_reservadeveculos: "cr40f_reservadeveculoses",
+    cr40f_servicosporpassageiro: "cr40f_servicosporpassageiros",
     cr40f_pagamentoaterceiro: "cr40f_pagamentoaterceiros",
     cr40f_itempagamentoaterceiro: "cr40f_itempagamentoaterceiros",
     cr40f_eventopagamentoaterceiro: "cr40f_eventopagamentoaterceiros",
@@ -111,7 +114,7 @@ async function remoteClient({
     if (url === oneDriveFlowUrl && options.method === "POST")
       return response({ shareLink: "https://onedrive.example/documento.pdf" });
     if (url === documentEmailFlowUrl && options.method === "POST")
-      return response({ ok: true, emailId: "flow-run-email-001" });
+      return response(documentEmailFlowResponse, documentEmailFlowStatus);
     if (options.method === "POST") return response({});
     if (url.endsWith("/WhoAmI"))
       return response({
@@ -297,6 +300,12 @@ async function remoteClient({
           },
         ],
       });
+    if (url.includes("cr40f_servicosporpassageiros"))
+      return response({ value: [
+        { _cr40f_geral_value: "res-remote-001", _cr40f_bancodedados_value: "pass-remote-001", "_cr40f_bancodedados_value@OData.Community.Display.V1.FormattedValue": "Ana Maria Oliveira" },
+        { _cr40f_geral_value: "res-remote-001", _cr40f_bancodedados_value: "pass-remote-002", "_cr40f_bancodedados_value@OData.Community.Display.V1.FormattedValue": "Carlos Eduardo dos Santos" },
+        { _cr40f_geral_value: "res-remote-001", _cr40f_bancodedados_value: "pass-remote-003" },
+      ] });
     if (url.includes("cr40f_pagamentoaterceiros"))
       return response({ value: [payment] });
     if (url.includes("cr40f_itempagamentoaterceiros"))
@@ -642,6 +651,7 @@ test("contrato remoto usa navigation properties da metadata e normaliza lote", a
     assert.equal(remoteServices[0].reservationId, "res-remote-001");
     assert.equal(remoteServices[0].motorista, "Motorista remoto");
     assert.equal(remoteServices[0].cliente, "Cliente remoto");
+    assert.equal(remoteServices[0].nomePassageiro, "Ana Oliveira - Carlos Santos");
     assert.equal(remoteServices[0].trajeto, "GRU - Centro");
     assert.equal(remoteServices[0].dataServico, "2026-07-15T12:00:00Z");
     assert.equal(remoteServices[0].dataFinalizacao, "2026-07-15T14:00:00Z");
@@ -881,6 +891,29 @@ test("Flow de e-mail recebe o PDF real pela variavel do ambiente", async () => {
           "new_FlowURLEnviarDocumentoLoteFornecedor",
         ),
       ),
+    );
+  } finally {
+    remote.restore();
+  }
+});
+
+test("Flow de e-mail mostra a mensagem de erro estruturada sem [object Object]", async () => {
+  const remote = await remoteClient({
+    documentEmailFlowUrl: "https://flow.example/enviar-documento-lote",
+    documentEmailFlowStatus: 502,
+    documentEmailFlowResponse: {
+      error: { code: "ConnectionAuthorizationFailed", message: "Conexão Outlook inválida." },
+      runId: "flow-run-failed-001",
+    },
+  });
+  try {
+    const lot = await remote.dataverse.getLotDetail("lot-remote-001");
+    await assert.rejects(
+      remote.dataverse.sendLotDocumentEmail(lot, {
+        name: "Pagamento_PT-2026-REMOTE_v1.pdf",
+        base64: "JVBERi0xLjQ=",
+      }),
+      /HTTP 502.*Conexão Outlook inválida.*flow-run-failed-001/,
     );
   } finally {
     remote.restore();
