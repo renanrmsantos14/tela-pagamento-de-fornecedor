@@ -11,7 +11,7 @@ import {
 } from "../domain/payment.js";
 
 const API_VERSION = "v9.2";
-const STORE_KEY = "betinhos_pagamentos_terceiros_mock_v4";
+const STORE_KEY = "betinhos_pagamentos_terceiros_mock_v5";
 const FLOW_CONTRACT = "new_FlowURLFlowSalvarArquivosOnedrive";
 const FLOW_RUNTIME_KEY = "VITE_FLOW_SALVAR_ARQUIVOS_ONEDRIVE_URL";
 const EMAIL_FLOW_CONTRACT = "new_FlowURLEnviarDocumentoLoteFornecedor";
@@ -371,6 +371,13 @@ function seedServices() {
         "Alfa Eventos",
         "Operação Sul",
       ][index % 5],
+      nomePassageiro: [
+        "Ana Martins",
+        "Bruno Ferreira - Carla Ribeiro",
+        "Daniel Oliveira",
+        "Elisa Costa - Felipe Almeida",
+        "Gabriela Souza",
+      ][index % 5],
       trajeto: routes[index % routes.length],
       observacaoOperacao: [
         "Aguardar no desembarque",
@@ -417,58 +424,84 @@ function seedServices() {
 function buildState() {
   const services = seedServices();
   const links = seedLinks();
-  const initial = services
+  const candidates = services
     .filter(
       (service) =>
         service.status === "concluido" &&
         service.itemCategory === CHOICES.serviceItemCategory &&
         service.valorRepasse > 0 &&
         service.favorecidoId,
-    )
-    .slice(0, 2);
-  const favorecido = seedFavorecidos.find(
-    (row) => row.id === initial[0].favorecidoId,
-  );
-  const snapshot = createLotSnapshot(favorecido, initial, 2026);
-  const lot = {
-    ...snapshot,
-    id: "lot-demo-001",
-    identifier: "PT-2026-000001",
-    documentStatus: DOCUMENT_STATUS.SENT,
-    paymentStatus: PAYMENT_STATUS.PAID,
-    paidAt: "2026-01-28T14:00:00.000Z",
-    documentUrl: "https://onedrive.local/PT-2026-000001-v1.pdf",
-    documentName: "Pagamento_PT-2026-000001_v1.pdf",
-  };
-  initial.forEach((service) => {
-    service.pagamentoId = lot.id;
+    );
+  const scenarios = [
+    { paymentStatus: PAYMENT_STATUS.PAID, documentStatus: DOCUMENT_STATUS.SENT },
+    { paymentStatus: PAYMENT_STATUS.OPEN, documentStatus: DOCUMENT_STATUS.NOT_GENERATED },
+    { paymentStatus: PAYMENT_STATUS.PAID, documentStatus: DOCUMENT_STATUS.FAILED },
+    { paymentStatus: PAYMENT_STATUS.PAID, documentStatus: DOCUMENT_STATUS.RESEND_REQUIRED },
+    { paymentStatus: PAYMENT_STATUS.OPEN, documentStatus: DOCUMENT_STATUS.NOT_GENERATED, lotStatus: LOT_STATUS.CANCELLED },
+  ];
+  const usedServiceIds = new Set();
+  const lots = scenarios.map((scenario, index) => {
+    const first = candidates.find((service) => !usedServiceIds.has(service.id));
+    const selected = candidates
+      .filter((service) => service.favorecidoId === first.favorecidoId && !usedServiceIds.has(service.id))
+      .slice(0, 2);
+    selected.forEach((service) => usedServiceIds.add(service.id));
+    const favorecido = seedFavorecidos.find((row) => row.id === selected[0].favorecidoId);
+    const identifier = `PT-2026-${String(index + 1).padStart(6, "0")}`;
+    const lot = {
+      ...createLotSnapshot(favorecido, selected, 2026),
+      ...scenario,
+      id: `lot-demo-${String(index + 1).padStart(3, "0")}`,
+      identifier,
+      paidAt: scenario.paymentStatus === PAYMENT_STATUS.PAID ? selected[0].dataServico : "",
+      documentUrl: scenario.documentStatus === DOCUMENT_STATUS.SENT ? `https://onedrive.local/${identifier}-v1.pdf` : "",
+      documentName: scenario.documentStatus === DOCUMENT_STATUS.SENT ? `Pagamento_${identifier}_v1.pdf` : "",
+      documentError: scenario.documentStatus === DOCUMENT_STATUS.FAILED ? "Falha simulada no envio do documento." : "",
+      cancelledAt: scenario.lotStatus === LOT_STATUS.CANCELLED ? selected[0].dataServico : "",
+    };
+    if (scenario.lotStatus !== LOT_STATUS.CANCELLED)
+      selected.forEach((service) => { service.pagamentoId = lot.id; });
+    return lot;
   });
+  const items = lots.flatMap((lot) => lot.services.map((service) => ({
+    ...clone(service),
+    id: `item-${service.id}`,
+    paymentId: lot.id,
+    serviceId: service.id,
+    itemStatus: lot.lotStatus === LOT_STATUS.CANCELLED
+      ? ITEM_STATUS.CANCELLED
+      : lot.paymentStatus === PAYMENT_STATUS.PAID ? ITEM_STATUS.PAID : ITEM_STATUS.RESERVED,
+  })));
+  const events = lots.flatMap((lot) => [{
+    id: `evt-${lot.id}`,
+    paymentId: lot.id,
+    operation: lot.lotStatus === LOT_STATUS.CANCELLED ? "cancelled" : lot.paymentStatus === PAYMENT_STATUS.PAID ? "paid" : "draft_created",
+    result: "success",
+    message: lot.lotStatus === LOT_STATUS.CANCELLED ? "Lote cancelado no cenário de demonstração." : lot.paymentStatus === PAYMENT_STATUS.PAID ? "Pagamento registrado no cenário de demonstração." : "Rascunho criado no cenário de demonstração.",
+    version: 1,
+    createdAt: lot.paidAt || lot.cancelledAt || lot.services[0].dataServico,
+    user: "Financeiro Betinhos",
+    documentUrl: lot.documentUrl,
+  }, ...([DOCUMENT_STATUS.SENT, DOCUMENT_STATUS.FAILED, DOCUMENT_STATUS.RESEND_REQUIRED].includes(lot.documentStatus)
+    ? [{
+        id: `evt-document-${lot.id}`,
+        paymentId: lot.id,
+        operation: lot.documentStatus === DOCUMENT_STATUS.SENT ? "document_sent" : "document_failed",
+        result: lot.documentStatus === DOCUMENT_STATUS.SENT ? "success" : "failure",
+        message: lot.documentStatus === DOCUMENT_STATUS.SENT ? "Documento enviado ao favorecido." : "Envio do documento requer atenção.",
+        version: 1,
+        createdAt: lot.paidAt,
+        user: "Financeiro Betinhos",
+        documentUrl: lot.documentUrl,
+      }] : [])]);
   return {
     drivers,
     favorecidos: clone(seedFavorecidos),
     links,
     services,
-    lots: [lot],
-    items: initial.map((service) => ({
-      id: `item-${service.id}`,
-      paymentId: lot.id,
-      serviceId: service.id,
-      itemStatus: ITEM_STATUS.PAID,
-      ...clone(service),
-    })),
-    events: [
-      {
-        id: "evt-demo",
-        paymentId: lot.id,
-        operation: "document_sent",
-        result: "success",
-        message: "Documento enviado ao favorecido.",
-        version: 1,
-        createdAt: now(),
-        user: "Financeiro Betinhos",
-        documentUrl: lot.documentUrl,
-      },
-    ],
+    lots,
+    items,
+    events,
     failNext: {},
   };
 }
@@ -901,7 +934,7 @@ class DataverseClient {
       `Dataverse criou ${logicalName}, mas nao retornou o identificador.`,
     );
   }
-  async listAll(logicalName, query = "", maxPages = 20) {
+  async listAll(logicalName, query = "") {
     if (this.mockMode) {
       const key =
         logicalName === TABLES.favorecido
@@ -921,7 +954,7 @@ class DataverseClient {
     }
     const rows = [];
     let next = query;
-    for (let page = 0; page < maxPages && next !== null; page += 1) {
+    while (next !== null) {
       const entity = await this.entity(logicalName);
       const response = await this.request(
         "GET",
@@ -1277,7 +1310,7 @@ class DataverseClient {
                 TABLES.composition,
                 `${compositionSelect}&$filter=${ids
                   .map((id) => `cr40f_composicaodeprecosid eq ${id}`)
-                  .join(" or ")}&$top=5000`,
+                  .join(" or ")}`,
               ),
           ),
         )
@@ -1300,7 +1333,7 @@ class DataverseClient {
                   `(${ids
                     .map((id) => `${reservationEntity.id} eq ${id}`)
                     .join(" or ")})`,
-                ].join(" and ")}&$top=5000`,
+                ].join(" and ")}`,
               ),
           ),
         )
@@ -1308,7 +1341,7 @@ class DataverseClient {
     } else {
       reservationRows = await this.listAll(
         TABLES.reservation,
-        `?$select=${reservationEntity.id},cr40f_id,cr40f_status,new_categoriadoitem${reservationFields.length ? `,${reservationFields.join(",")}` : ""}&$filter=${reservationFilters.join(" and ")}&$top=5000`,
+        `?$select=${reservationEntity.id},cr40f_id,cr40f_status,new_categoriadoitem${reservationFields.length ? `,${reservationFields.join(",")}` : ""}&$filter=${reservationFilters.join(" and ")}`,
       );
       if (!reservationRows.length) return [];
       const reservationIds = reservationRows.map((row) =>
@@ -1324,14 +1357,14 @@ class DataverseClient {
                     TABLES.composition,
                     `${compositionSelect}&$filter=${ids
                       .map((id) => `${reservationLookupValueField} eq ${id}`)
-                      .join(" or ")}&$top=5000`,
+                      .join(" or ")}`,
                   ),
               ),
             )
           ).flat()
         : await this.listAll(
             TABLES.composition,
-            `${compositionSelect}&$top=5000`,
+            compositionSelect,
           );
     }
     if (!reservationRows.length) return [];
@@ -1340,7 +1373,7 @@ class DataverseClient {
         chunk(reservationRows.map((row) => cleanGuid(row[reservationEntity.id])).filter(Boolean), FINANCE_SERVICE_FILTER_BATCH_SIZE).map(
           (ids) => this.listAll(
             TABLES.servicePassenger,
-            `?$select=_cr40f_geral_value,_cr40f_bancodedados_value&$filter=${ids.map((id) => `_cr40f_geral_value eq ${id}`).join(" or ")}&$top=5000`,
+            `?$select=_cr40f_geral_value,_cr40f_bancodedados_value&$filter=${ids.map((id) => `_cr40f_geral_value eq ${id}`).join(" or ")}`,
           ),
         ),
       )

@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import { CHOICES, dataverse } from "./lib/dataverse";
 import { buildPaymentPdf } from "./lib/document";
+import { downloadServicesXlsx } from "./lib/excel";
 import {
   lotCreationDrawer,
   lotDetailLoadingDrawer,
@@ -1011,6 +1012,7 @@ export default function App() {
               setVehicleTypes={setVehicleTypes}
               vehicleTypeOptions={vehicleTypeOptions}
               reservationStatusOptions={reservationStatusOptions}
+              refreshing={isRefreshing}
               lotDrawerOpen={drawer?.type === "lot" || drawer?.type === "editLot"}
               busy={busy}
               autosaveErrors={autosaveErrors}
@@ -1776,6 +1778,7 @@ function PaymentsView({
   setVehicleTypes,
   vehicleTypeOptions,
   reservationStatusOptions,
+  refreshing,
   lotDrawerOpen,
   busy,
   autosaveErrors,
@@ -1960,6 +1963,7 @@ function PaymentsView({
       </section>
       <RepasseGrid
         services={servicesWithStatusColor}
+        refreshing={refreshing}
         favorecidos={allFavorecidos}
         busy={busy}
         autosaveErrors={autosaveErrors}
@@ -1974,6 +1978,7 @@ function PaymentsView({
 }
 function RepasseGrid({
   services,
+  refreshing,
   favorecidos,
   busy,
   autosaveErrors,
@@ -2000,6 +2005,8 @@ function RepasseGrid({
   const [sort, setSort] = useState({ id: "dataServico", direction: "desc" });
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [activeRepasseRowId, setActiveRepasseRowId] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   const orderedColumns = useMemo(() => orderRepasseColumns(columns), [columns]);
   const visibleColumns = useMemo(
     () => orderedColumns.filter((column) => column.visible),
@@ -2067,6 +2074,18 @@ function RepasseGrid({
       return sort.direction === "asc" ? result : -result;
     });
   }, [services, sort]);
+  const exportCurrentView = async () => {
+    setExporting(true);
+    setExportError("");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    try {
+      downloadServicesXlsx(sortedServices, visibleColumns, favorecidos, activeView?.name);
+    } catch (error) {
+      setExportError(`Falha ao extrair Excel: ${error.message}`);
+    } finally {
+      setExporting(false);
+    }
+  };
   const serviceIndexById = useMemo(
     () => new Map(sortedServices.map((service, index) => [service.id, index])),
     [sortedServices],
@@ -2717,6 +2736,17 @@ function RepasseGrid({
           )}
         </div>
         <div className="repasse-grid-actions">
+          {exportError && <span role="alert">{exportError}</span>}
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={!sortedServices.length || exporting || refreshing}
+            onClick={exportCurrentView}
+            title="Extrair todas as linhas dos filtros e colunas da view atual"
+          >
+            <FileDown size={16} />
+            {exporting ? "Preparando Excel…" : "Extrair para Excel"}
+          </button>
           <GenerateLotButton
             selectedServices={selectedServices}
             drawerOpen={lotDrawerOpen}

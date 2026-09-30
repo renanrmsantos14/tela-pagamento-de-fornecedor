@@ -383,6 +383,34 @@ test("lista retorna somente reservas da categoria Serviço", async () => {
   );
 });
 
+test("mock inicial cobre passageiros e etapas do ciclo de lotes com vínculos consistentes", async () => {
+  const { dataverse } = await client();
+  dataverse.resetMock();
+  const services = await dataverse.listFinanceServices();
+  const lots = await dataverse.listLots();
+  assert.ok(services.some((service) => service.nomePassageiro.includes(" - ")));
+  assert.deepEqual(
+    new Set(lots.map((lot) => `${lot.lotStatus}:${lot.paymentStatus}:${lot.documentStatus}`)),
+    new Set([
+      "draft:paid:sent",
+      "draft:open:not_generated",
+      "draft:paid:failed",
+      "draft:paid:resend_required",
+      "cancelled:open:not_generated",
+    ]),
+  );
+  for (const lot of lots) {
+    const detail = await dataverse.getLotDetail(lot.id);
+    assert.ok(detail.items.length > 0);
+    assert.ok(detail.events.length > 0);
+    assert.ok(detail.items.every((item) => item.favorecidoId === lot.favorecidoId));
+    assert.ok(detail.items.every((item) => {
+      const service = services.find((row) => row.id === item.serviceId);
+      return service?.pagamentoId === (lot.lotStatus === "cancelled" ? "" : lot.id);
+    }));
+  }
+});
+
 test("link do serviço abre a reserva no formulário geral", async () => {
   const { dataverse } = await client();
   const url = new URL(
